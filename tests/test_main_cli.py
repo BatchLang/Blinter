@@ -14,10 +14,6 @@ from unittest.mock import patch
 
 import pytest
 
-from blinter import (
-    find_batch_files,
-    main,
-)
 from blinter.cli.args import _parse_cli_arguments, _parse_regular_arguments
 from blinter.cli.main import (
     _apply_cli_config_overrides,
@@ -27,6 +23,10 @@ from blinter.cli.main import (
     main as cli_main,
 )
 from blinter.engine.linter import lint_batch_file as engine_lint_batch_file
+from blinter import (
+    find_batch_files,
+    main,
+)
 from blinter.models import BlinterConfig, CliArguments, LintIssue, ProcessingState
 from tests.conftest import get_project_version
 

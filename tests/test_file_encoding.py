@@ -9,12 +9,12 @@ import warnings
 
 import pytest
 
+from blinter.constants import MAX_FILE_SIZE_BYTES, MAX_LINE_LENGTH
+from blinter.io.encoding import _validate_and_read_file
 from blinter import (
     lint_batch_file,
     read_file_with_encoding,
 )
-from blinter.constants import MAX_FILE_SIZE_BYTES, MAX_LINE_LENGTH
-from blinter.io.encoding import _validate_and_read_file
 from tests.conftest import make_mock_encoding_path, patch_valid_encoding_path
 
 _VALIDATE_FILE_PATCH = patch(
