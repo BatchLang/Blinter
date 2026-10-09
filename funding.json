@@ -35,6 +35,24 @@
                 "type": "other",
                 "address": "BatchLang@proton.me",
                 "description": "Contact me via email to discuss funding arrangements. I can accept bank transfers and various payment methods."
+            },
+            {
+                "guid": "paypal",
+                "type": "payment-provider",
+                "address": "https://paypal.me/tboy1337",
+                "description": "One-off payments via PayPal."
+            },
+            {
+                "guid": "buy-me-a-coffee",
+                "type": "payment-provider",
+                "address": "https://buymeacoffee.com/tboy1337",
+                "description": "One-off tips and simple monthly memberships."
+            },
+            {
+                "guid": "patreon",
+                "type": "payment-provider",
+                "address": "https://www.patreon.com/tboy1337",
+                "description": "Monthly support via Patreon."
             }
         ],
         "plans": [
@@ -44,9 +62,9 @@
                 "name": "Maintenance & Bug Fixes",
                 "description": "This plan covers ongoing maintenance and stability improvements:\n\n• Regular bug fixes and issue triage\n• Dependency updates and security patches\n• Test suite maintenance and expansion\n• Community support and issue responses\n• Minor feature improvements and rule additions\n• Documentation updates\n• Compatibility testing with new Python versions\n\nThis ensures Blinter remains reliable, secure, and compatible with evolving systems.",
                 "amount": 500,
-                "currency": "USD",
+                "currency": "GBP",
                 "frequency": "monthly",
-                "channels": ["email-contact"]
+                "channels": ["buy-me-a-coffee", "patreon", "email-contact"]
             },
             {
                 "guid": "active-development",
@@ -54,19 +72,19 @@
                 "name": "Active Development",
                 "description": "Enables significant feature development and ecosystem expansion:\n\n• New linting rules and deeper static analysis\n• Editor extensions, language server integration, and GUI tooling\n• Performance optimization and CI/CD platform integrations\n• Corpus expansion and batch-spec spec synchronization\n• Comprehensive documentation and community engagement\n\nAllows dedicated time for ambitious improvements that enhance Blinter's capabilities and reach.",
                 "amount": 2000,
-                "currency": "USD",
+                "currency": "GBP",
                 "frequency": "monthly",
-                "channels": ["email-contact"]
+                "channels": ["buy-me-a-coffee", "patreon", "email-contact"]
             },
             {
                 "guid": "one-time-support",
                 "status": "active",
                 "name": "One-Time Goodwill Support",
                 "description": "A flexible support option for anyone who wants to contribute to Blinter's development without ongoing commitment.\n\nAny amount is appreciated and helps cover:\n• Development time and effort\n• Infrastructure and tooling costs\n• Documentation and learning resources\n• General project sustainability\n\nThis is perfect for users who have benefited from Blinter and want to show their appreciation.",
-                "amount": 0,
-                "currency": "USD",
+                "amount": 50,
+                "currency": "GBP",
                 "frequency": "one-time",
-                "channels": ["email-contact"]
+                "channels": ["paypal", "buy-me-a-coffee", "email-contact"]
             }
         ],
         "history": [
@@ -75,7 +93,7 @@
                 "income": 0,
                 "expenses": 0,
                 "taxes": 0,
-                "currency": "USD",
+                "currency": "GBP",
                 "description": "Initial development year. Applied to FLOSS/fund and established funding.json manifest. Actively seeking sustainable funding to dedicate more time to development."
             },
             {
@@ -83,7 +101,7 @@
                 "income": 0,
                 "expenses": 0,
                 "taxes": 0,
-                "currency": "USD",
+                "currency": "GBP",
                 "description": "Expanded to 175 rules, batch-spec SSOT integration, follow-calls cross-script analysis, JSON reporting, and FLOSS/Fund listing."
             }
         ]
