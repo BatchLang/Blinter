@@ -34,7 +34,7 @@
                 "guid": "email-contact",
                 "type": "other",
                 "address": "BatchLang@proton.me",
-                "description": "Contact me via email to discuss funding arrangements. I can accept bank transfers and various payment methods."
+                "description": "Contact me via email to discuss other funding arrangements. I can accept bank transfers and various payment methods."
             },
             {
                 "guid": "paypal",
@@ -46,13 +46,13 @@
                 "guid": "buy-me-a-coffee",
                 "type": "payment-provider",
                 "address": "https://buymeacoffee.com/tboy1337",
-                "description": "One-off tips and simple monthly memberships."
+                "description": "One-off tips and monthly memberships."
             },
             {
                 "guid": "patreon",
                 "type": "payment-provider",
                 "address": "https://www.patreon.com/tboy1337",
-                "description": "Monthly support via Patreon."
+                "description": "Alternative monthly memberships via Patreon."
             }
         ],
         "plans": [
@@ -81,7 +81,7 @@
                 "status": "active",
                 "name": "One-Time Goodwill Support",
                 "description": "A flexible support option for anyone who wants to contribute to Blinter's development without ongoing commitment.\n\nAny amount is appreciated and helps cover:\n• Development time and effort\n• Infrastructure and tooling costs\n• Documentation and learning resources\n• General project sustainability\n\nThis is perfect for users who have benefited from Blinter and want to show their appreciation.",
-                "amount": 50,
+                "amount": 0,
                 "currency": "GBP",
                 "frequency": "one-time",
                 "channels": ["paypal", "buy-me-a-coffee", "email-contact"]
