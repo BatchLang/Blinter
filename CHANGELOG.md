@@ -2,6 +2,13 @@
 
 All notable changes to Blinter are documented in this file. Release tags follow [Semantic Versioning](https://semver.org/).
 
+## [1.1.34] - 2026-10-12
+
+### Changed
+
+- FOR-block performance checks scan each file once instead of from line 1 on every line, so medium scripts no longer pay a quadratic cost
+- **W068** compiles each variable's percent-expansion pattern once and matches the SET name once per command segment. Reported issues are unchanged
+
 ## [1.1.33] - 2026-10-12
 
 ### Changed
@@ -278,6 +285,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 Older 1.0.x releases are available on the [GitHub Releases](https://github.com/tboy1337/Blinter/releases) page.
 
+[1.1.34]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.34
 [1.1.33]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.33
 [1.1.32]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.32
 [1.1.31]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.31
