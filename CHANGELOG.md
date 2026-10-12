@@ -2,6 +2,12 @@
 
 All notable changes to Blinter are documented in this file. Release tags follow [Semantic Versioning](https://semver.org/).
 
+## [1.1.33] - 2026-10-12
+
+### Changed
+
+- The `_build_version.pyi` type stub stays in the repository for type checking and is excluded from the wheel. It is not used at runtime
+
 ## [1.1.32] - 2026-10-12
 
 ### Changed
@@ -272,6 +278,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 Older 1.0.x releases are available on the [GitHub Releases](https://github.com/tboy1337/Blinter/releases) page.
 
+[1.1.33]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.33
 [1.1.32]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.32
 [1.1.31]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.31
 [1.1.30]: https://github.com/tboy1337/Blinter/releases/tag/v1.1.30
