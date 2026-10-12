@@ -2,6 +2,13 @@
 
 All notable changes to Blinter are documented in this file. Release tags follow [Semantic Versioning](https://semver.org/).
 
+## [1.1.32] - 2026-10-12
+
+### Changed
+
+- Standalone `blinter.exe` compiles its version from `pyproject.toml` at build time. It no longer unpacks a bundled `pyproject.toml` to answer `--version`
+- The generated version module is removed after the Nuitka compile, so a later wheel build does not ship it. pip installs still take the version from package metadata
+
 ## [1.1.31] - 2026-09-22
 
 ### Changed
@@ -265,6 +272,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 Older 1.0.x releases are available on the [GitHub Releases](https://github.com/tboy1337/Blinter/releases) page.
 
+[1.1.32]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.32
 [1.1.31]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.31
 [1.1.30]: https://github.com/tboy1337/Blinter/releases/tag/v1.1.30
 [1.1.29]: https://github.com/tboy1337/Blinter/releases/tag/v1.1.29
