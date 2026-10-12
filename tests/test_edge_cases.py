@@ -28,6 +28,7 @@ from blinter.checkers.advanced import (
     _check_line_length,
     _check_magic_numbers,
 )
+from blinter.checkers.advanced.style_security_perf import _line_is_inside_for_block
 from blinter.checkers.advanced.vars_syntax import (
     _check_for_f_suboptions,
     _check_for_f_token_overflow,
@@ -4577,6 +4578,30 @@ class TestAdvancedSecurityPerformanceRules:
         )
         assert "P019" in {issue.rule.code for issue in delayed_issues}
         assert "P022" in {issue.rule.code for issue in redirect_issues}
+
+    def test_for_block_membership_follows_running_depth(self) -> None:
+        """Membership uses a running depth that stays inside at depth 0."""
+        lines = [
+            "@echo off\n",
+            "echo before\n",
+            "for %%i in (1) do (\n",
+            "  echo inside\n",
+            ")\n",
+            "echo after\n",
+            ")\n",
+            "echo negative\n",
+        ]
+        expected = [False, False, True, True, True, True, False, False]
+        actual = [
+            _line_is_inside_for_block(lines, line_number)
+            for line_number in range(1, len(lines) + 1)
+        ]
+        assert actual == expected
+
+        other = ["for %%a in (1) do (\n", "echo x\n"]
+        assert _line_is_inside_for_block(other, 1) is True
+        assert _line_is_inside_for_block(lines, 6) is True
+        assert _line_is_inside_for_block(lines, 2) is False
 
 
 class TestEmbeddedScriptEdgeCases:

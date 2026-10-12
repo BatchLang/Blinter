@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
 import re
 from typing import Dict, List, Optional, Set
 
@@ -649,10 +650,20 @@ def _check_w070_set_andand(
     return []
 
 
+# typeshed types the lru_cache wrapper as Any under disallow_any_expr.
+@lru_cache(maxsize=4096)  # type: ignore[misc]
+def _percent_expansion_pattern(name: str) -> re.Pattern[str]:
+    """Compiled ``%name%`` / ``%name:...%`` matcher.
+
+    Callers pass lowercased names. The cache is bounded so a long-running
+    process does not keep a pattern for every name it has ever seen.
+    """
+    return re.compile(rf"%{re.escape(name)}(?:%|:)", re.IGNORECASE)
+
+
 def _percent_expansion_of(name: str, text: str) -> bool:
     """True when ``%name%`` or ``%name:...%`` appears (not delayed ``!name!``)."""
-    pattern = rf"%{re.escape(name)}(?:%|:)"
-    return re.search(pattern, text, re.IGNORECASE) is not None
+    return _percent_expansion_pattern(name).search(text) is not None
 
 
 def _effective_block_depth(stripped: str, depth_before: int) -> int:
@@ -664,6 +675,60 @@ def _effective_block_depth(stripped: str, depth_before: int) -> int:
     return depth_before
 
 
+def _set_name_at_segment_start(segment: str) -> Optional[str]:
+    """Lowercased SET variable at the start of a command segment, if any."""
+    set_match = _SET_NAME_RE.match(segment.strip().lstrip("@"))
+    if set_match is None:
+        return None
+    return _regex_group(set_match).lower()
+
+
+def _drop_deeper_assignments(assigned: Dict[int, Set[str]], depth_before: int) -> None:
+    """Forget variables assigned inside blocks that have already closed."""
+    for depth_key in [key for key in assigned if key > depth_before]:
+        del assigned[depth_key]
+
+
+def _w068_expansions_in_segment(
+    line_num: int,
+    segment: str,
+    assigned: Dict[int, Set[str]],
+    depth: int,
+) -> List[LintIssue]:
+    """W068 hits for ``%name%`` of a variable already SET in this block."""
+    if "%" not in segment:
+        return []
+    set_on_segment = _set_name_at_segment_start(segment)
+    issues: List[LintIssue] = []
+    for depth_key, names in assigned.items():
+        if depth_key > depth:
+            continue
+        for name in names:
+            if set_on_segment == name:
+                continue
+            if not _percent_expansion_of(name, segment):
+                continue
+            issues.append(
+                _issue(
+                    line_num,
+                    "W068",
+                    f"%{name}% is expanded when the block is parsed; "
+                    f"use !{name}! with EnableDelayedExpansion",
+                )
+            )
+    return issues
+
+
+def _record_segment_assignment(
+    assigned: Dict[int, Set[str]], depth: int, segment: str
+) -> None:
+    """Remember a SET name found anywhere in this command segment."""
+    set_match = _SET_NAME_RE.search(segment)
+    if set_match is None:
+        return
+    assigned.setdefault(depth, set()).add(_regex_group(set_match).lower())
+
+
 def _check_w068_block_percent(lines: List[str]) -> List[LintIssue]:
     """W068: %var% after SET of that var inside the same parenthesized block."""
     issues: List[LintIssue] = []
@@ -671,8 +736,7 @@ def _check_w068_block_percent(lines: List[str]) -> List[LintIssue]:
     for line_num, line in enumerate(lines, 1):
         stripped = line.strip()
         depth_before = _paren_depth_before_line(lines, line_num)
-        for depth_key in [key for key in assigned if key > depth_before]:
-            del assigned[depth_key]
+        _drop_deeper_assignments(assigned, depth_before)
         if depth_before == 0:
             assigned.clear()
         if not stripped or _is_comment_line(stripped):
@@ -681,28 +745,10 @@ def _check_w068_block_percent(lines: List[str]) -> List[LintIssue]:
         if depth <= 0:
             continue
         for segment in _split_amp_commands(stripped):
-            for depth_key, names in assigned.items():
-                if depth_key > depth:
-                    continue
-                for name in names:
-                    set_match = _SET_NAME_RE.match(segment.strip().lstrip("@"))
-                    if (
-                        set_match is not None
-                        and _regex_group(set_match).lower() == name
-                    ):
-                        continue
-                    if _percent_expansion_of(name, segment):
-                        issues.append(
-                            _issue(
-                                line_num,
-                                "W068",
-                                f"%{name}% is expanded when the block is parsed; "
-                                f"use !{name}! with EnableDelayedExpansion",
-                            )
-                        )
-            set_match = _SET_NAME_RE.search(segment)
-            if set_match is not None:
-                assigned.setdefault(depth, set()).add(_regex_group(set_match).lower())
+            issues.extend(
+                _w068_expansions_in_segment(line_num, segment, assigned, depth)
+            )
+            _record_segment_assignment(assigned, depth, segment)
     return issues
 
 

@@ -1,5 +1,6 @@
 """Advanced style, security, and performance rules."""
 
+from contextvars import ContextVar
 import re
 from typing import (
     Dict,
@@ -269,21 +270,53 @@ def _check_advanced_performance(
     return issues
 
 
-def _line_is_inside_for_block(lines: List[str], line_number: int) -> bool:
-    """Return True when line_number appears inside a FOR loop block."""
+_ForBlockSlot = Tuple[List[str], List[bool]]
+_for_block_cache_var: ContextVar[Optional[_ForBlockSlot]] = ContextVar(
+    "for_block_membership",
+    default=None,
+)
+
+
+def _build_inside_for_block(lines: List[str]) -> List[bool]:
+    """Match the historical per-line scan for every 1-based line.
+
+    Once a ``for `` line is seen, parenthesis depth is a running sum that
+    never resets. A line counts as inside when that depth is still >= 0,
+    including the closing ``)`` and later lines that stay at depth 0.
+    """
+    flags: List[bool] = []
     depth = 0
     in_for = False
-    for index in range(1, line_number + 1):
-        loop_line = lines[index - 1]
-        lowered = loop_line.strip().lower()
+    for line in lines:
+        lowered = line.strip().lower()
         if lowered.startswith("for "):
             in_for = True
         if not in_for:
+            flags.append(False)
             continue
         depth += lowered.count("(") - lowered.count(")")
-        if index == line_number:
-            return depth >= 0
-    return False
+        flags.append(depth >= 0)
+    return flags
+
+
+def _inside_for_block_flags(lines: List[str]) -> List[bool]:
+    """Return one scan of ``lines``, reused until a different list is checked.
+
+    The slot holds the list object so a recycled ``id`` cannot serve stale flags.
+    """
+    cached = _for_block_cache_var.get()
+    if cached is not None and cached[0] is lines:
+        return cached[1]
+    flags = _build_inside_for_block(lines)
+    _for_block_cache_var.set((lines, flags))
+    return flags
+
+
+def _line_is_inside_for_block(lines: List[str], line_number: int) -> bool:
+    """Return True when line_number appears inside a FOR loop block."""
+    if line_number < 1:
+        return False
+    return _inside_for_block_flags(lines)[line_number - 1]
 
 
 def _timeout_lacks_explanation(

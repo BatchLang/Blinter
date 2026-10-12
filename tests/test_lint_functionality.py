@@ -3310,3 +3310,34 @@ exit /b 0
             assert "W070" not in cmd_codes
         finally:
             os.unlink(cmd_path)
+
+    def test_w068_percent_expansion_in_block(self) -> None:
+        """W068 flags %var% after SET of that var in the same block."""
+        content = "@echo off\nif 1==1 (\n  set price=$350\n  echo %price%\n)\n"
+        temp_file = self.create_temp_batch_file(content)
+        try:
+            issues = lint_batch_file(temp_file)
+            w068_lines = [
+                issue.line_number for issue in issues if issue.rule.code == "W068"
+            ]
+            assert w068_lines == [4]
+        finally:
+            os.unlink(temp_file)
+
+    def test_w068_delayed_expansion_not_flagged(self) -> None:
+        """W068 does not flag !var! after SET in the same block."""
+        content = (
+            "@echo off\n"
+            "setlocal EnableDelayedExpansion\n"
+            "if 1==1 (\n"
+            "  set price=$350\n"
+            "  echo !price!\n"
+            ")\n"
+            "exit /b 0\n"
+        )
+        temp_file = self.create_temp_batch_file(content)
+        try:
+            codes = {issue.rule.code for issue in lint_batch_file(temp_file)}
+            assert "W068" not in codes
+        finally:
+            os.unlink(temp_file)
