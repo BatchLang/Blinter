@@ -46,8 +46,9 @@ jobs:
           python -m black --check src tests scripts
           python -m isort --check-only src tests scripts
           python -m mypy src/blinter tests scripts/verify.py scripts/corpus_lint.py scripts/corpus_baseline.py scripts/generate_corpus_baseline.py scripts/benchmark_lint.py
-          python -m mypy scripts/build_exe.py
+          python -m mypy scripts/build_exe.py scripts/ci_release.py scripts/extract_release_notes.py
           python -m pylint src/blinter
+          python -m pylint scripts/ci_release.py scripts/extract_release_notes.py
           python -m bandit -r src/blinter -c pyproject.toml -ll -q
           python -m pip_audit -r requirements.txt -r requirements-dev.txt
           python scripts/benchmark_lint.py --runs 3 --check-baseline
@@ -227,39 +228,11 @@ jobs:
 
       - name: Read version from pyproject.toml
         id: version
-        run: |
-          VERSION=$(python -c "import pathlib; p=pathlib.Path('pyproject.toml'); print(next(l.split('=',1)[1].strip().strip('\"').strip(\"'\") for l in p.read_text().splitlines() if l.strip().startswith('version = ')))")
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Project version: $VERSION"
+        run: python scripts/ci_release.py version
 
       - name: Decide whether to release
         id: check
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "Manual workflow_dispatch; releasing version ${{ steps.version.outputs.version }}."
-            echo "should_release=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          OLD_VERSION=$(python -c "
-          import pathlib, subprocess, sys
-          text = subprocess.check_output(['git', 'show', 'HEAD^:pyproject.toml'], text=True)
-          for line in text.splitlines():
-              stripped = line.strip()
-              if stripped.startswith('version = '):
-                  print(stripped.split('=', 1)[1].strip().strip('\"').strip(\"'\"))
-                  break
-          else:
-              sys.exit('Could not read previous version from pyproject.toml')
-          ")
-          NEW_VERSION="${{ steps.version.outputs.version }}"
-          if [ "$OLD_VERSION" = "$NEW_VERSION" ]; then
-            echo "Version unchanged ($NEW_VERSION); skipping release."
-            echo "should_release=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "Version bumped: $OLD_VERSION -> $NEW_VERSION"
-            echo "should_release=true" >> "$GITHUB_OUTPUT"
-          fi
+        run: python scripts/ci_release.py should-release
 
   build-windows:
     needs: [check-version]
@@ -270,12 +243,7 @@ jobs:
 
       - name: Read version from pyproject.toml
         id: version
-        shell: pwsh
-        run: |
-          $match = Select-String -Path "pyproject.toml" -Pattern '^version = "(.+)"'
-          if (-not $match) { throw "Could not read version from pyproject.toml" }
-          $version = $match.Matches[0].Groups[1].Value
-          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+        run: python scripts/ci_release.py version
 
       - name: Install uv
         uses: astral-sh/setup-uv@v10.2.0
@@ -359,10 +327,7 @@ jobs:
 
       - name: Extract release notes
         id: release_notes
-        run: |
-          NOTES_FILE="${RUNNER_TEMP}/release-notes.md"
-          python scripts/extract_release_notes.py > "$NOTES_FILE"
-          echo "path=$NOTES_FILE" >> "$GITHUB_OUTPUT"
+        run: python scripts/extract_release_notes.py --github-output
 
       - name: Create GitHub Release
         uses: ncipollo/release-action@v1

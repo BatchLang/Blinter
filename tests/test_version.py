@@ -40,7 +40,21 @@ from scripts.build_exe import (
     nuitka_environment,
     run_nuitka,
 )
-from scripts.extract_release_notes import extract_latest_section
+from scripts.ci_release import (
+    append_github_output,
+    decide_release,
+    main as ci_release_main,
+    publish_should_release,
+    publish_version,
+    read_previous_version,
+    read_project_version,
+    read_version_file,
+)
+from scripts.extract_release_notes import (
+    extract_latest_section,
+    main as extract_release_notes_main,
+    write_github_release_notes,
+)
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _BUILD_VERSION_PATH = _REPO_ROOT / "src" / "blinter" / "_build_version.py"
@@ -654,3 +668,213 @@ class TestExtractReleaseNotes:
         assert section.startswith("## [")
         assert not section.lower().startswith("## [unreleased]")
         assert len(section) > 20
+
+    def test_github_output_writes_notes_file_and_path(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        """--github-output stores the notes path and the same section text."""
+        changelog = tmp_path / "CHANGELOG.md"
+        changelog.write_text(
+            "## [1.2.3] - 2026-01-01\n\n### Fixed\n\n- Released fix\n",
+            encoding="utf-8",
+        )
+        notes_dir = tmp_path / "runner"
+        notes_dir.mkdir()
+        output_file = tmp_path / "github_output.txt"
+        monkeypatch.setenv("GITHUB_OUTPUT", str(output_file))
+        notes_path = write_github_release_notes(changelog, notes_dir)
+        assert notes_path == notes_dir / "release-notes.md"
+        assert notes_path.read_text(encoding="utf-8") == extract_latest_section(
+            changelog
+        )
+        assert output_file.read_text(encoding="utf-8") == f"path={notes_path}\n"
+
+    def test_github_output_cli_uses_runner_temp(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        """The CLI flag reads RUNNER_TEMP and the default changelog."""
+        notes_dir = tmp_path / "runner"
+        notes_dir.mkdir()
+        output_file = tmp_path / "github_output.txt"
+        monkeypatch.setenv("RUNNER_TEMP", str(notes_dir))
+        monkeypatch.setenv("GITHUB_OUTPUT", str(output_file))
+        extract_release_notes_main(["--github-output"])
+        notes_path = notes_dir / "release-notes.md"
+        assert notes_path.read_text(encoding="utf-8") == extract_latest_section()
+        assert output_file.read_text(encoding="utf-8") == f"path={notes_path}\n"
+        assert output_file.read_text(encoding="utf-8").count("\n") == 1
+
+    def test_github_output_requires_runner_temp(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Missing RUNNER_TEMP is an error when the notes directory is not passed."""
+        monkeypatch.delenv("RUNNER_TEMP", raising=False)
+        with pytest.raises(SystemExit, match="RUNNER_TEMP is not set"):
+            write_github_release_notes(_REPO_ROOT / "CHANGELOG.md")
+
+
+class TestCiRelease:
+    """Tests for the CI version and release-decision script."""
+
+    def test_reads_version_from_pyproject_text(self) -> None:
+        """A quoted project.version is returned without quotes."""
+        text = '[project]\nname = "Blinter"\nversion = "1.2.3"\n'
+        assert read_project_version(text) == "1.2.3"
+
+    def test_missing_version_exits(self) -> None:
+        """pyproject.toml without project.version fails the release step."""
+        with pytest.raises(SystemExit, match="Missing project.version"):
+            read_project_version('[project]\nname = "Blinter"\n')
+
+    def test_invalid_toml_exits(self) -> None:
+        """Unparseable pyproject.toml fails with the parse error."""
+        with pytest.raises(SystemExit, match="Could not parse pyproject.toml"):
+            read_project_version("version = ")
+
+    def test_missing_file_exits(self, tmp_path: Path) -> None:
+        """A missing pyproject.toml path fails before git or Actions output."""
+        missing = tmp_path / "pyproject.toml"
+        with pytest.raises(SystemExit, match="pyproject.toml not found"):
+            read_version_file(missing)
+
+    def test_workflow_dispatch_releases_even_when_version_is_unchanged(self) -> None:
+        """Manual runs publish the current version without a bump."""
+        assert decide_release("workflow_dispatch", "1.2.3", "1.2.3") is True
+
+    def test_unchanged_version_skips_release(self) -> None:
+        """A push with the same version does not publish."""
+        assert decide_release("push", "1.2.3", "1.2.3") is False
+
+    def test_version_bump_releases(self) -> None:
+        """A push with a new version publishes."""
+        assert decide_release("push", "1.2.4", "1.2.3") is True
+
+    def test_version_command_writes_single_output_line(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """The version subcommand appends one version= line."""
+        pyproject = tmp_path / "pyproject.toml"
+        pyproject.write_text(
+            '[project]\nversion = "9.8.7"\n',
+            encoding="utf-8",
+        )
+        output_file = tmp_path / "github_output.txt"
+        monkeypatch.setenv("GITHUB_OUTPUT", str(output_file))
+        parsed_version = publish_version(pyproject)
+        assert parsed_version == "9.8.7"
+        assert output_file.read_text(encoding="utf-8") == "version=9.8.7\n"
+        assert capsys.readouterr().out.strip() == "Project version: 9.8.7"
+
+    def test_should_release_skips_when_git_version_matches(
+        self,
+        mocker: MockerFixture,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """An unchanged parent version writes should_release=false."""
+        current = (_REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        mocker.patch(
+            "scripts.ci_release.subprocess.check_output",
+            return_value=current,
+        )
+        output_file = tmp_path / "github_output.txt"
+        monkeypatch.setenv("GITHUB_OUTPUT", str(output_file))
+        monkeypatch.setenv("GITHUB_EVENT_NAME", "push")
+        assert publish_should_release() is False
+        assert output_file.read_text(encoding="utf-8") == "should_release=false\n"
+        assert "skipping release" in capsys.readouterr().out
+
+    def test_should_release_when_git_version_changes(
+        self,
+        mocker: MockerFixture,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """A parent version bump writes should_release=true."""
+        mocker.patch(
+            "scripts.ci_release.subprocess.check_output",
+            return_value='[project]\nversion = "0.0.1"\n',
+        )
+        output_file = tmp_path / "github_output.txt"
+        monkeypatch.setenv("GITHUB_OUTPUT", str(output_file))
+        monkeypatch.setenv("GITHUB_EVENT_NAME", "push")
+        assert publish_should_release() is True
+        assert output_file.read_text(encoding="utf-8") == "should_release=true\n"
+        assert "Version bumped:" in capsys.readouterr().out
+
+    def test_workflow_dispatch_does_not_read_git(
+        self,
+        mocker: MockerFixture,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Manual dispatch releases without calling git show."""
+        git_show = mocker.patch(
+            "scripts.ci_release.subprocess.check_output",
+            side_effect=AssertionError("git show should not run"),
+        )
+        output_file = tmp_path / "github_output.txt"
+        monkeypatch.setenv("GITHUB_OUTPUT", str(output_file))
+        monkeypatch.setenv("GITHUB_EVENT_NAME", "workflow_dispatch")
+        assert publish_should_release() is True
+        git_show.assert_not_called()
+        assert output_file.read_text(encoding="utf-8") == "should_release=true\n"
+        assert "workflow_dispatch" in capsys.readouterr().out
+
+    def test_previous_version_git_failure(self, mocker: MockerFixture) -> None:
+        """A missing parent commit fails the release decision."""
+        mocker.patch(
+            "scripts.ci_release.subprocess.check_output",
+            side_effect=subprocess.CalledProcessError(128, ["git", "show"]),
+        )
+        with pytest.raises(
+            SystemExit,
+            match="Could not read previous version from pyproject.toml",
+        ):
+            read_previous_version()
+
+    def test_append_rejects_multiline_values(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """GITHUB_OUTPUT values stay on one line."""
+        monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "github_output.txt"))
+        with pytest.raises(SystemExit, match="must be a single line"):
+            append_github_output("version", "1.0.0\n2.0.0")
+
+    def test_append_requires_github_output(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Local runs without the Actions env var fail loudly."""
+        monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+        with pytest.raises(SystemExit, match="GITHUB_OUTPUT is not set"):
+            append_github_output("version", "1.0.0")
+
+    def test_cli_version_command(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        """The version CLI writes the repository version as one output line."""
+        output_file = tmp_path / "github_output.txt"
+        monkeypatch.setenv("GITHUB_OUTPUT", str(output_file))
+        ci_release_main(["version"])
+        expected = read_project_version(
+            (_REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        )
+        assert output_file.read_text(encoding="utf-8") == f"version={expected}\n"
+        assert output_file.read_text(encoding="utf-8").count("\n") == 1
+
+    def test_cli_unknown_command_exits(self) -> None:
+        """An unknown subcommand is a usage error."""
+        with pytest.raises(SystemExit, match="Unknown command"):
+            ci_release_main(["nope"])
