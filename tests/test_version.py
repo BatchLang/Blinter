@@ -1,5 +1,6 @@
 """Tests for package version resolution."""
 
+from collections.abc import Iterator
 from importlib.metadata import PackageNotFoundError, version
 import os
 from pathlib import Path
@@ -13,7 +14,12 @@ from types import ModuleType
 import pytest
 from pytest_mock import MockerFixture
 
-from blinter._version import _fallback_version, _pyproject_path, get_version
+from blinter._version import (
+    _fallback_version,
+    _load_baked_version,
+    _pyproject_path,
+    get_version,
+)
 from blinter.rules.registry import RULE_COUNT
 from scripts.build_exe import (
     COMPANY_NAME,
@@ -32,6 +38,7 @@ from scripts.build_exe import (
     _log_bundled_native_extensions,
     _read_project_version,
     _validate_inputs,
+    _write_build_version,
     assert_pure_python_charset_normalizer,
     build_nuitka_command,
     main,
@@ -41,6 +48,7 @@ from scripts.build_exe import (
 from scripts.extract_release_notes import extract_latest_section
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
+_BUILD_VERSION_PATH = _REPO_ROOT / "src" / "blinter" / "_build_version.py"
 _UV_EXECUTABLE = shutil.which("uv")
 _NETWORK_WMI_NOFOLLOW: tuple[str, ...] = (
     "ssl",
@@ -61,6 +69,11 @@ def _module_with_file(name: str, path: Path) -> ModuleType:
 
 class TestVersion:
     """Tests for get_version and fallback parsing."""
+
+    @pytest.fixture(autouse=True)
+    def _ignore_baked_version(self, mocker: MockerFixture) -> None:
+        """Keep fallback tests on metadata and pyproject.toml."""
+        mocker.patch("blinter._version._BAKED_VERSION", None)
 
     def test_get_version_uses_installed_metadata_without_pyproject(
         self, mocker: MockerFixture, tmp_path: Path
@@ -112,50 +125,47 @@ class TestVersion:
         mocker.patch("blinter._version._pyproject_path", return_value=pyproject)
         assert _fallback_version() == "unknown"
 
-    def test_pyproject_path_uses_package_dir_when_frozen(
+    def test_get_version_prefers_baked_build_version(
         self, mocker: MockerFixture, tmp_path: Path
     ) -> None:
-        """Test frozen executables resolve version next to the compiled package."""
-        package_dir = tmp_path / "blinter"
-        package_dir.mkdir()
-        bundled = package_dir / "pyproject.toml"
-        bundled.write_text('[project]\nversion = "9.9.9"\n', encoding="utf-8")
-        version_module = package_dir / "_version.py"
-        version_module.write_text("# test fixture\n", encoding="utf-8")
-        mocker.patch("blinter._version._is_compiled", return_value=True)
-        mocker.patch("blinter._version.__file__", str(version_module))
-        assert _pyproject_path() == bundled
+        """Generated build versions win without reading pyproject.toml."""
+        mocker.patch("blinter._version._BAKED_VERSION", "9.9.9")
+        mocker.patch(
+            "blinter._version._pyproject_path",
+            return_value=tmp_path / "missing.toml",
+        )
         assert get_version() == "9.9.9"
 
-    def test_pyproject_path_frozen_falls_back_to_extract_root(
-        self, mocker: MockerFixture, tmp_path: Path
+    def test_load_baked_version_reads_generated_module(
+        self, mocker: MockerFixture
     ) -> None:
-        """Test frozen lookup uses extract-root pyproject.toml when not in the package."""
-        bundled = tmp_path / "pyproject.toml"
-        bundled.write_text('[project]\nversion = "8.8.8"\n', encoding="utf-8")
-        package_dir = tmp_path / "blinter"
-        package_dir.mkdir()
-        version_module = package_dir / "_version.py"
-        version_module.write_text("# test fixture\n", encoding="utf-8")
-        mocker.patch("blinter._version._is_compiled", return_value=True)
-        mocker.patch("blinter._version.__file__", str(version_module))
-        assert _pyproject_path() == bundled
-        assert get_version() == "8.8.8"
+        """The generated module's VERSION is the baked version."""
+        generated = ModuleType("blinter._build_version")
+        setattr(generated, "VERSION", "4.5.6")
+        mocker.patch("blinter._version.importlib.import_module", return_value=generated)
+        assert _load_baked_version() == "4.5.6"
 
-    def test_pyproject_path_frozen_missing_bundle_stays_in_package_dir(
-        self, mocker: MockerFixture, tmp_path: Path
-    ) -> None:
-        """Test frozen lookup does not walk out of the Nuitka extract directory."""
-        package_dir = tmp_path / "blinter"
-        package_dir.mkdir()
-        version_module = package_dir / "_version.py"
-        version_module.write_text("# test fixture\n", encoding="utf-8")
-        mocker.patch("blinter._version._is_compiled", return_value=True)
-        mocker.patch("blinter._version.__file__", str(version_module))
-        bundled = package_dir / "pyproject.toml"
-        assert _pyproject_path() == bundled
-        assert not bundled.is_file()
-        assert _fallback_version() == "unknown"
+    def test_load_baked_version_missing_module(self, mocker: MockerFixture) -> None:
+        """A source checkout without the generated module has no baked version."""
+        mocker.patch(
+            "blinter._version.importlib.import_module",
+            side_effect=ImportError,
+        )
+        assert _load_baked_version() is None
+
+    def test_load_baked_version_ignores_non_string(self, mocker: MockerFixture) -> None:
+        """A non-string VERSION does not become the package version."""
+        generated = ModuleType("blinter._build_version")
+        setattr(generated, "VERSION", 5)
+        mocker.patch("blinter._version.importlib.import_module", return_value=generated)
+        assert _load_baked_version() is None
+
+    def test_empty_baked_version_uses_pyproject(self, mocker: MockerFixture) -> None:
+        """An empty generated version falls through to pyproject.toml."""
+        from tests.conftest import get_project_version
+
+        mocker.patch("blinter._version._BAKED_VERSION", "")
+        assert get_version() == get_project_version()
 
     def test_readme_rule_count_matches_registry(self) -> None:
         """README should reference the live RULE_COUNT from the registry."""
@@ -165,6 +175,13 @@ class TestVersion:
             rf"\*\*{RULE_COUNT}\*\* rules",
             readme,
         ), f"README must state **{RULE_COUNT}** rules explicitly"
+
+
+@pytest.fixture
+def cleanup_build_version() -> Iterator[None]:
+    """Remove the version module main() writes into the real source tree."""
+    yield
+    _BUILD_VERSION_PATH.unlink(missing_ok=True)
 
 
 class TestBuildExe:
@@ -179,6 +196,20 @@ class TestBuildExe:
             _read_project_version(repo_root / "pyproject.toml") == get_project_version()
         )
 
+    def test_write_build_version_emits_constant(self, tmp_path: Path) -> None:
+        """The Nuitka build stamps a single VERSION assignment."""
+        _write_build_version(tmp_path, "1.2.3")
+        generated = tmp_path / "src" / "blinter" / "_build_version.py"
+        assert generated.read_text(encoding="utf-8") == 'VERSION = "1.2.3"\n'
+
+    def test_write_build_version_rejects_unsafe_characters(
+        self, tmp_path: Path
+    ) -> None:
+        """Quotes, backslashes, and newlines must not become generated Python."""
+        with pytest.raises(ValueError, match="quotes"):
+            _write_build_version(tmp_path, '1.2.3"\n')
+        assert not (tmp_path / "src" / "blinter" / "_build_version.py").exists()
+
     def test_validate_inputs_requires_pyproject(self, tmp_path: Path) -> None:
         """Build validation should fail loudly when pyproject.toml is missing."""
         with pytest.raises(FileNotFoundError, match="pyproject.toml"):
@@ -192,7 +223,7 @@ class TestBuildExe:
         assert pythonpath == src_dir or pythonpath.startswith(src_dir + os.pathsep)
 
     def test_build_command_includes_windows_metadata(self) -> None:
-        """Nuitka command must embed icon, version, package, and data files."""
+        """Nuitka command must embed icon, version, and the blinter package."""
         from tests.conftest import get_project_version
 
         project_version = get_project_version()
@@ -212,8 +243,11 @@ class TestBuildExe:
         assert f"--output-dir={OUTPUT_DIR.as_posix()}" in command
         assert "--include-package=blinter" in command
         assert "--include-package-data=blinter" not in command
+        assert "--include-module=blinter._build_version" in command
         assert "--include-module=charset_normalizer" in command
-        assert "--include-data-files=pyproject.toml=blinter/pyproject.toml" in command
+        assert (
+            "--include-data-files=pyproject.toml=blinter/pyproject.toml" not in command
+        )
         assert "--python-flag=-m" in command
         assert "--file-reference-choice=runtime" in command
         assert f"--windows-icon-from-ico={ICON_PATH.as_posix()}" in command
@@ -458,6 +492,7 @@ class TestBuildExe:
         """Platform detection must follow os.name without mutating the process."""
         assert _is_windows() is (os.name == "nt")
 
+    @pytest.mark.usefixtures("cleanup_build_version")
     def test_main_invokes_nuitka_with_mingw_flag(self, mocker: MockerFixture) -> None:
         """--mingw must reach the Nuitka command line."""
         repo_root = Path(__file__).resolve().parent.parent
@@ -474,6 +509,7 @@ class TestBuildExe:
         assert "--experimental=force-mingw64" in command
         assert run.call_args[0][1] == repo_root
 
+    @pytest.mark.usefixtures("cleanup_build_version")
     def test_main_omits_windows_flags_when_not_windows(
         self, mocker: MockerFixture
     ) -> None:
@@ -493,8 +529,11 @@ class TestBuildExe:
         assert not any(part.startswith("--windows-icon-from-ico=") for part in command)
         assert "--lto=yes" in command
 
+    @pytest.mark.usefixtures("cleanup_build_version")
     def test_main_reports_launch_failures(self, mocker: MockerFixture) -> None:
         """OS errors starting Nuitka should return exit code 1."""
+        from tests.conftest import get_project_version
+
         repo_root = Path(__file__).resolve().parent.parent
         mocker.patch("scripts.build_exe.ROOT", repo_root)
         mocker.patch(
@@ -506,6 +545,11 @@ class TestBuildExe:
             side_effect=OSError("nuitka missing"),
         )
         assert main([]) == 1
+        project_version = get_project_version()
+        assert (
+            _BUILD_VERSION_PATH.read_text(encoding="utf-8")
+            == f'VERSION = "{project_version}"\n'
+        )
 
     def test_main_returns_2_when_charset_normalizer_is_native(
         self, mocker: MockerFixture

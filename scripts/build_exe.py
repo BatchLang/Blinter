@@ -61,6 +61,7 @@ CHARSET_NORMALIZER_MODULE_NAMES: tuple[str, ...] = (
     "charset_normalizer.md",
     "charset_normalizer.cd",
 )
+_UNSAFE_VERSION_CHARS: frozenset[str] = frozenset({'"', "'", "\\", "\n", "\r"})
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +93,19 @@ def _read_project_version(pyproject_path: Path) -> str:
         raise ValueError("Missing project.version in pyproject.toml")
     logger.info("Resolved project version %s", version_object)
     return version_object
+
+
+def _write_build_version(repo_root: Path, version: str) -> None:
+    """Write the version constant Nuitka compiles into the executable."""
+    if not version or any(char in version for char in _UNSAFE_VERSION_CHARS):
+        raise ValueError(
+            "Refusing to write a build version that contains quotes, "
+            f"backslashes, or newlines: {version!r}"
+        )
+    destination = repo_root / PACKAGE_DIR / "_build_version.py"
+    logger.info("Writing build version %s to %s", version, destination)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(f'VERSION = "{version}"\n', encoding="utf-8")
 
 
 def _require_file(path: Path, description: str) -> None:
@@ -236,8 +250,9 @@ def build_nuitka_command(
         f"--output-filename={OUTPUT_FILENAME}",
         f"--output-dir={OUTPUT_DIR.as_posix()}",
         f"--include-package={ENTRY_MODULE}",
+        # Loaded with importlib, so Nuitka will not discover this module itself.
+        f"--include-module={ENTRY_MODULE}._build_version",
         "--include-module=charset_normalizer",
-        f"--include-data-files=pyproject.toml={ENTRY_MODULE}/pyproject.toml",
         f"--company-name={COMPANY_NAME}",
         f"--product-name={PRODUCT_NAME}",
     ]
@@ -311,6 +326,7 @@ def main(argv: list[str] | None = None) -> int:
         pyproject_path = _validate_inputs(repo_root)
         version = _read_project_version(pyproject_path)
         assert_pure_python_charset_normalizer()
+        _write_build_version(repo_root, version)
     except (OSError, ValueError, RuntimeError, tomllib.TOMLDecodeError) as exc:
         logger.error("%s", exc)
         return 2
