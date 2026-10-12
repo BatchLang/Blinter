@@ -250,8 +250,6 @@ def build_nuitka_command(
         f"--output-filename={OUTPUT_FILENAME}",
         f"--output-dir={OUTPUT_DIR.as_posix()}",
         f"--include-package={ENTRY_MODULE}",
-        # Loaded with importlib, so Nuitka will not discover this module itself.
-        f"--include-module={ENTRY_MODULE}._build_version",
         "--include-module=charset_normalizer",
         f"--company-name={COMPANY_NAME}",
         f"--product-name={PRODUCT_NAME}",

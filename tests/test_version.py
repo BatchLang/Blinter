@@ -14,12 +14,7 @@ from types import ModuleType
 import pytest
 from pytest_mock import MockerFixture
 
-from blinter._version import (
-    _fallback_version,
-    _load_baked_version,
-    _pyproject_path,
-    get_version,
-)
+from blinter._version import _fallback_version, _pyproject_path, get_version
 from blinter.rules.registry import RULE_COUNT
 from scripts.build_exe import (
     COMPANY_NAME,
@@ -136,30 +131,6 @@ class TestVersion:
         )
         assert get_version() == "9.9.9"
 
-    def test_load_baked_version_reads_generated_module(
-        self, mocker: MockerFixture
-    ) -> None:
-        """The generated module's VERSION is the baked version."""
-        generated = ModuleType("blinter._build_version")
-        setattr(generated, "VERSION", "4.5.6")
-        mocker.patch("blinter._version.importlib.import_module", return_value=generated)
-        assert _load_baked_version() == "4.5.6"
-
-    def test_load_baked_version_missing_module(self, mocker: MockerFixture) -> None:
-        """A source checkout without the generated module has no baked version."""
-        mocker.patch(
-            "blinter._version.importlib.import_module",
-            side_effect=ImportError,
-        )
-        assert _load_baked_version() is None
-
-    def test_load_baked_version_ignores_non_string(self, mocker: MockerFixture) -> None:
-        """A non-string VERSION does not become the package version."""
-        generated = ModuleType("blinter._build_version")
-        setattr(generated, "VERSION", 5)
-        mocker.patch("blinter._version.importlib.import_module", return_value=generated)
-        assert _load_baked_version() is None
-
     def test_empty_baked_version_uses_pyproject(self, mocker: MockerFixture) -> None:
         """An empty generated version falls through to pyproject.toml."""
         from tests.conftest import get_project_version
@@ -243,7 +214,6 @@ class TestBuildExe:
         assert f"--output-dir={OUTPUT_DIR.as_posix()}" in command
         assert "--include-package=blinter" in command
         assert "--include-package-data=blinter" not in command
-        assert "--include-module=blinter._build_version" in command
         assert "--include-module=charset_normalizer" in command
         assert (
             "--include-data-files=pyproject.toml=blinter/pyproject.toml" not in command

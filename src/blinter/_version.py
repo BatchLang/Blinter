@@ -1,40 +1,28 @@
 """Package version resolution."""
 
-import importlib
 from importlib.metadata import PackageNotFoundError, version
 import logging
 from pathlib import Path
-from typing import cast
 
 __author__ = "tboy1337"
 
 __license__ = "AGPL-3.0-or-later"
 
 _PACKAGE_NAME = "Blinter"
-_BUILD_VERSION_MODULE = "blinter._build_version"
 
 logger = logging.getLogger(__name__)
 
-
-def _load_baked_version() -> str | None:
-    """Return the version written by scripts/build_exe.py, when that module exists."""
-    try:
-        module = importlib.import_module(_BUILD_VERSION_MODULE)
-    except ImportError:
-        logger.debug("Build version module %s is not present", _BUILD_VERSION_MODULE)
-        return None
-    version_raw: object = cast(object, getattr(module, "VERSION", None))
-    if isinstance(version_raw, str) and version_raw:
-        logger.debug("Loaded build-time version %s", version_raw)
-        return version_raw
-    if version_raw is not None:
-        logger.warning("Ignoring invalid build version %r", version_raw)
-    return None
-
-
-# Generated at build time and absent from source checkouts. import_module avoids a
-# pylint cycle through blinter/__init__.py when this file has not been written yet.
-_BAKED_VERSION: str | None = _load_baked_version()
+# Static import so Nuitka compiles VERSION into the exe as a constant.
+# scripts/build_exe.py generates the module; source checkouts do not have it.
+# Pylint then reports import-error and a false cycle through blinter/__init__.py.
+_BAKED_VERSION: str | None
+try:
+    from ._build_version import (  # pylint: disable=import-error,cyclic-import
+        VERSION as _BAKED_VERSION,
+    )
+except ImportError:
+    logger.debug("Build version module is not present")
+    _BAKED_VERSION = None
 
 
 def _pyproject_path() -> Path:
