@@ -95,6 +95,11 @@ def _read_project_version(pyproject_path: Path) -> str:
     return version_object
 
 
+def _build_version_path(repo_root: Path) -> Path:
+    """Return the generated module path inside the package tree."""
+    return repo_root / PACKAGE_DIR / "_build_version.py"
+
+
 def _write_build_version(repo_root: Path, version: str) -> None:
     """Write the version constant Nuitka compiles into the executable."""
     if not version or any(char in version for char in _UNSAFE_VERSION_CHARS):
@@ -102,10 +107,17 @@ def _write_build_version(repo_root: Path, version: str) -> None:
             "Refusing to write a build version that contains quotes, "
             f"backslashes, or newlines: {version!r}"
         )
-    destination = repo_root / PACKAGE_DIR / "_build_version.py"
+    destination = _build_version_path(repo_root)
     logger.info("Writing build version %s to %s", version, destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(f'VERSION = "{version}"\n', encoding="utf-8")
+
+
+def _remove_build_version(repo_root: Path) -> None:
+    """Delete the generated module so a later wheel cannot ship it."""
+    destination = _build_version_path(repo_root)
+    logger.info("Removing generated build version module %s", destination)
+    destination.unlink(missing_ok=True)
 
 
 def _require_file(path: Path, description: str) -> None:
@@ -327,6 +339,7 @@ def main(argv: list[str] | None = None) -> int:
         _write_build_version(repo_root, version)
     except (OSError, ValueError, RuntimeError, tomllib.TOMLDecodeError) as exc:
         logger.error("%s", exc)
+        _remove_build_version(repo_root)
         return 2
 
     windows = _is_windows()
@@ -347,6 +360,8 @@ def main(argv: list[str] | None = None) -> int:
     except OSError as exc:
         logger.error("Failed to launch Nuitka: %s", exc)
         return 1
+    finally:
+        _remove_build_version(repo_root)
 
 
 if __name__ == "__main__":

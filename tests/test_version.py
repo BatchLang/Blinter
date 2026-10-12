@@ -148,6 +148,19 @@ class TestVersion:
         ), f"README must state **{RULE_COUNT}** rules explicitly"
 
 
+def _assert_build_version_present_for_nuitka(
+    command: list[str], repo_root: Path
+) -> int:
+    """Nuitka must be able to compile the generated module."""
+    del command
+    from tests.conftest import get_project_version
+
+    project_version = get_project_version()
+    generated = repo_root / PACKAGE_DIR / "_build_version.py"
+    assert generated.read_text(encoding="utf-8") == f'VERSION = "{project_version}"\n'
+    return 0
+
+
 @pytest.fixture
 def cleanup_build_version() -> Iterator[None]:
     """Remove the version module main() writes into the real source tree."""
@@ -472,8 +485,12 @@ class TestBuildExe:
             "scripts.build_exe.assert_pure_python_charset_normalizer",
             return_value=None,
         )
-        run = mocker.patch("scripts.build_exe.run_nuitka", return_value=0)
+        run = mocker.patch(
+            "scripts.build_exe.run_nuitka",
+            side_effect=_assert_build_version_present_for_nuitka,
+        )
         assert main(["--mingw"]) == 0
+        assert not _BUILD_VERSION_PATH.is_file()
         command = run.call_args[0][0]
         assert "--mingw64" in command
         assert "--experimental=force-mingw64" in command
@@ -491,8 +508,12 @@ class TestBuildExe:
             "scripts.build_exe.assert_pure_python_charset_normalizer",
             return_value=None,
         )
-        run = mocker.patch("scripts.build_exe.run_nuitka", return_value=0)
+        run = mocker.patch(
+            "scripts.build_exe.run_nuitka",
+            side_effect=_assert_build_version_present_for_nuitka,
+        )
         assert main(["--mingw"]) == 0
+        assert not _BUILD_VERSION_PATH.is_file()
         command = run.call_args[0][0]
         assert "--mingw64" not in command
         assert "--msvc=latest" not in command
@@ -502,7 +523,10 @@ class TestBuildExe:
     @pytest.mark.usefixtures("cleanup_build_version")
     def test_main_reports_launch_failures(self, mocker: MockerFixture) -> None:
         """OS errors starting Nuitka should return exit code 1."""
-        from tests.conftest import get_project_version
+
+        def _fail_after_version_is_present(command: list[str], repo_root: Path) -> int:
+            _assert_build_version_present_for_nuitka(command, repo_root)
+            raise OSError("nuitka missing")
 
         repo_root = Path(__file__).resolve().parent.parent
         mocker.patch("scripts.build_exe.ROOT", repo_root)
@@ -512,14 +536,10 @@ class TestBuildExe:
         )
         mocker.patch(
             "scripts.build_exe.run_nuitka",
-            side_effect=OSError("nuitka missing"),
+            side_effect=_fail_after_version_is_present,
         )
         assert main([]) == 1
-        project_version = get_project_version()
-        assert (
-            _BUILD_VERSION_PATH.read_text(encoding="utf-8")
-            == f'VERSION = "{project_version}"\n'
-        )
+        assert not _BUILD_VERSION_PATH.is_file()
 
     def test_main_returns_2_when_charset_normalizer_is_native(
         self, mocker: MockerFixture
