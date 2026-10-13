@@ -2,6 +2,12 @@
 
 All notable changes to Blinter are documented in this file. Release tags follow [Semantic Versioning](https://semver.org/).
 
+## [1.1.35] - 2026-10-13
+
+### Changed
+
+- Pinned batch-spec language SSOT to v0.72.0 (standalone `{` `}` `[` `]` tokens; apostrophes do not pair across lines)
+
 ## [1.1.34] - 2026-10-12
 
 ### Changed
@@ -285,6 +291,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 Older 1.0.x releases are available on the [GitHub Releases](https://github.com/tboy1337/Blinter/releases) page.
 
+[1.1.35]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.35
 [1.1.34]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.34
 [1.1.33]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.33
 [1.1.32]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.32
