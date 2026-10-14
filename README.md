@@ -42,7 +42,7 @@
 - **Performance Optimization**: DIR flag optimization, unnecessary output detection, string operation efficiency
 - **Cross-Platform Batch Compatibility**: Warns about Windows version issues and deprecated commands in batch scripts
 - **Large File Handling**: Efficiently processes large batch files, with a warning when a file exceeds 10MB and a hard reject above 50MB
-- **Encoding Detection**: Automatic detection via charset_normalizer, with nine built-in fallbacks (UTF-8, UTF-8 BOM, UTF-16, UTF-32, Latin-1, ASCII, CP437, CP850, CP1252)
+- **Encoding Detection**: Automatic detection via `charset-normalizer`, with nine built-in fallbacks (UTF-8, UTF-8 BOM, UTF-16, UTF-32, Latin-1, ASCII, CP437, CP850, CP1252)
 - **Escaping Techniques**: Validates caret escape sequences, multilevel escaping, and continuation characters
 - **FOR Command Analysis**: Checks for usebackq, proper tokenizing, delimiters, and skip options
 - **Process Management Best Practices**: Timeout command usage, process verification, and restart patterns
