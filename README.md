@@ -8,7 +8,7 @@
 
 </div>
 
-**Blinter** is a linter for Windows batch files (`.bat` and `.cmd`). It provides comprehensive static analysis to identify syntax errors, security vulnerabilities, performance issues and style problems. Blinter helps you write safer, more reliable and maintainable batch scripts.
+**Blinter** is a linter for Windows batch files (`.bat` and `.cmd`). It provides static analysis to identify syntax errors, security vulnerabilities, performance issues and style problems. Blinter helps you write safer, more reliable and maintainable batch scripts.
 
 - ✅ **Configurable Options** - Configurable rules, `--verbose`/`--quiet` logging, robust error handling
 - ✅ **Unicode Support** - Support for international characters and filenames
@@ -44,7 +44,7 @@
 - **Large File Handling**: Efficiently processes large batch files, with a warning when a file exceeds 10MB and a hard reject above 50MB
 - **Robust Encoding Detection**: Automatic detection via charset_normalizer, with nine built-in fallbacks (UTF-8, UTF-8 BOM, UTF-16, UTF-32, Latin-1, ASCII, CP437, CP850, CP1252)
 - **Advanced Escaping Techniques**: Validates caret escape sequences, multilevel escaping, and continuation characters
-- **Professional FOR Command Analysis**: Checks for usebackq, proper tokenizing, delimiters, and skip options
+- **FOR Command Analysis**: Checks for usebackq, proper tokenizing, delimiters, and skip options
 - **Process Management Best Practices**: Timeout command usage, process verification, and restart patterns
 - **Enhanced Security Patterns**: User input validation, temporary file security, and self-modification detection
 
