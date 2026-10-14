@@ -70,7 +70,7 @@ uvx blinter
 
 **Option 3: Standalone executable**
 
-If you prefer a standalone `.exe` over pip, use the one-line installer:
+If you prefer a standalone `.exe` over pip or uv, use the one-line installer:
 
 ```cmd
 curl -L https://raw.githubusercontent.com/BatchLang/Blinter/main/scripts/install_blinter.cmd -o install_blinter.cmd && (call install_blinter.cmd || cd .) && del install_blinter.cmd
@@ -102,7 +102,7 @@ uv tool uninstall Blinter
 ```
 
 ### Prerequisites
-- **Python 3.11+** (required for pip installation and development; uv can provision this interpreter)
+- **Python 3.11+**
 - **Windows OS** (64-bit required for the standalone executable)
 
 ## Usage 📟
