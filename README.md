@@ -86,7 +86,7 @@ This installs the latest `blinter.exe` to `%LOCALAPPDATA%\Programs\Blinter\bin`,
 
 ### Uninstall
 
-**Standalone executable (one-line installer):**
+**Standalone executable (one-line un-installer):**
 ```cmd
 curl -L https://raw.githubusercontent.com/BatchLang/Blinter/main/scripts/uninstall_blinter.cmd -o uninstall_blinter.cmd && (call uninstall_blinter.cmd || cd .) && del uninstall_blinter.cmd
 ```
