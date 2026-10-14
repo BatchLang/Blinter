@@ -43,6 +43,7 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: 3.15",
   "Topic :: Software Development :: Code Generators",
   "Topic :: Software Development :: Quality Assurance",
   "Topic :: System :: Systems Administration",
@@ -77,7 +78,7 @@ package = true
 build-backend.wheel-exclude = [ "_build_version.pyi" ]
 
 [tool.black]
-target-version = [ "py311", "py312", "py313", "py314" ]
+target-version = [ "py311", "py312", "py313", "py314", "py315" ]
 line-length = 88
 
 [tool.isort]
@@ -92,7 +93,7 @@ src_paths = [ "scripts", "src", "tests" ]
 skip_gitignore = true
 
 [tool.pyproject-fmt]
-max_supported_python = "3.14"
+max_supported_python = "3.15"
 
 [tool.bandit]
 exclude_dirs = [ ".venv", "build", "dist", "tests", "venv" ]

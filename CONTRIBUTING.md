@@ -56,7 +56,7 @@ py scripts/verify.py --fix
 
 - Add or extend tests under `tests/` using [pytest](https://docs.pytest.org/).
 - Rule changes should include corpus fixtures under `spec/corpus/` when applicable.
-- Run `py -m pytest` locally; CI runs the suite on Ubuntu, macOS, and Windows across Python 3.11–3.14.
+- Run `py -m pytest` locally; CI runs the suite on Ubuntu, macOS, and Windows across Python 3.11–3.15.
 - Optional corpus regression tests require a local `batch-script-examples/` directory (see `README.md`).
 
 CI also runs static analysis, formatting checks, and `pip-audit` on every push and pull request to `main` (see `.github/workflows/CI.yml`).
