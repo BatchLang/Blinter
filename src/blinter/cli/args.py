@@ -116,6 +116,12 @@ def _parse_output_arg(arg_index: int) -> Optional[Tuple[int, str]]:
     return arg_index + 1, sys.argv[arg_index + 1]
 
 
+_FORMAT_VALUES: Dict[str, OutputFormat] = {
+    "json": OutputFormat.JSON,
+    "sarif": OutputFormat.SARIF,
+}
+
+
 def _parse_format_arg(arg_index: int) -> Optional[Tuple[int, OutputFormat]]:
     """Parse the value following ``--format``."""
     if arg_index + 1 >= len(sys.argv):
@@ -123,11 +129,13 @@ def _parse_format_arg(arg_index: int) -> Optional[Tuple[int, OutputFormat]]:
         print_help()
         return None
     format_value = sys.argv[arg_index + 1].lower()
-    if format_value == "json":
-        return arg_index + 1, OutputFormat.JSON
+    parsed_format = _FORMAT_VALUES.get(format_value)
+    if parsed_format is not None:
+        return arg_index + 1, parsed_format
+    supported = ", ".join(sorted(_FORMAT_VALUES))
     _print_cli_error(
         f"Error: Unknown format '{sys.argv[arg_index + 1]}'. "
-        "Supported values: json.\n"
+        f"Supported values: {supported}.\n"
     )
     print_help()
     return None

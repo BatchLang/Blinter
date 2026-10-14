@@ -44,9 +44,11 @@ Options:
   --follow-calls      Scan scripts called by CALL statements from each seed file.
                      Variable context may be collected transitively; each seed file
                      lints its direct CALL targets only.
-  --output <path>     Write a structured JSON lint report to the given file path.
-  --format json       Suppress human-readable stdout; emit JSON to stdout unless
-                     --output is also set (then JSON is written only to that file).
+  --output <path>     Write a structured report to the given file path. The file is
+                     JSON unless --format sarif is also set.
+  --format <fmt>      Suppress human-readable stdout and emit json or sarif.
+                     Writes to stdout unless --output is also set (then the
+                     report is written only to that file).
   --verbose           Show detailed debug logging on stderr.
   --quiet             Show only error-level logging on stderr.
   --no-config         Don't use configuration file (blinter.ini) even if it exists.
@@ -92,8 +94,14 @@ Examples:
   blinter myscript.bat --format json
       Emit a JSON report to stdout (no human-readable output).
 
+  blinter myscript.bat --format sarif
+      Emit a SARIF 2.1.0 report to stdout (no human-readable output).
+
   blinter project\\scripts --output results.json --format json
       Write JSON to a file with no human-readable stdout.
+
+  blinter project\\scripts --output results.sarif --format sarif
+      Write SARIF to a file with no human-readable stdout.
 
   blinter /project/scripts --summary --severity
       Shows summary, detailed errors and severity info for all batch files in directory.

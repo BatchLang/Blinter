@@ -42,6 +42,7 @@ src/blinter/
   output/
     formatters.py      # CLI output formatting
     json_formatter.py    # JSON report serialization
+    sarif_formatter.py   # SARIF 2.1.0 report serialization
   cli/
     args.py            # Argument parsing
     main.py            # CLI orchestration and multi-file processing
@@ -66,7 +67,7 @@ flowchart BT
 2. **Structure** — Labels, SET variables, delayed expansion, and embedded script blocks are analyzed.
 3. **Checkers** — Line and global rules run via `orchestration._process_file_checks`.
 4. **Filter** — `BlinterConfig`, inline `REM LINT:IGNORE` comments, and severity filters apply.
-5. **Output** — `LintIssue` list returned to library callers, or formatted by the CLI as human-readable text (`output/formatters.py`) or structured JSON (`output/json_formatter.py` via `--format json` / `--output`).
+5. **Output** — `LintIssue` list returned to library callers, or formatted by the CLI as human-readable text (`output/formatters.py`), structured JSON (`output/json_formatter.py` via `--format json` / `--output`), or SARIF 2.1.0 (`output/sarif_formatter.py` via `--format sarif`).
 
 ## Public vs internal imports
 

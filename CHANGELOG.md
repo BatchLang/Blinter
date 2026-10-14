@@ -2,6 +2,16 @@
 
 All notable changes to Blinter are documented in this file. Release tags follow [Semantic Versioning](https://semver.org/).
 
+## [1.1.37] - 2026-10-14
+
+### Added
+
+- `--format sarif` emits a SARIF 2.1.0 report for GitHub Code Scanning and other SARIF consumers. Rule codes become rule IDs, and Error/Security, Warning, and Style/Performance map to SARIF levels `error`, `warning`, and `note`
+
+### Changed
+
+- Pinned batch-spec language SSOT to v0.72.1 (release tooling and docs; grammar and command catalogs are unchanged)
+
 ## [1.1.36] - 2026-10-14
 
 ### Fixed
@@ -314,6 +324,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 Older 1.0.x releases are available on the [GitHub Releases](https://github.com/BatchLang/Blinter/releases) page.
 
+[1.1.37]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.37
 [1.1.36]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.36
 [1.1.35]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.35
 [1.1.34]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.34

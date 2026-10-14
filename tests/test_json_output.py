@@ -282,7 +282,9 @@ class TestJsonOutputCli:
                 with pytest.raises(SystemExit) as exc_info:
                     main()
                 assert exc_info.value.code == 1
-            assert "Unknown format" in captured_err.getvalue()
+            error_output = captured_err.getvalue()
+            assert "Unknown format" in error_output
+            assert "json, sarif" in error_output
         finally:
             sys.stderr = old_stderr
 
@@ -416,3 +418,4 @@ class TestJsonFormatterHelpers:
 
         assert "--output" in output
         assert "--format json" in output
+        assert "--format sarif" in output

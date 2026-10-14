@@ -4,10 +4,12 @@ import logging
 from pathlib import Path
 import sys
 from typing import (
+    Callable,
     List,
     NoReturn,
     Optional,
     Tuple,
+    assert_never,
 )
 
 from blinter._version import __version__
@@ -33,6 +35,11 @@ from blinter.output.formatters import (
     print_summary,
 )
 from blinter.output.json_formatter import build_report, print_report, write_report
+from blinter.output.sarif_formatter import (
+    build_sarif_report,
+    print_sarif_report,
+    write_sarif_report,
+)
 from blinter.paths import display_path, path_basename
 
 _CLI_HANDLER_ATTR = "blinter_cli_handler"
@@ -540,12 +547,26 @@ def _exit_with_results(
         )
 
 
-def _should_emit_json(cli_args: CliArguments) -> bool:
-    """Return True when a JSON report should be built."""
-    return (
-        cli_args.cli_output_path is not None
-        or cli_args.cli_output_format == OutputFormat.JSON
-    )
+def _suppress_human_stdout(cli_args: CliArguments) -> bool:
+    """Return True when human-readable stdout should be omitted."""
+    return cli_args.cli_output_format in (OutputFormat.JSON, OutputFormat.SARIF)
+
+
+def _should_emit_structured(cli_args: CliArguments) -> bool:
+    """Return True when a JSON or SARIF report should be built."""
+    return cli_args.cli_output_path is not None or _suppress_human_stdout(cli_args)
+
+
+def _write_structured_report(write: Callable[[], None], label: str) -> None:
+    """Write a structured report, exiting on filesystem errors."""
+    try:
+        write()
+    except (OSError, PermissionError) as write_error:
+        print(
+            f"Error: Could not write {label} report: {write_error}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
 
 def _emit_json_report(results: ProcessingResults, cli_args: CliArguments) -> None:
@@ -557,20 +578,49 @@ def _emit_json_report(results: ProcessingResults, cli_args: CliArguments) -> Non
         __version__,
         fatal_count,
     )
-    if cli_args.cli_output_path is not None:
-        try:
-            write_report(cli_args.cli_output_path, report)
-        except (OSError, PermissionError) as write_error:
-            print(
-                f"Error: Could not write JSON report: {write_error}",
-                file=sys.stderr,
-            )
-            sys.exit(1)
+    output_path = cli_args.cli_output_path
+    if output_path is not None:
+
+        def write_json_file(path: str = output_path) -> None:
+            write_report(path, report)
+
+        _write_structured_report(write_json_file, "JSON")
     if (
         cli_args.cli_output_format == OutputFormat.JSON
         and cli_args.cli_output_path is None
     ):
         print_report(report)
+
+
+def _emit_sarif_report(results: ProcessingResults, cli_args: CliArguments) -> None:
+    """Build and write or print a SARIF lint report."""
+    report = build_sarif_report(results, __version__)
+    output_path = cli_args.cli_output_path
+    if output_path is not None:
+
+        def write_sarif_file(path: str = output_path) -> None:
+            write_sarif_report(path, report)
+
+        _write_structured_report(write_sarif_file, "SARIF")
+    if (
+        cli_args.cli_output_format == OutputFormat.SARIF
+        and cli_args.cli_output_path is None
+    ):
+        print_sarif_report(report)
+
+
+def _emit_structured_report(results: ProcessingResults, cli_args: CliArguments) -> None:
+    """Emit JSON or SARIF based on the selected format.
+
+    ``--output`` without ``--format`` keeps the historical JSON report.
+    """
+    match cli_args.cli_output_format:
+        case OutputFormat.SARIF:
+            _emit_sarif_report(results, cli_args)
+        case OutputFormat.JSON | OutputFormat.TEXT:
+            _emit_json_report(results, cli_args)
+        case _ as unreachable:
+            assert_never(unreachable)
 
 
 def _apply_cli_config_overrides(
@@ -634,8 +684,8 @@ def _run_cli() -> None:
         else logging.WARNING
     )
 
-    json_output = cli_args.cli_output_format == OutputFormat.JSON
-    if not json_output:
+    suppress_human = _suppress_human_stdout(cli_args)
+    if not suppress_human:
         print(f"Blinter v{__version__} - Batch File Linter\n")
 
     config = load_config(
@@ -670,18 +720,18 @@ def _run_cli() -> None:
     results = _process_batch_files(
         batch_files,
         config,
-        suppress_human_stdout=json_output,
+        suppress_human_stdout=suppress_human,
     )
     if results is None:
         sys.exit(1)
 
-    if _should_emit_json(cli_args):
-        _emit_json_report(results, cli_args)
+    if _should_emit_structured(cli_args):
+        _emit_structured_report(results, cli_args)
 
-    if not json_output:
+    if not suppress_human:
         _display_results(results, cli_args.target_path, config)
     _exit_with_results(
         results,
         cli_args.target_path,
-        suppress_stdout=json_output,
+        suppress_stdout=suppress_human,
     )

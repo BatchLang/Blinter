@@ -185,8 +185,9 @@ blinter --version
 - `--no-config`: Don't use configuration file (blinter.ini) even if it exists
 - `--create-config`: Create a default blinter.ini configuration file and exit
 - `--create-config --force`: Overwrite an existing blinter.ini when creating the default configuration
-- `--output <path>`: Write a structured JSON lint report to the given file path (human-readable output is unchanged unless `--format json` is also set)
+- `--output <path>`: Write a structured report to the given file path. The file is JSON unless `--format sarif` is also set. Human-readable output stays on stdout unless `--format` is set
 - `--format json`: Suppress human-readable stdout and emit JSON (to stdout, or only to `--output` when both flags are used)
+- `--format sarif`: Suppress human-readable stdout and emit [SARIF 2.1.0](https://docs.oasis-open.org/sarif/sarif/v2.1.0/os/sarif-v2.1.0-os.html) (to stdout, or only to `--output` when both flags are used). GitHub Code Scanning and other SARIF consumers can ingest this file without a custom parser. Paths are relative to the working directory, so run Blinter from the repository root when uploading to GitHub
 - `--verbose`: Show detailed debug logging on stderr (DEBUG level)
 - `--quiet`: Suppress non-error logging output (ERROR level only)
 - `--help`: Show help menu and rule categories
@@ -239,6 +240,12 @@ python -m blinter myscript.bat --format json
 
 # JSON file only, no human-readable stdout
 python -m blinter project\\scripts --output results.json --format json
+
+# SARIF 2.1.0 on stdout (GitHub Code Scanning upload)
+python -m blinter myscript.bat --format sarif
+
+# SARIF file only, no human-readable stdout
+python -m blinter project\\scripts --output results.sarif --format sarif
 ```
 
 ### 🔕 Inline Suppression Comments
