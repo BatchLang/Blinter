@@ -7,8 +7,9 @@
     Used by Windows CI. Runs scripts/install_blinter.cmd and
     scripts/uninstall_blinter.cmd, then repeats with Unix line endings and the
     README "(call script || cd .)" invocation. GitHub-hosted Windows runners
-    are elevated, and both scripts refuse an administrator token, so an
-    elevated caller runs them in a limited scheduled task.
+    are elevated, and both scripts refuse an administrator token. RunLevel
+    Limited scheduled tasks stay elevated there, so an elevated caller starts
+    the scripts with runas /trustlevel:0x20000 (basic user, same account).
 #>
 [CmdletBinding()]
 param(
@@ -44,101 +45,93 @@ function Test-BlinterSessionElevated {
     return $LASTEXITCODE -eq 0
 }
 
-function Get-BlinterLimitedTaskResult {
-    param(
-        [Parameter(Mandatory)][string]$TaskName,
-        [Parameter(Mandatory)][datetime]$Deadline
-    )
+function ConvertTo-BlinterMediumIntegrity {
+    param([Parameter(Mandatory)][string]$Path)
 
-    # 0x41301 = currently running, 0x41303 = has not run yet.
-    $pendingResults = @(0x41301, 0x41303)
-    $queuedSince = $null
-    $finished = $false
-    $state = "Unknown"
-    $result = -1
-    do {
-        Start-Sleep -Milliseconds 250
-        $task = Get-ScheduledTask -TaskName $TaskName
-        $info = Get-ScheduledTaskInfo -TaskName $TaskName
-        $state = [string]$task.State
-        $result = [int]$info.LastTaskResult
-        if ($state -eq "Queued") {
-            if (-not $queuedSince) {
-                $queuedSince = Get-Date
-            }
-            $queuedFor = ((Get-Date) - $queuedSince).TotalSeconds
-            if ($queuedFor -gt 20) {
-                throw "Task $TaskName stayed queued for 20 seconds (result $result)"
-            }
-        } else {
-            $queuedSince = $null
-        }
-        $finished = $state -ne "Running" -and $state -ne "Queued" -and $pendingResults -notcontains $result
-    } while (-not $finished -and (Get-Date) -lt $Deadline)
-
-    if (-not $finished) {
-        throw "Task $TaskName timed out in state $state (result $result)"
+    # An elevated parent labels this directory High. The basic-user child cannot create files there.
+    $output = & icacls.exe $Path "/setintegritylevel" "(OI)(CI)M"
+    if ($LASTEXITCODE -ne 0) {
+        $detail = ($output | Out-String).Trim()
+        throw "Could not mark $Path medium integrity (exit $LASTEXITCODE): $detail"
     }
-    return $result
+    Write-InstallerTestLog "Marked medium integrity: $Path"
 }
 
-function Invoke-BlinterLimitedTask {
+function Invoke-BlinterBasicUser {
     param([Parameter(Mandatory)][string]$LauncherPath)
 
-    # CreateProcessWithTokenW returns access denied on GitHub-hosted runners.
-    # A limited scheduled task runs as the same user without an administrator token.
-    $settings = New-ScheduledTaskSettingsSet `
-        -AllowStartIfOnBatteries `
-        -DontStopIfGoingOnBatteries `
-        -ExecutionTimeLimit (New-TimeSpan -Minutes 12)
-    $action = New-ScheduledTaskAction `
-        -Execute "$env:SystemRoot\System32\cmd.exe" `
-        -Argument "/d /c `"$LauncherPath`"" `
-        -WorkingDirectory "$env:SystemDrive\"
-    $account = "$env:USERDOMAIN\$env:USERNAME"
-    $whoamiAccount = (whoami).Trim()
-    $candidates = @(
-        @{ Name = "domain-user"; UserId = $account; LogonType = "" },
-        @{ Name = "whoami"; UserId = $whoamiAccount; LogonType = "Interactive" }
-    )
-    $errors = [System.Collections.Generic.List[string]]::new()
-    foreach ($candidate in $candidates) {
-        $taskName = "BlinterInstallCI-" + [Guid]::NewGuid().ToString("n")
-        try {
-            if ($candidate.LogonType) {
-                $principal = New-ScheduledTaskPrincipal `
-                    -UserId $candidate.UserId `
-                    -LogonType $candidate.LogonType `
-                    -RunLevel Limited
-            } else {
-                $principal = New-ScheduledTaskPrincipal -UserId $candidate.UserId -RunLevel Limited
-            }
-            Register-ScheduledTask `
-                -TaskName $taskName `
-                -Action $action `
-                -Principal $principal `
-                -Settings $settings `
-                -Force | Out-Null
-            Write-InstallerTestLog "Starting limited scheduled task $taskName account=$($candidate.UserId) logon=$($candidate.Name)"
-            Start-ScheduledTask -TaskName $taskName
-            $result = Get-BlinterLimitedTaskResult -TaskName $taskName -Deadline (Get-Date).AddMinutes(12)
-            Write-InstallerTestLog "Limited task $taskName result=$result"
-            return $result
-        } catch {
-            $errors.Add("$($candidate.Name): $($_.Exception.Message)")
-            Write-InstallerTestLog "Limited task via $($candidate.Name) failed: $($_.Exception.Message)"
-        } finally {
-            $existing = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
-            if ($existing -and [string]$existing.State -eq "Running") {
-                Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
-            }
-            if ($existing) {
-                Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
-            }
+    # runas returns before the child exits and always reports exit code 0.
+    # The wrapper records the launcher's exit code for the parent to read.
+    $exitFile = "$LauncherPath.exit"
+    $wrapperPath = "$LauncherPath.basic.cmd"
+    $stdoutPath = "$LauncherPath.runas.out"
+    $stderrPath = "$LauncherPath.runas.err"
+    foreach ($path in @($exitFile, $stdoutPath, $stderrPath)) {
+        if (Test-Path -LiteralPath $path) {
+            Remove-Item -LiteralPath $path -Force
         }
     }
+    if ($wrapperPath.Contains(" ")) {
+        throw "Basic-user launcher path contains spaces: $wrapperPath"
+    }
+    ConvertTo-BlinterMediumIntegrity -Path (Split-Path -Parent $LauncherPath)
 
-    throw "Could not start an unelevated cmd. $($errors -join '; ')"
+    Initialize-BlinterLauncherFile -Destination $wrapperPath -Body @"
+@echo off
+call "$LauncherPath"
+set "RC=%ERRORLEVEL%"
+> "$exitFile" echo %RC%
+exit /b %RC%
+"@
+    $cmd = "$env:SystemRoot\System32\cmd.exe"
+    $argument = "/trustlevel:0x20000 `"$cmd /d /c $wrapperPath`""
+    Write-InstallerTestLog "Starting basic-user process: $argument"
+    $process = Start-Process `
+        -FilePath "$env:SystemRoot\System32\runas.exe" `
+        -ArgumentList $argument `
+        -WorkingDirectory "$env:SystemDrive\" `
+        -PassThru `
+        -NoNewWindow `
+        -RedirectStandardOutput $stdoutPath `
+        -RedirectStandardError $stderrPath
+    if (-not $process.WaitForExit(15000)) {
+        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+        throw "runas.exe did not return within 15 seconds for $LauncherPath"
+    }
+
+    $runasError = ""
+    if (Test-Path -LiteralPath $stderrPath) {
+        $runasError = ([System.IO.File]::ReadAllText($stderrPath)).Trim()
+    }
+    if ($runasError) {
+        Write-InstallerTestLog "runas stderr: $runasError"
+    }
+    if ($runasError -match "RUNAS ERROR|Unable to run") {
+        throw "Could not start a basic-user process. $runasError"
+    }
+
+    $deadline = (Get-Date).AddMinutes(12)
+    while (-not (Test-Path -LiteralPath $exitFile) -and (Get-Date) -lt $deadline) {
+        Start-Sleep -Milliseconds 250
+    }
+    if (-not (Test-Path -LiteralPath $exitFile)) {
+        $needle = [System.Management.Automation.WildcardPattern]::Escape($wrapperPath)
+        $processes = Get-CimInstance -ClassName Win32_Process -Filter "Name = 'cmd.exe'"
+        foreach ($item in $processes) {
+            if ($item.CommandLine -and $item.CommandLine -like "*$needle*") {
+                Stop-Process -Id $item.ProcessId -Force -ErrorAction SilentlyContinue
+            }
+        }
+        throw "Basic-user process did not finish within 12 minutes for $LauncherPath. $runasError"
+    }
+
+    $recorded = ([System.IO.File]::ReadAllText($exitFile)).Trim()
+    $childExit = 0
+    if (-not [int]::TryParse($recorded, [ref]$childExit)) {
+        throw "Basic-user exit file contained '$recorded'."
+    }
+    Write-InstallerTestLog "Basic-user exit=$childExit"
+    return $childExit
 }
 
 function Invoke-BlinterLauncher {
@@ -153,7 +146,7 @@ function Invoke-BlinterLauncher {
         return $LASTEXITCODE
     }
 
-    return Invoke-BlinterLimitedTask -LauncherPath $LauncherPath
+    return Invoke-BlinterBasicUser -LauncherPath $LauncherPath
 }
 
 function Initialize-BlinterLauncherFile {
@@ -284,17 +277,22 @@ function Assert-BlinterChildIsUnelevated {
     $markerPath = Join-Path $TempRoot "elevation-probe-ran.txt"
     Initialize-BlinterLauncherFile -Destination $probePath -Body @"
 @echo off
-echo RAN> "$markerPath"
+> "$markerPath" echo RAN
+whoami /groups | findstr /c:"Mandatory Label" >> "$markerPath"
 net session >nul 2>&1
 exit /b %ERRORLEVEL%
 "@
     $exitCode = Invoke-BlinterLauncher -LauncherPath $probePath
-    Write-InstallerTestLog "Unelevated probe exit=$exitCode (non-zero means the scripts will accept it)"
-    if (-not (Test-Path -LiteralPath $markerPath)) {
+    $markerText = ""
+    if (Test-Path -LiteralPath $markerPath) {
+        $markerText = ([System.IO.File]::ReadAllText($markerPath)).Trim()
+    }
+    Write-InstallerTestLog "Unelevated probe exit=$exitCode marker=$markerText"
+    if (-not $markerText) {
         throw "Unelevated probe did not run (exit $exitCode)."
     }
     if ($exitCode -eq 0) {
-        throw "Installer process is still elevated. install_blinter.cmd refuses administrator tokens."
+        throw "Installer process is still elevated. install_blinter.cmd refuses administrator tokens. $markerText"
     }
 }
 
@@ -371,6 +369,8 @@ function ConvertTo-BlinterLfScript {
     Write-InstallerTestLog "Wrote LF copy $Destination"
 }
 
+# Executing the file runs the scenarios. Dot-sourcing only defines the helpers.
+if ($MyInvocation.InvocationName -ne '.') {
 if ($env:OS -ne "Windows_NT") {
     throw "Installer script tests require Windows."
 }
@@ -387,6 +387,11 @@ $tempRoot = Join-Path $env:TEMP ("blinter-install-ci-" + [Guid]::NewGuid().ToStr
 New-Item -ItemType Directory -Path $tempRoot | Out-Null
 Write-InstallerTestLog "Work directory: $tempRoot"
 Write-InstallerTestLog "Repository: $RepoRoot"
+$callerElevated = Test-BlinterSessionElevated
+Write-InstallerTestLog "Caller is elevated=$callerElevated"
+if ($callerElevated) {
+    ConvertTo-BlinterMediumIntegrity -Path $tempRoot
+}
 
 try {
     Assert-BlinterChildIsUnelevated -TempRoot $tempRoot
@@ -421,4 +426,5 @@ try {
     if (Test-Path -LiteralPath $tempRoot) {
         Remove-Item -LiteralPath $tempRoot -Recurse -Force
     }
+}
 }
