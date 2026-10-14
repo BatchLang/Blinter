@@ -51,23 +51,18 @@ dependencies = [ "charset-normalizer" ]
 optional-dependencies.dev = [
   "autopep8",
   "bandit",
-  # Code Formatting
   "black",
   "isort",
   "jsonschema",
   "mypy",
-  # Security Analysis
   "pip-audit",
-  # Linting
   "pylint",
   "pyproject-fmt",
-  # Core Testing Packages
   "pytest",
   "pytest-cov",
   "pytest-mock",
   "pytest-timeout",
   "pytest-xdist",
-  # SSOT spec tooling
   "pyyaml",
   "types-pyyaml",
 ]
