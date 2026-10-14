@@ -63,6 +63,7 @@ entries:
   - W056
   corpus:
   - syntax/e003-if-format
+  - syntax/e003-if-trailing-assign-valid
   - syntax/e004-if-exist-mix
   - syntax/e036-if-exists-typo
   - syntax/e036-if-exist-valid
@@ -427,6 +428,7 @@ entries:
   - syntax/p005-endlocal-without-setlocal
   - integration/p006-missing-endlocal
   - integration/p006-subroutine-exit-valid
+  - integration/p006-main-exit-b-valid
   - integration/p027-setlocal-nesting
   - integration/p024-conditional-setlocal
   - syntax/p024-p006-setlocal-in-comment-valid
@@ -476,7 +478,9 @@ entries:
   - syntax/p019-expansion-in-loop
   - syntax/p021-tasklist-no-fi
   - syntax/p022-redir-in-loop
+  - syntax/p022-redir-after-loop-valid
   - syntax/p023-seta-in-loop
+  - syntax/p023-seta-after-loop-valid
   - syntax/p025-wildcard-star
   - syntax/p009-w020-for-f-missing-options
   - syntax/w048-for-f-csv
@@ -546,6 +550,7 @@ entries:
   - syntax/s023-magic-timeout
   - syntax/s024-complex-oneliner
   - syntax/s028-redundant-parens
+  - syntax/s028-paren-required-chain
   - integration/p020-redundant-echo-off
   - syntax/e032-continuation-trailing-space
   - integration/w028-bat-errorlevel-ext
@@ -611,6 +616,7 @@ entries:
   - syntax/p009-w020-for-f-missing-options
   - syntax/w048-for-f-csv
   - integration/w004-goto-exit-handler
+  - integration/w004-shift-parse-valid
   - integration/p002-code-duplication
   - integration/sec003-dangerous-del
   - integration/sec004-dangerous-reg
@@ -757,6 +763,7 @@ entries:
   - integration/sec013-var-injection
   - integration/sec013-installer-redirection-valid
   - integration/sec014-unescaped-input
+  - integration/sec014-echo-unquoted
   - integration/sec015-taskkill-unfiltered
   - integration/w005-unquoted-var
   - syntax/w021-if-unquoted
