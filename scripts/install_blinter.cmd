@@ -1,5 +1,46 @@
 @echo off
 setlocal enabledelayedexpansion
+REM cmd.exe stops finding labels in an LF-only script after about 12KB.
+REM Rewrite this file with CRLF and run that copy.
+if defined BLINTER_CRLF_REEXEC goto :blinter_crlf_ready
+set "BLINTER_CRLF_REEXEC=1"
+set "BLINTER_SELF=%~f0"
+set "BLINTER_CRLF_COPY=%TEMP%\blinter_crlf_%RANDOM%_%RANDOM%.cmd"
+set "BLINTER_CRLF_PS=%TEMP%\blinter_crlf_%RANDOM%_%RANDOM%.ps1"
+(
+echo $bytes = [System.IO.File]::ReadAllBytes($env:BLINTER_SELF^)
+echo if ($bytes -contains 13^) { exit 0 }
+echo $list = New-Object System.Collections.Generic.List[byte]
+echo foreach ($byte in $bytes^) {
+echo     if ($byte -eq 10^) { $list.Add(13^) }
+echo     $list.Add($byte^)
+echo }
+echo [System.IO.File]::WriteAllBytes($env:BLINTER_CRLF_COPY, $list.ToArray(^)^)
+echo exit 3
+) > "%BLINTER_CRLF_PS%"
+PowerShell -NoProfile -ExecutionPolicy Bypass -File "%BLINTER_CRLF_PS%"
+set "BLINTER_CRLF_PS_EXIT=!errorlevel!"
+del /F /Q "%BLINTER_CRLF_PS%" >nul 2>&1
+if errorlevel 1 set "BLINTER_CRLF_PS_EXIT=!BLINTER_CRLF_PS_EXIT!"
+if !BLINTER_CRLF_PS_EXIT! equ 3 goto :blinter_crlf_reexec
+if !BLINTER_CRLF_PS_EXIT! neq 0 goto :blinter_crlf_failed
+goto :blinter_crlf_ready
+
+REM Run the CRLF copy and return its exit code.
+:blinter_crlf_reexec
+cmd /c call "%BLINTER_CRLF_COPY%"
+set "BLINTER_REEXEC_EXIT=!errorlevel!"
+del /F /Q "%BLINTER_CRLF_COPY%" >nul 2>&1
+if errorlevel 1 set "BLINTER_REEXEC_EXIT=!BLINTER_REEXEC_EXIT!"
+exit /b !BLINTER_REEXEC_EXIT!
+
+REM Stop when the line-ending rewrite fails.
+:blinter_crlf_failed
+echo ERROR: Could not normalize the script line endings.
+exit /b 1
+
+REM Line endings are safe for label lookup.
+:blinter_crlf_ready
 
 REM ============================================================================
 REM Blinter Installer/Updater
