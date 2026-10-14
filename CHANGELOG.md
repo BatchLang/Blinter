@@ -2,6 +2,12 @@
 
 All notable changes to Blinter are documented in this file. Release tags follow [Semantic Versioning](https://semver.org/).
 
+## [1.1.38] - 2026-10-14
+
+### Changed
+
+- Wheels and source distributions are built with uv_build. `docs/Architecture.md` and `docs/Batch-File-Linter-Requirements.md` stay in the repository and are no longer installed into `share/doc/blinter`
+
 ## [1.1.37] - 2026-10-14
 
 ### Added
@@ -324,6 +330,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 Older 1.0.x releases are available on the [GitHub Releases](https://github.com/BatchLang/Blinter/releases) page.
 
+[1.1.38]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.38
 [1.1.37]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.37
 [1.1.36]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.36
 [1.1.35]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.35

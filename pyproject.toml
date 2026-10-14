@@ -1,10 +1,10 @@
 [build-system]
-build-backend = "setuptools.build_meta"
-requires = [ "setuptools>=77" ]
+build-backend = "uv_build"
+requires = [ "uv-build>=0.13.1,<0.14" ]
 
 [project]
 name = "Blinter"
-version = "1.1.37"
+version = "1.1.38"
 description = """\
   Blinter is a linter for Windows batch files. It provides comprehensive static analysis to identify syntax errors, \
   security vulnerabilities, performance issues and style problems.\
@@ -77,18 +77,9 @@ urls.Issues = "https://github.com/BatchLang/Blinter/issues"
 urls.Repository = "https://github.com/BatchLang/Blinter.git"
 scripts.blinter = "blinter.cli.main:main"
 
-[tool.setuptools]
-packages.find.where = [ "src" ]
-include-package-data = true
-package-data.blinter = [ "py.typed" ]
-exclude-package-data.blinter = [ "_build_version.pyi" ]
-data-files."share/doc/blinter" = [
-  "docs/Architecture.md",
-  "docs/Batch-File-Linter-Requirements.md",
-]
-
 [tool.uv]
 package = true
+build-backend.wheel-exclude = [ "_build_version.pyi" ]
 
 [tool.black]
 target-version = [ "py311", "py312", "py313", "py314" ]
