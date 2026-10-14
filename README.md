@@ -187,7 +187,7 @@ blinter --version
 - `--create-config --force`: Overwrite an existing blinter.ini when creating the default configuration
 - `--output <path>`: Write a structured report to the given file path. The file is JSON unless `--format sarif` is also set. Human-readable output stays on stdout unless `--format` is set
 - `--format json`: Suppress human-readable stdout and emit JSON (to stdout, or only to `--output` when both flags are used)
-- `--format sarif`: Suppress human-readable stdout and emit [SARIF 2.1.0](https://docs.oasis-open.org/sarif/sarif/v2.1.0/os/sarif-v2.1.0-os.html) (to stdout, or only to `--output` when both flags are used). GitHub Code Scanning and other SARIF consumers can ingest this file without a custom parser. Paths are relative to the working directory, so run Blinter from the repository root when uploading to GitHub
+- `--format sarif`: Suppress human-readable stdout and emit [SARIF 2.1.0](https://docs.oasis-open.org/sarif/sarif/v2.1.0/os/sarif-v2.1.0-os.html) (to stdout, or only to `--output` when both flags are used). Paths are relative to the working directory, so run Blinter from the repository root when uploading to GitHub
 - `--verbose`: Show detailed debug logging on stderr (DEBUG level)
 - `--quiet`: Suppress non-error logging output (ERROR level only)
 - `--help`: Show help menu and rule categories
