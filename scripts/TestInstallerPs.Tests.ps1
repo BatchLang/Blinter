@@ -46,6 +46,40 @@ Describe 'Get-LatestBlinterRelease.ps1' {
         $output | Should -Be 'NOT_FOUND'
     }
 
+    It 'retries a failed lookup and then returns the release' {
+        $fixturePath = Join-Path $script:InstallerPsRoot 'Get-LatestBlinterRelease.ps1'
+        $global:BlinterReleaseLookupCalls = 0
+        Mock Invoke-RestMethod {
+            $global:BlinterReleaseLookupCalls++
+            if ($global:BlinterReleaseLookupCalls -lt 2) {
+                throw 'temporary failure'
+            }
+            return @(
+                [PSCustomObject]@{
+                    prerelease = $false
+                    draft      = $false
+                    tag_name   = 'v1.1.6'
+                    assets     = @(
+                        [PSCustomObject]@{
+                            name                 = 'Blinter-v1.1.6.zip'
+                            browser_download_url = 'https://example.com/Blinter-v1.1.6.zip'
+                            digest               = 'sha256:abc123'
+                        }
+                    )
+                }
+            )
+        }
+
+        try {
+            $output = & $fixturePath
+            $LASTEXITCODE | Should -Be 0
+            $global:BlinterReleaseLookupCalls | Should -Be 2
+            $output | Should -Be 'https://example.com/Blinter-v1.1.6.zip v1.1.6 sha256:abc123'
+        } finally {
+            Remove-Variable -Name BlinterReleaseLookupCalls -Scope Global -ErrorAction SilentlyContinue
+        }
+    }
+
     It 'outputs URL tag and digest when a matching asset exists' {
         $fixturePath = Join-Path $script:InstallerPsRoot 'Get-LatestBlinterRelease.ps1'
         Mock Invoke-RestMethod {

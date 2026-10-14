@@ -47,7 +47,7 @@ set BLINTER_SHA256=
 set "PS_GET_RELEASE=%BLINTER_TEMP%_get_release.ps1"
 
 call :write_get_release_script
-for /f "tokens=1,2,3" %%a in ('powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_GET_RELEASE%" 2^>nul') do (
+for /f "tokens=1,2,3" %%a in ('powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_GET_RELEASE%"') do (
     set BLINTER_URL=%%a
     set BLINTER_VERSION=%%b
     set BLINTER_SHA256=%%c
@@ -307,13 +307,29 @@ echo In the current session, Blinter commands should already be available.
 echo.
 goto :end
 
-REM Write PowerShell script to fetch latest release URL and tag
+REM Write PowerShell script to fetch latest release URL and tag.
+REM ProgressPreference stays silent: Windows PowerShell 5.1's progress UI throws
+REM "Access is denied" when cmd captures stdout with for /f. Retry because a single
+REM empty or failed response used to be reported as a missing download.
 :write_get_release_script
 (
-echo $releases = Invoke-RestMethod -Uri 'https://api.github.com/repos/BatchLang/Blinter/releases?per_page=100'
-echo $release = $releases ^| Where-Object { -not $_.prerelease -and -not $_.draft } ^| Select-Object -First 1
+echo $ProgressPreference = 'SilentlyContinue'
+echo $release = $null
+echo $asset = $null
+echo foreach ($attempt in 1..3^) {
+echo     try {
+echo         $release = Invoke-RestMethod -Uri 'https://api.github.com/repos/BatchLang/Blinter/releases/latest'
+echo     } catch {
+echo         [Console]::Error.WriteLine($_.Exception.Message^)
+echo         $release = $null
+echo     }
+echo     if ($release -and -not $release.prerelease -and -not $release.draft^) {
+echo         $asset = @($release.assets^) ^| Where-Object { $_.name -like 'Blinter-v*.zip' } ^| Select-Object -First 1
+echo     }
+echo     if ($asset^) { break }
+echo     if ($attempt -lt 3^) { Start-Sleep -Seconds $attempt }
+echo }
 echo if (-not $release^) { Write-Output 'NOT_FOUND'; exit 0 }
-echo $asset = $release.assets ^| Where-Object { $_.name -like 'Blinter-v*.zip' } ^| Select-Object -First 1
 echo if (-not $asset^) { Write-Output 'NOT_FOUND'; exit 0 }
 echo $digest = $null
 echo if ($asset.PSObject.Properties['digest']^) { $digest = [string]$asset.digest }
