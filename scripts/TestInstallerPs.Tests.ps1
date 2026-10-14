@@ -127,6 +127,54 @@ Describe 'Test-BlinterArchiveHash.ps1' {
     }
 }
 
+Describe 'Installer batch hash helper emission' {
+    It 'writes a working verifier and can goto :error_restore (<Name>)' -ForEach @(
+        @{ Name = 'CRLF'; Newline = "`r`n" }
+        @{ Name = 'LF'; Newline = "`n" }
+    ) {
+        $tempStem = Join-Path $TestDrive "hash-$Name"
+        $zipPath = "$tempStem.zip"
+        $payload = [byte[]](1, 2, 3, 4, 5)
+        [System.IO.File]::WriteAllBytes($zipPath, $payload)
+        $sha = [System.Security.Cryptography.SHA256]::Create()
+        try {
+            $hash = [System.BitConverter]::ToString($sha.ComputeHash($payload)).Replace('-', '').ToLowerInvariant()
+        } finally {
+            $sha.Dispose()
+        }
+
+        $outFile = Join-Path $TestDrive "hash-verify-$Name.ps1"
+        $cmdPath = Join-Path $TestDrive "hash-verify-$Name.cmd"
+        New-InstallerBatchLabelScript `
+            -CmdFilePath (Join-Path $script:ScriptsRoot 'install_blinter.cmd') `
+            -LabelName 'write_hash_verify_script' `
+            -DestinationPath $cmdPath `
+            -Newline $Newline `
+            -Variables @{
+                PS_HASH_VERIFY = $outFile
+                BLINTER_TEMP   = $tempStem
+                BLINTER_SHA256 = "sha256:$hash"
+            } | Out-Null
+
+        $output = & cmd.exe /d /c "call `"$cmdPath`""
+        $LASTEXITCODE | Should -Be 0
+        $text = @($output) -join "`n"
+        $text | Should -Match 'RESTORE_OK'
+        $text | Should -Not -Match 'cannot find the batch label'
+        $text | Should -Not -Match 'SHA256::Create'
+
+        $fixtureLines = @(Get-Content -LiteralPath (Join-Path $script:InstallerPsRoot 'Test-BlinterArchiveHash.ps1'))
+        $expectedLines = @($fixtureLines | Select-Object -Skip 1 | ForEach-Object {
+                $_.Replace('__BLINTER_TEMP__', $tempStem).Replace('__BLINTER_SHA256__', "sha256:$hash")
+            })
+        @(Get-Content -LiteralPath $outFile) | Should -Be $expectedLines
+
+        $verifyOutput = & $outFile
+        $LASTEXITCODE | Should -Be 0
+        $verifyOutput | Should -Be 'OK'
+    }
+}
+
 Describe 'Update-BlinterUserPath.ps1' {
     AfterEach {
         Remove-Variable -Name BlinterTestUserPath -Scope Global -ErrorAction SilentlyContinue

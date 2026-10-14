@@ -54,7 +54,7 @@ jobs:
           python scripts/benchmark_lint.py --runs 3 --check-baseline
 
   quality-windows:
-    name: PowerShell and install-script lint
+    name: PowerShell, installer, and uninstaller
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -77,6 +77,11 @@ jobs:
 
       - name: Run PowerShell verification checks
         run: python scripts/verify.py --powershell-only
+
+      - name: Run installer and uninstaller
+        timeout-minutes: 15
+        shell: powershell
+        run: .\scripts\test_install_scripts.ps1
 
   test-python:
     name: pytest (${{ matrix.os }}, Python ${{ matrix.python-version }})

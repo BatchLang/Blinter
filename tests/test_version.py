@@ -741,6 +741,16 @@ class TestCiRelease:
         with pytest.raises(SystemExit, match="pyproject.toml not found"):
             read_version_file(missing)
 
+    def test_windows_ci_runs_installer_and_uninstaller(self) -> None:
+        """Windows CI must execute the install and uninstall batch scripts."""
+        ci_text = (_REPO_ROOT / ".github" / "workflows" / "CI.yml").read_text(
+            encoding="utf-8"
+        )
+        windows_job = ci_text.split("quality-windows:", maxsplit=1)[1].split(
+            "test-python:", maxsplit=1
+        )[0]
+        assert "test_install_scripts.ps1" in windows_job
+
     def test_workflow_dispatch_releases_even_when_version_is_unchanged(self) -> None:
         """Manual runs publish the current version without a bump."""
         assert decide_release("workflow_dispatch", "1.2.3", "1.2.3") is True

@@ -45,6 +45,8 @@ function ConvertFrom-BatchEchoEscape {
     $result = $result -replace '\^\)', ')'
     $result = $result -replace '\^\>', '>'
     $result = $result -replace '\^&', '&'
+    # Cmd removes one caret from an even pair after the special-character escapes above.
+    $result = $result -replace '\^\^', '^'
     return $result
 }
 
@@ -174,7 +176,8 @@ function Get-PowerShellAnalyzePaths {
 
     $paths = @(
         (Join-Path $ScriptsRoot 'TestExeSmoke.Helpers.ps1'),
-        (Join-Path $ScriptsRoot 'test_exe_smoke.ps1')
+        (Join-Path $ScriptsRoot 'test_exe_smoke.ps1'),
+        (Join-Path $ScriptsRoot 'test_install_scripts.ps1')
     )
     $paths += Get-InstallerPsFixturePaths -InstallerPsRoot (Join-Path $ScriptsRoot 'installer_ps')
     return $paths
@@ -259,4 +262,80 @@ function Invoke-InstallerPsPathFixture {
         ExitCode = $LASTEXITCODE
         UserPath = $global:BlinterTestUserPath
     }
+}
+
+function Get-BatchSubroutineLines {
+    param(
+        [Parameter(Mandatory)]
+        [string]$CmdFilePath,
+        [Parameter(Mandatory)]
+        [string]$LabelName
+    )
+
+    if (-not (Test-Path -LiteralPath $CmdFilePath)) {
+        throw "Batch file not found: $CmdFilePath"
+    }
+
+    $lines = @(Get-Content -LiteralPath $CmdFilePath)
+    $labelPattern = "^:$([regex]::Escape($LabelName))\s*$"
+    $startIndex = -1
+    for ($index = 0; $index -lt $lines.Count; $index++) {
+        if ($lines[$index] -match $labelPattern) {
+            $startIndex = $index
+            break
+        }
+    }
+
+    if ($startIndex -lt 0) {
+        throw "Label :$LabelName not found in $CmdFilePath"
+    }
+
+    $collected = [System.Collections.Generic.List[string]]::new()
+    for ($index = $startIndex; $index -lt $lines.Count; $index++) {
+        $line = $lines[$index]
+        $collected.Add($line)
+        if ($line.Trim() -eq 'exit /b 0') {
+            return $collected.ToArray()
+        }
+    }
+
+    throw "Label :$LabelName in $CmdFilePath does not end with exit /b 0"
+}
+
+function New-InstallerBatchLabelScript {
+    param(
+        [Parameter(Mandatory)]
+        [string]$CmdFilePath,
+        [Parameter(Mandatory)]
+        [string]$LabelName,
+        [Parameter(Mandatory)]
+        [string]$DestinationPath,
+        [Parameter(Mandatory)]
+        [hashtable]$Variables,
+        [Parameter(Mandatory)]
+        [string]$Newline
+    )
+
+    $subroutine = @(Get-BatchSubroutineLines -CmdFilePath $CmdFilePath -LabelName $LabelName)
+    $header = [System.Collections.Generic.List[string]]::new()
+    $header.Add('@echo off')
+    $header.Add('setlocal enabledelayedexpansion')
+    foreach ($entry in $Variables.GetEnumerator()) {
+        $header.Add("set `"$($entry.Key)=$($entry.Value)`"")
+    }
+    $header.Add("call :$LabelName")
+    $header.Add('if errorlevel 1 exit /b 2')
+    $header.Add('goto :error_restore')
+
+    $footer = @(
+        ':error_restore',
+        'echo RESTORE_OK',
+        'exit /b 0'
+    )
+    $allLines = @($header.ToArray()) + $subroutine + $footer
+    $script = ($allLines -join $Newline) + $Newline
+    $encoding = New-Object System.Text.UTF8Encoding $false
+    [System.IO.File]::WriteAllText($DestinationPath, $script, $encoding)
+    Write-Verbose "Wrote batch label harness for :$LabelName to $DestinationPath"
+    return $DestinationPath
 }

@@ -40,6 +40,7 @@ _INSTALLER_PS_DIR = Path("scripts") / "installer_ps"
 _BLINTER_SCRIPTS_INI = Path("scripts") / "blinter.ini"
 _INSTALL_SCRIPT = Path("scripts") / "install_blinter.cmd"
 _UNINSTALL_SCRIPT = Path("scripts") / "uninstall_blinter.cmd"
+_INSTALL_SCRIPT_TEST = Path("scripts") / "test_install_scripts.ps1"
 
 
 def _repo_root() -> Path:
@@ -257,6 +258,7 @@ def _psscriptanalyzer_paths(root: Path) -> list[Path]:
     paths = [
         scripts_dir / _POWERSHELL_HELPERS.name,
         scripts_dir / _POWERSHELL_SCRIPT.name,
+        scripts_dir / _INSTALL_SCRIPT_TEST.name,
     ]
     installer_ps_dir = root / _INSTALLER_PS_DIR
     if installer_ps_dir.is_dir():
