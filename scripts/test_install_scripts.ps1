@@ -8,7 +8,7 @@
     scripts/uninstall_blinter.cmd, then repeats with Unix line endings and the
     README "(call script || cd .)" invocation. GitHub-hosted Windows runners
     are elevated, and both scripts refuse an administrator token, so an
-    elevated caller is restarted from the interactive explorer token.
+    elevated caller runs them in a limited scheduled task.
 #>
 [CmdletBinding()]
 param(
@@ -22,8 +22,6 @@ $PSNativeCommandUseErrorActionPreference = $false
 if (-not $RepoRoot) {
     $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 }
-
-$script:UnelevatedTypeReady = $false
 
 function Write-InstallerTestLog {
     param([Parameter(Mandatory)][string]$Message)
@@ -46,136 +44,101 @@ function Test-BlinterSessionElevated {
     return $LASTEXITCODE -eq 0
 }
 
-function Initialize-BlinterUnelevatedType {
-    if ($script:UnelevatedTypeReady) {
-        return
+function Get-BlinterLimitedTaskResult {
+    param(
+        [Parameter(Mandatory)][string]$TaskName,
+        [Parameter(Mandatory)][datetime]$Deadline
+    )
+
+    # 0x41301 = currently running, 0x41303 = has not run yet.
+    $pendingResults = @(0x41301, 0x41303)
+    $queuedSince = $null
+    $finished = $false
+    $state = "Unknown"
+    $result = -1
+    do {
+        Start-Sleep -Milliseconds 250
+        $task = Get-ScheduledTask -TaskName $TaskName
+        $info = Get-ScheduledTaskInfo -TaskName $TaskName
+        $state = [string]$task.State
+        $result = [int]$info.LastTaskResult
+        if ($state -eq "Queued") {
+            if (-not $queuedSince) {
+                $queuedSince = Get-Date
+            }
+            $queuedFor = ((Get-Date) - $queuedSince).TotalSeconds
+            if ($queuedFor -gt 20) {
+                throw "Task $TaskName stayed queued for 20 seconds (result $result)"
+            }
+        } else {
+            $queuedSince = $null
+        }
+        $finished = $state -ne "Running" -and $state -ne "Queued" -and $pendingResults -notcontains $result
+    } while (-not $finished -and (Get-Date) -lt $Deadline)
+
+    if (-not $finished) {
+        throw "Task $TaskName timed out in state $state (result $result)"
     }
+    return $result
+}
 
-    $source = @'
-using System;
-using System.ComponentModel;
-using System.Runtime.InteropServices;
+function Invoke-BlinterLimitedTask {
+    param([Parameter(Mandatory)][string]$LauncherPath)
 
-public static class BlinterUnelevatedProcess {
-    const uint TokenAssignPrimary = 0x0001;
-    const uint TokenDuplicate = 0x0002;
-    const uint TokenQuery = 0x0008;
-    const uint TokenAdjustDefault = 0x0080;
-    const int SecurityImpersonation = 2;
-    const int TokenPrimary = 1;
-    const int CreateUnicodeEnvironment = 0x00000400;
-    const int CreateNoWindow = 0x08000000;
-    const uint Infinite = 0xFFFFFFFF;
-
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    struct StartupInfo {
-        public int cb;
-        public string lpReserved;
-        public string lpDesktop;
-        public string lpTitle;
-        public int dwX;
-        public int dwY;
-        public int dwXSize;
-        public int dwYSize;
-        public int dwXCountChars;
-        public int dwYCountChars;
-        public int dwFillAttribute;
-        public int dwFlags;
-        public short wShowWindow;
-        public short cbReserved2;
-        public IntPtr lpReserved2;
-        public IntPtr hStdInput;
-        public IntPtr hStdOutput;
-        public IntPtr hStdError;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    struct ProcessInformation {
-        public IntPtr hProcess;
-        public IntPtr hThread;
-        public int dwProcessId;
-        public int dwThreadId;
-    }
-
-    [DllImport("advapi32.dll", SetLastError = true)]
-    static extern bool OpenProcessToken(IntPtr processHandle, uint desiredAccess, out IntPtr tokenHandle);
-
-    [DllImport("advapi32.dll", SetLastError = true)]
-    static extern bool DuplicateTokenEx(
-        IntPtr existingToken,
-        uint desiredAccess,
-        IntPtr tokenAttributes,
-        int impersonationLevel,
-        int tokenType,
-        out IntPtr newToken);
-
-    [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-    static extern bool CreateProcessWithTokenW(
-        IntPtr token,
-        int logonFlags,
-        string applicationName,
-        string commandLine,
-        int creationFlags,
-        IntPtr environment,
-        string currentDirectory,
-        ref StartupInfo startupInfo,
-        out ProcessInformation processInformation);
-
-    [DllImport("kernel32.dll", SetLastError = true)]
-    static extern uint WaitForSingleObject(IntPtr handle, uint milliseconds);
-
-    [DllImport("kernel32.dll", SetLastError = true)]
-    static extern bool GetExitCodeProcess(IntPtr process, out uint exitCode);
-
-    [DllImport("kernel32.dll", SetLastError = true)]
-    static extern bool CloseHandle(IntPtr handle);
-
-    public static int Start(IntPtr processHandle, string commandLine, string workingDirectory) {
-        IntPtr token = IntPtr.Zero;
-        IntPtr primary = IntPtr.Zero;
-        ProcessInformation processInfo = new ProcessInformation();
+    # CreateProcessWithTokenW returns access denied on GitHub-hosted runners.
+    # A limited scheduled task runs as the same user without an administrator token.
+    $settings = New-ScheduledTaskSettingsSet `
+        -AllowStartIfOnBatteries `
+        -DontStopIfGoingOnBatteries `
+        -ExecutionTimeLimit (New-TimeSpan -Minutes 12)
+    $action = New-ScheduledTaskAction `
+        -Execute "$env:SystemRoot\System32\cmd.exe" `
+        -Argument "/d /c `"$LauncherPath`"" `
+        -WorkingDirectory "$env:SystemDrive\"
+    $account = "$env:USERDOMAIN\$env:USERNAME"
+    $whoamiAccount = (whoami).Trim()
+    $candidates = @(
+        @{ Name = "domain-user"; UserId = $account; LogonType = "" },
+        @{ Name = "whoami"; UserId = $whoamiAccount; LogonType = "Interactive" }
+    )
+    $errors = [System.Collections.Generic.List[string]]::new()
+    foreach ($candidate in $candidates) {
+        $taskName = "BlinterInstallCI-" + [Guid]::NewGuid().ToString("n")
         try {
-            if (!OpenProcessToken(processHandle, TokenDuplicate | TokenQuery, out token)) {
-                throw new Win32Exception(Marshal.GetLastWin32Error());
+            if ($candidate.LogonType) {
+                $principal = New-ScheduledTaskPrincipal `
+                    -UserId $candidate.UserId `
+                    -LogonType $candidate.LogonType `
+                    -RunLevel Limited
+            } else {
+                $principal = New-ScheduledTaskPrincipal -UserId $candidate.UserId -RunLevel Limited
             }
-            // Omit TOKEN_ADJUST_SESSIONID. It requires SeTcbPrivilege, which an elevated
-            // administrator token on a GitHub-hosted runner does not have.
-            uint access = TokenAssignPrimary | TokenDuplicate | TokenQuery | TokenAdjustDefault;
-            if (!DuplicateTokenEx(token, access, IntPtr.Zero, SecurityImpersonation, TokenPrimary, out primary)) {
-                throw new Win32Exception(Marshal.GetLastWin32Error());
-            }
-            StartupInfo startup = new StartupInfo();
-            startup.cb = Marshal.SizeOf(typeof(StartupInfo));
-            int flags = CreateUnicodeEnvironment | CreateNoWindow;
-            if (!CreateProcessWithTokenW(primary, 0, null, commandLine, flags, IntPtr.Zero, workingDirectory, ref startup, out processInfo)) {
-                throw new Win32Exception(Marshal.GetLastWin32Error());
-            }
-            WaitForSingleObject(processInfo.hProcess, Infinite);
-            uint code;
-            if (!GetExitCodeProcess(processInfo.hProcess, out code)) {
-                throw new Win32Exception(Marshal.GetLastWin32Error());
-            }
-            return unchecked((int)code);
+            Register-ScheduledTask `
+                -TaskName $taskName `
+                -Action $action `
+                -Principal $principal `
+                -Settings $settings `
+                -Force | Out-Null
+            Write-InstallerTestLog "Starting limited scheduled task $taskName account=$($candidate.UserId) logon=$($candidate.Name)"
+            Start-ScheduledTask -TaskName $taskName
+            $result = Get-BlinterLimitedTaskResult -TaskName $taskName -Deadline (Get-Date).AddMinutes(12)
+            Write-InstallerTestLog "Limited task $taskName result=$result"
+            return $result
+        } catch {
+            $errors.Add("$($candidate.Name): $($_.Exception.Message)")
+            Write-InstallerTestLog "Limited task via $($candidate.Name) failed: $($_.Exception.Message)"
         } finally {
-            if (processInfo.hThread != IntPtr.Zero) {
-                CloseHandle(processInfo.hThread);
+            $existing = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+            if ($existing -and [string]$existing.State -eq "Running") {
+                Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
             }
-            if (processInfo.hProcess != IntPtr.Zero) {
-                CloseHandle(processInfo.hProcess);
-            }
-            if (primary != IntPtr.Zero) {
-                CloseHandle(primary);
-            }
-            if (token != IntPtr.Zero) {
-                CloseHandle(token);
+            if ($existing) {
+                Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
             }
         }
     }
-}
-'@
-    Add-Type -TypeDefinition $source -Language CSharp
-    $script:UnelevatedTypeReady = $true
-    Write-InstallerTestLog "Compiled unelevated process starter"
+
+    throw "Could not start an unelevated cmd. $($errors -join '; ')"
 }
 
 function Invoke-BlinterLauncher {
@@ -190,24 +153,7 @@ function Invoke-BlinterLauncher {
         return $LASTEXITCODE
     }
 
-    Initialize-BlinterUnelevatedType
-    $explorers = @(Get-Process -Name explorer -ErrorAction SilentlyContinue)
-    if ($explorers.Count -eq 0) {
-        throw "explorer.exe is not running, so an elevated CI process cannot drop to a normal user token."
-    }
-
-    $commandLine = 'cmd.exe /d /c "{0}"' -f $LauncherPath
-    $errors = [System.Collections.Generic.List[string]]::new()
-    foreach ($explorer in $explorers) {
-        try {
-            Write-InstallerTestLog "Starting unelevated cmd from explorer pid $($explorer.Id)"
-            return [BlinterUnelevatedProcess]::Start($explorer.Handle, $commandLine, $env:SystemDrive + "\")
-        } catch {
-            $errors.Add($_.Exception.Message)
-        }
-    }
-
-    throw "Could not start an unelevated cmd. $($errors -join '; ')"
+    return Invoke-BlinterLimitedTask -LauncherPath $LauncherPath
 }
 
 function Initialize-BlinterLauncherFile {
@@ -335,13 +281,18 @@ function Assert-BlinterChildIsUnelevated {
     param([Parameter(Mandatory)][string]$TempRoot)
 
     $probePath = Join-Path $TempRoot "elevation-probe.cmd"
+    $markerPath = Join-Path $TempRoot "elevation-probe-ran.txt"
     Initialize-BlinterLauncherFile -Destination $probePath -Body @"
 @echo off
+echo RAN> "$markerPath"
 net session >nul 2>&1
 exit /b %ERRORLEVEL%
 "@
     $exitCode = Invoke-BlinterLauncher -LauncherPath $probePath
     Write-InstallerTestLog "Unelevated probe exit=$exitCode (non-zero means the scripts will accept it)"
+    if (-not (Test-Path -LiteralPath $markerPath)) {
+        throw "Unelevated probe did not run (exit $exitCode)."
+    }
     if ($exitCode -eq 0) {
         throw "Installer process is still elevated. install_blinter.cmd refuses administrator tokens."
     }
@@ -438,7 +389,6 @@ Write-InstallerTestLog "Work directory: $tempRoot"
 Write-InstallerTestLog "Repository: $RepoRoot"
 
 try {
-    Initialize-BlinterUnelevatedType
     Assert-BlinterChildIsUnelevated -TempRoot $tempRoot
     Invoke-BlinterCleanupUninstall -ScriptPath $uninstallScript -TempRoot $tempRoot
     Invoke-BlinterInstallScenario `
