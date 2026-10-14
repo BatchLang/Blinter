@@ -2,6 +2,20 @@
 
 All notable changes to Blinter are documented in this file. Release tags follow [Semantic Versioning](https://semver.org/).
 
+## [1.1.39] - 2026-10-14
+
+### Added
+
+- Python 3.15 is supported. CI tests Python 3.11–3.15 on Ubuntu, macOS, and Windows, and the package classifiers list 3.15
+
+### Fixed
+
+- The Windows installer writes a SHA256 verifier that cmd does not cut short. Closing parentheses and the caret in the `sha256:` prefix are escaped, so a matching archive still verifies
+
+### Changed
+
+- Windows CI runs the installer and uninstaller, including Unix line endings. An elevated runner starts those scripts as a basic user
+
 ## [1.1.38] - 2026-10-14
 
 ### Changed
@@ -330,6 +344,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 Older 1.0.x releases are available on the [GitHub Releases](https://github.com/BatchLang/Blinter/releases) page.
 
+[1.1.39]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.39
 [1.1.38]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.38
 [1.1.37]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.37
 [1.1.36]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.36
