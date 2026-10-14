@@ -52,7 +52,7 @@
 
 ### 🚀 Quick Start (Recommended)
 
-**Option 1: Install via pip (Recommended)**
+**Option 1: Install via pip**
 ```cmd
 pip install Blinter
 ```
@@ -68,7 +68,7 @@ Run without installing:
 uvx blinter
 ```
 
-**Option 3: Standalone executable (no Python)**
+**Option 3: Standalone executable**
 
 If you prefer a standalone `.exe` over pip, use the one-line installer:
 
