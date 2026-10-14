@@ -264,8 +264,64 @@ def _try_decode_bytes(raw_data: bytes, encoding: str) -> Optional[List[str]]:
         return None
 
 
+_WIDE_ENCODINGS: Tuple[str, ...] = (
+    "utf-16",
+    "utf-16-le",
+    "utf-16-be",
+    "utf-32",
+    "utf-32-le",
+    "utf-32-be",
+)
+
+
+def _encoding_from_bom(raw_data: bytes) -> Optional[str]:
+    """Return the encoding named by a leading byte-order mark, if one is present."""
+    if raw_data.startswith((b"\xff\xfe\x00\x00", b"\x00\x00\xfe\xff")):
+        return "utf-32"
+    if raw_data.startswith((b"\xff\xfe", b"\xfe\xff")):
+        return "utf-16"
+    if raw_data.startswith(b"\xef\xbb\xbf"):
+        return "utf-8-sig"
+    return None
+
+
+def _accept_decoded_lines(
+    file_path: str, raw_data: bytes, encoding: str
+) -> Optional[Tuple[List[str], str]]:
+    """Return decoded lines when ``encoding`` accepts ``raw_data``."""
+    lines = _try_decode_bytes(raw_data, encoding)
+    if lines is None:
+        return None
+    _validate_line_lengths(lines, file_path)
+    return lines, encoding
+
+
+def _decode_wide_or_reject_nuls(
+    file_path: str, raw_data: bytes
+) -> Tuple[List[str], str]:
+    """Decode NUL-bearing bytes as UTF-16 or UTF-32, or raise one clear error."""
+    for encoding in _WIDE_ENCODINGS:
+        decoded = _accept_decoded_lines(file_path, raw_data, encoding)
+        if decoded is not None:
+            return decoded
+    raise OSError(
+        f"File '{file_path}' contains NUL bytes and is not valid "
+        "UTF-8, UTF-16, or UTF-32."
+    )
+
+
 def _read_lines_from_bytes(file_path: str, raw_data: bytes) -> Tuple[List[str], str]:
     """Decode pre-read file bytes using charset detection and fallbacks."""
+    bom_encoding = _encoding_from_bom(raw_data)
+    if bom_encoding is not None:
+        decoded = _accept_decoded_lines(file_path, raw_data, bom_encoding)
+        if decoded is not None:
+            return decoded
+
+    has_nul = b"\x00" in raw_data
+    if has_nul and _try_decode_bytes(raw_data, "utf-8") is None:
+        return _decode_wide_or_reject_nuls(file_path, raw_data)
+
     encodings_to_try = [
         "utf-8",
         "utf-8-sig",
@@ -280,14 +336,13 @@ def _read_lines_from_bytes(file_path: str, raw_data: bytes) -> Tuple[List[str], 
     encodings_to_try = _detect_charset_norm_bytes(raw_data, encodings_to_try)
 
     for encoding in encodings_to_try:
-        lines = _try_decode_bytes(raw_data, encoding)
-        if lines is not None:
-            _validate_line_lengths(lines, file_path)
-            return lines, encoding
+        decoded = _accept_decoded_lines(file_path, raw_data, encoding)
+        if decoded is not None:
+            return decoded
 
     raise OSError(
         f"All encoding attempts failed for file '{file_path}'. "
-        f"Could not decode file with any supported encoding"
+        "Could not decode file with any supported encoding"
     )
 
 

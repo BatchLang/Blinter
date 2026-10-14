@@ -68,50 +68,59 @@ def _normalize_label_target(raw_target: str) -> str:
     return target
 
 
-_invocation_prefix_cache_var: ContextVar[Optional[Dict[int, List[Set[str]]]]] = (
-    ContextVar("invocation_prefix_cache", default=None)
-)
+_target_line_cache_var: ContextVar[
+    Optional[Dict[int, tuple[object, Dict[str, int]]]]
+] = ContextVar("target_line_cache", default=None)
+_sorted_labels_cache_var: ContextVar[
+    Optional[Dict[int, tuple[object, List[Tuple[str, int]]]]]
+] = ContextVar("sorted_labels_cache", default=None)
 
 
 def _begin_invocation_prefix_pass() -> None:
-    """Start a per-lint invocation-prefix cache for the current execution context."""
-    _invocation_prefix_cache_var.set({})
+    """Start per-lint label-target caches for the current execution context."""
+    _target_line_cache_var.set({})
+    _sorted_labels_cache_var.set({})
 
 
-def _build_invocation_prefix(lines: List[str]) -> List[Set[str]]:
-    """
-    For each line index, return labels invoked on all prior lines.
-
-    ``prefix[i]`` contains CALL/GOTO targets from lines ``0..i-1`` (0-based).
-    """
-    prefix: List[Set[str]] = []
-    targeted: Set[str] = set()
-    for line in lines:
-        prefix.append(set(targeted))
+def _build_first_target_line(lines: List[str]) -> Dict[str, int]:
+    """Map each CALL/GOTO target to the first 0-based line that names it."""
+    first_line: Dict[str, int] = {}
+    for index, line in enumerate(lines):
         for match in _LABEL_TARGET_PATTERN.finditer(line):
-            targeted.add(_normalize_label_target(match.group(1)))
-    return prefix
+            name = _normalize_label_target(match.group(1))
+            if name not in first_line:
+                first_line[name] = index
+    return first_line
 
 
-def _invocation_prefix_for_lines(lines: List[str]) -> List[Set[str]]:
-    """Return cached invocation prefix for ``lines`` within a single lint pass."""
-    cache = _invocation_prefix_cache_var.get()
-    if cache is None:
-        return _build_invocation_prefix(lines)
-    lines_id = id(lines)
-    cached = cache.get(lines_id)
-    if cached is None:
-        cached = _build_invocation_prefix(lines)
-        cache[lines_id] = cached
-    return cached
+def _first_target_lines_for(lines: List[str]) -> Dict[str, int]:
+    """Return cached first-target lines for ``lines`` within a single lint pass."""
+    return _identity_cached(
+        _target_line_cache_var.get(),
+        lines,
+        lambda: _build_first_target_line(lines),
+    )
 
 
-def _labels_targeted_before(lines: List[str], before_line: int) -> Set[str]:
-    """Collect label names referenced by CALL/GOTO before ``before_line``."""
+def _sorted_labels_for(labels: Dict[str, int]) -> List[Tuple[str, int]]:
+    """Return label definitions sorted by line, cached for this lint pass."""
+    return _identity_cached(
+        _sorted_labels_cache_var.get(),
+        labels,
+        lambda: sorted(labels.items(), key=_label_sort_key),
+    )
+
+
+def _label_was_targeted_before(
+    lines: List[str], before_line: int, label_name: str
+) -> bool:
+    """Return True when CALL/GOTO names ``label_name`` before ``before_line``."""
     if before_line <= 1:
-        return set()
-    prefix = _invocation_prefix_for_lines(lines)
-    return prefix[before_line - 1]
+        return False
+    first_line = _first_target_lines_for(lines).get(label_name)
+    if first_line is None:
+        return False
+    return first_line < before_line - 1
 
 
 def _label_block_for_line(
@@ -151,13 +160,13 @@ def _is_in_subroutine_context(
     if not labels or line_number < 1:
         return False
 
-    sorted_labels = sorted(labels.items(), key=_label_sort_key)
+    sorted_labels = _sorted_labels_for(labels)
     block = _label_block_for_line(line_number, sorted_labels, len(lines))
     if block is None:
         return False
 
     label_name, _ = block
-    return label_name in _labels_targeted_before(lines, line_number)
+    return _label_was_targeted_before(lines, line_number, label_name)
 
 
 _SET_VAR_NAME = r"[A-Za-z0-9_@]+"

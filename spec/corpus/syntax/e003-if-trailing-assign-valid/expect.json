@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "Equals after a valid IF comparison is not E003",
+  "lines": {},
+  "must_not": [
+    "E003"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "shift argument loop with an empty-arg exit is not W004",
+  "lines": {},
+  "must_not": [
+    "W004"
+  ],
+  "rules": [],
+  "tags": [
+    "integration"
+  ]
+}

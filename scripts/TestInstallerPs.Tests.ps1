@@ -152,6 +152,16 @@ Describe 'Update-BlinterUserPath.ps1' {
         $result.UserPath | Should -Be 'C:\Test\Blinter\bin;C:\Other'
     }
 
+    It 'appends the bin directory when PATH only contains it as a substring' {
+        $result = Invoke-InstallerPsPathFixture `
+            -FixturePath (Join-Path $script:InstallerPsRoot 'Update-BlinterUserPath.ps1') `
+            -BinPath 'C:\Test\Blinter\bin' `
+            -InitialUserPath 'C:\Test\Blinter\bin-extra' `
+            -TempScriptPath (Join-Path $TestDrive 'update-path-substring.ps1')
+        $result.ExitCode | Should -Be 0
+        $result.UserPath | Should -Be 'C:\Test\Blinter\bin-extra;C:\Test\Blinter\bin'
+    }
+
     It 'uses the bin directory as User PATH when the current value is empty' {
         $result = Invoke-InstallerPsPathFixture `
             -FixturePath (Join-Path $script:InstallerPsRoot 'Update-BlinterUserPath.ps1') `

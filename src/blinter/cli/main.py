@@ -240,7 +240,10 @@ def _print_skipped_files_summary(skipped_files: List[Tuple[str, str]]) -> None:
 
 
 def _process_batch_files(
-    batch_files: List[Path], config: BlinterConfig
+    batch_files: List[Path],
+    config: BlinterConfig,
+    *,
+    suppress_human_stdout: bool = False,
 ) -> Optional[ProcessingResults]:
     """Process all batch files and collect results."""
     state = ProcessingState(
@@ -291,11 +294,20 @@ def _process_batch_files(
             continue
 
     if total_files_processed == 0:
+        if suppress_human_stdout:
+            return ProcessingResults(
+                [],
+                {},
+                0,
+                0,
+                [],
+                skipped_files,
+            )
         _print_skipped_files_summary(skipped_files)
         print("Error: No batch files could be processed.", file=sys.stderr)
         return None
 
-    if skipped_files:
+    if skipped_files and not suppress_human_stdout:
         _print_skipped_files_summary(skipped_files)
 
     return ProcessingResults(
@@ -595,6 +607,8 @@ def main() -> None:
     """Main entry point for the blinter application."""
     try:
         _run_cli()
+    except BrokenPipeError:
+        raise SystemExit(0) from None
     except Exception:
         logger.exception("Unexpected error during CLI execution")
         print("Error: An unexpected internal error occurred.", file=sys.stderr)
@@ -653,7 +667,11 @@ def _run_cli() -> None:
     if not batch_files:
         _cli_error(f"No batch files (.bat or .cmd) found in: {cli_args.target_path}")
 
-    results = _process_batch_files(batch_files, config)
+    results = _process_batch_files(
+        batch_files,
+        config,
+        suppress_human_stdout=json_output,
+    )
     if results is None:
         sys.exit(1)
 

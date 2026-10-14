@@ -15,6 +15,7 @@ from blinter.checkers.warnings import (
     _strip_double_quoted_strings,
 )
 from blinter.models import LintIssue
+from blinter.parsing.context import _split_tokens
 from blinter.parsing.structure import (
     _delayed_expansion_state_for_lines,
     _paren_depth_before_line,
@@ -211,6 +212,32 @@ def _check_if_statement_formatting(stripped: str, line_num: int) -> List[LintIss
     return issues
 
 
+_IF_PREFIX_TOKENS = frozenset({"/i", "not"})
+_IF_CONDITION_OPERATORS = frozenset(
+    {"==", "=", "equ", "neq", "lss", "leq", "gtr", "geq"}
+)
+
+
+def _if_condition_text(stripped: str) -> str:
+    """Return the IF condition, excluding the command that follows it."""
+    body = stripped[1:].lstrip() if stripped.startswith("@") else stripped
+    tokens = _split_tokens(body)
+    if not tokens or tokens[0].lower() != "if":
+        return ""
+    index = 1
+    while index < len(tokens) and tokens[index].lower() in _IF_PREFIX_TOKENS:
+        index += 1
+    if index >= len(tokens):
+        return ""
+    operator_index = index + 1
+    if (
+        operator_index + 1 < len(tokens)
+        and tokens[operator_index].lower() in _IF_CONDITION_OPERATORS
+    ):
+        return " ".join(tokens[index : operator_index + 2])
+    return tokens[index]
+
+
 def _check_if_equals_paren(stripped: str, line_num: int) -> List[LintIssue]:
     """E003: single ``=`` where ``==`` is required, or ``IF a==b(`` glued paren."""
     if not re.match(r"@?if\b", stripped, re.IGNORECASE):
@@ -221,7 +248,8 @@ def _check_if_equals_paren(stripped: str, line_num: int) -> List[LintIssue]:
         re.IGNORECASE,
     ):
         return []
-    unquoted = _strip_double_quoted_strings(stripped)
+    condition = _if_condition_text(stripped)
+    unquoted = _strip_double_quoted_strings(condition)
     issues: List[LintIssue] = []
     if re.search(r"(?:==|equ|neq|lss|leq|gtr|geq)\S*\(", unquoted, re.IGNORECASE):
         issues.append(

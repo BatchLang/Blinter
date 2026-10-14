@@ -2,6 +2,29 @@
 
 All notable changes to Blinter are documented in this file. Release tags follow [Semantic Versioning](https://semver.org/).
 
+## [1.1.36] - 2026-10-14
+
+### Fixed
+
+- **E003** checks only the IF condition, so a valid line such as `if "%1"=="" set X=1` or `if ... echo a = b` is no longer a fatal error
+- `--format json` keeps skipped-file details in the JSON report. When every file is skipped, stdout is still JSON
+- **S028** leaves parentheses in place when the group chains commands with `&` or `|`
+- **P022** and **P023** apply only inside a FOR block, including a one-line `for ... do`
+- **W004** allows the usual `shift` loop that exits when the next argument is empty
+- **P006** no longer requires ENDLOCAL before a top-level `exit /b`. Ending the batch file ends SETLOCAL
+- A UTF-16 BOM is decoded as UTF-16. NUL bytes that are not valid UTF-8, UTF-16, or UTF-32 raise one encoding error instead of being read as cp1252
+- Directory scans accept `.BAT` and `.CMD` on case-sensitive filesystems
+- Piping output to a program that closes the pipe exits quietly
+- The installer treats a PATH entry as present only when the segment matches exactly
+
+### Changed
+
+- CALL and GOTO checks remember the first line that targets each label, and sort label definitions once per file
+- The performance gate uses the current synthetic timing and a second file with 2000 labels and unique CALL targets. A case fails when it takes more than twice that median
+- Source distributions omit the `tests/` tree. Tests run from a git checkout
+- GitHub Actions are pinned to commit SHAs, and PyPI publishing pins Twine 7.0.0
+- Changelog links point at `BatchLang/Blinter`
+
 ## [1.1.35] - 2026-10-13
 
 ### Changed
@@ -85,10 +108,10 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ### Fixed
 
-- **W036** reads a FOR /F command operand to the parenthesis that balances `IN (`, so nested `(` inside a backquoted command is not treated as a file ([#37](https://github.com/tboy1337/Blinter/issues/37), [#42](https://github.com/tboy1337/Blinter/pull/42))
-- Drive-relative names such as `C:Set-Permissions` and `ForEach-Object.bat` are no longer classified as embedded PowerShell ([#38](https://github.com/tboy1337/Blinter/issues/38), [#42](https://github.com/tboy1337/Blinter/pull/42))
-- **S010** ignores `CALL`/`GOTO` inside an inline `REM` or `ECHO` segment after `&` ([#39](https://github.com/tboy1337/Blinter/issues/39), [#42](https://github.com/tboy1337/Blinter/pull/42))
-- **P024**/**P006** count `SETLOCAL`/`ENDLOCAL` after an `IF` predicate or `&` ([#40](https://github.com/tboy1337/Blinter/issues/40), [#42](https://github.com/tboy1337/Blinter/pull/42))
+- **W036** reads a FOR /F command operand to the parenthesis that balances `IN (`, so nested `(` inside a backquoted command is not treated as a file ([#37](https://github.com/BatchLang/Blinter/issues/37), [#42](https://github.com/BatchLang/Blinter/pull/42))
+- Drive-relative names such as `C:Set-Permissions` and `ForEach-Object.bat` are no longer classified as embedded PowerShell ([#38](https://github.com/BatchLang/Blinter/issues/38), [#42](https://github.com/BatchLang/Blinter/pull/42))
+- **S010** ignores `CALL`/`GOTO` inside an inline `REM` or `ECHO` segment after `&` ([#39](https://github.com/BatchLang/Blinter/issues/39), [#42](https://github.com/BatchLang/Blinter/pull/42))
+- **P024**/**P006** count `SETLOCAL`/`ENDLOCAL` after an `IF` predicate or `&` ([#40](https://github.com/BatchLang/Blinter/issues/40), [#42](https://github.com/BatchLang/Blinter/pull/42))
 
 ### Changed
 
@@ -106,10 +129,10 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ### Fixed
 
-- **P024** and **P006** no longer treat the word `setlocal`/`endlocal` inside comments as commands, and P024 reports the second real `SETLOCAL` ([#40](https://github.com/tboy1337/Blinter/issues/40))
-- **S010** counts labels reached by `if ... goto`/`call` and `|| goto`, while ignoring `goto`/`call` inside comments or echo output ([#39](https://github.com/tboy1337/Blinter/issues/39))
-- Hyphenated filenames such as `set-permissions.bat` are no longer classified as embedded PowerShell, so per-line rules still run ([#38](https://github.com/tboy1337/Blinter/issues/38))
-- **W036** no longer treats FOR /F command operands (for example `powershell -NoProfile` under usebackq backticks) as data files ([#37](https://github.com/tboy1337/Blinter/issues/37))
+- **P024** and **P006** no longer treat the word `setlocal`/`endlocal` inside comments as commands, and P024 reports the second real `SETLOCAL` ([#40](https://github.com/BatchLang/Blinter/issues/40))
+- **S010** counts labels reached by `if ... goto`/`call` and `|| goto`, while ignoring `goto`/`call` inside comments or echo output ([#39](https://github.com/BatchLang/Blinter/issues/39))
+- Hyphenated filenames such as `set-permissions.bat` are no longer classified as embedded PowerShell, so per-line rules still run ([#38](https://github.com/BatchLang/Blinter/issues/38))
+- **W036** no longer treats FOR /F command operands (for example `powershell -NoProfile` under usebackq backticks) as data files ([#37](https://github.com/BatchLang/Blinter/issues/37))
 
 ### Changed
 
@@ -141,7 +164,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ### Added
 
-- **E042** detects text after a closing parenthesis inside a parenthesized IF/FOR/(group) block, a fatal cmd.exe parse error (fixes [#36](https://github.com/tboy1337/Blinter/issues/36))
+- **E042** detects text after a closing parenthesis inside a parenthesized IF/FOR/(group) block, a fatal cmd.exe parse error (fixes [#36](https://github.com/BatchLang/Blinter/issues/36))
 
 ### Changed
 
@@ -289,35 +312,36 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ---
 
-Older 1.0.x releases are available on the [GitHub Releases](https://github.com/tboy1337/Blinter/releases) page.
+Older 1.0.x releases are available on the [GitHub Releases](https://github.com/BatchLang/Blinter/releases) page.
 
+[1.1.36]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.36
 [1.1.35]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.35
 [1.1.34]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.34
 [1.1.33]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.33
 [1.1.32]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.32
 [1.1.31]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.31
-[1.1.30]: https://github.com/tboy1337/Blinter/releases/tag/v1.1.30
-[1.1.29]: https://github.com/tboy1337/Blinter/releases/tag/v1.1.29
-[1.1.28]: https://github.com/tboy1337/Blinter/releases/tag/v1.1.28
-[1.1.27]: https://github.com/tboy1337/Blinter/releases/tag/v1.1.27
-[1.1.26]: https://github.com/tboy1337/Blinter/releases/tag/v1.1.26
-[1.1.25]: https://github.com/tboy1337/Blinter/releases/tag/v1.1.25
-[1.1.24]: https://github.com/tboy1337/Blinter/releases/tag/v1.1.24
-[1.1.23]: https://github.com/tboy1337/Blinter/releases/tag/v1.1.23
-[1.1.22]: https://github.com/tboy1337/Blinter/releases/tag/v1.1.22
-[1.1.21]: https://github.com/tboy1337/Blinter/releases/tag/v1.1.21
-[1.1.20]: https://github.com/tboy1337/Blinter/releases/tag/v1.1.20
-[1.1.19]: https://github.com/tboy1337/Blinter/releases/tag/v1.1.19
-[1.1.18]: https://github.com/tboy1337/Blinter/releases/tag/v1.1.18
-[1.1.17]: https://github.com/tboy1337/Blinter/releases/tag/v1.1.17
-[1.1.16]: https://github.com/tboy1337/Blinter/releases/tag/v1.1.16
-[1.1.15]: https://github.com/tboy1337/Blinter/releases/tag/v1.1.15
-[1.1.14]: https://github.com/tboy1337/Blinter/releases/tag/v1.1.14
-[1.1.13]: https://github.com/tboy1337/Blinter/releases/tag/v1.1.13
-[1.1.12]: https://github.com/tboy1337/Blinter/releases/tag/v1.1.12
-[1.1.11]: https://github.com/tboy1337/Blinter/releases/tag/v1.1.11
-[1.1.10]: https://github.com/tboy1337/Blinter/releases/tag/v1.1.10
-[1.1.9]: https://github.com/tboy1337/Blinter/releases/tag/v1.1.9
-[1.1.8]: https://github.com/tboy1337/Blinter/releases/tag/v1.1.8
-[1.1.7]: https://github.com/tboy1337/Blinter/releases/tag/v1.1.7
-[1.1.0]: https://github.com/tboy1337/Blinter/releases/tag/v1.1.0
+[1.1.30]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.30
+[1.1.29]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.29
+[1.1.28]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.28
+[1.1.27]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.27
+[1.1.26]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.26
+[1.1.25]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.25
+[1.1.24]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.24
+[1.1.23]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.23
+[1.1.22]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.22
+[1.1.21]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.21
+[1.1.20]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.20
+[1.1.19]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.19
+[1.1.18]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.18
+[1.1.17]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.17
+[1.1.16]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.16
+[1.1.15]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.15
+[1.1.14]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.14
+[1.1.13]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.13
+[1.1.12]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.12
+[1.1.11]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.11
+[1.1.10]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.10
+[1.1.9]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.9
+[1.1.8]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.8
+[1.1.7]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.7
+[1.1.0]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.0

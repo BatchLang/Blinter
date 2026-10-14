@@ -2201,11 +2201,18 @@ class TestGlobalChecks:
         assert len(w007_issues) == 1
 
     def test_setlocal_exit_without_endlocal_triggers_p006(self) -> None:
-        """EXIT with active SETLOCAL should trigger P006."""
-        lines = ["@echo off", "setlocal", "exit /b 0"]
+        """Bare EXIT with active SETLOCAL should trigger P006."""
+        lines = ["@echo off", "setlocal", "exit"]
         issues = _check_new_global_rules(lines, "test.bat")
         p006_issues = [issue for issue in issues if issue.rule.code == "P006"]
         assert len(p006_issues) == 1
+
+    def test_top_level_exit_b_does_not_trigger_p006(self) -> None:
+        """exit /b ends the batch file, which ends SETLOCAL."""
+        lines = ["@echo off", "setlocal", "exit /b 0"]
+        issues = _check_new_global_rules(lines, "test.bat")
+        p006_issues = [issue for issue in issues if issue.rule.code == "P006"]
+        assert not p006_issues
 
     def test_subroutine_exit_b_does_not_trigger_p006(self) -> None:
         """exit /b inside a CALL subroutine should not trigger P006."""
@@ -4579,8 +4586,8 @@ class TestAdvancedSecurityPerformanceRules:
         assert "P019" in {issue.rule.code for issue in delayed_issues}
         assert "P022" in {issue.rule.code for issue in redirect_issues}
 
-    def test_for_block_membership_follows_running_depth(self) -> None:
-        """Membership uses a running depth that stays inside at depth 0."""
+    def test_for_block_membership_ends_when_the_block_closes(self) -> None:
+        """Lines after a FOR block are outside, including a later closing paren."""
         lines = [
             "@echo off\n",
             "echo before\n",
@@ -4591,7 +4598,7 @@ class TestAdvancedSecurityPerformanceRules:
             ")\n",
             "echo negative\n",
         ]
-        expected = [False, False, True, True, True, True, False, False]
+        expected = [False, False, True, True, True, False, False, False]
         actual = [
             _line_is_inside_for_block(lines, line_number)
             for line_number in range(1, len(lines) + 1)
@@ -4600,7 +4607,8 @@ class TestAdvancedSecurityPerformanceRules:
 
         other = ["for %%a in (1) do (\n", "echo x\n"]
         assert _line_is_inside_for_block(other, 1) is True
-        assert _line_is_inside_for_block(lines, 6) is True
+        assert _line_is_inside_for_block(other, 2) is True
+        assert _line_is_inside_for_block(lines, 6) is False
         assert _line_is_inside_for_block(lines, 2) is False
 
 

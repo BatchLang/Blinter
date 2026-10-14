@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "Parentheses around a command chain are not redundant",
+  "lines": {},
+  "must_not": [
+    "S028"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

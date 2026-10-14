@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "top-level exit /b ends SETLOCAL with the batch file",
+  "lines": {},
+  "must_not": [
+    "P006"
+  ],
+  "rules": [],
+  "tags": [
+    "integration"
+  ]
+}

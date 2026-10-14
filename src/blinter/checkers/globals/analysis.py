@@ -7,7 +7,6 @@ from typing import (
     DefaultDict,
     Dict,
     List,
-    Optional,
     Tuple,
 )
 
@@ -17,7 +16,6 @@ from blinter.checkers.globals.for_scope import (
 from blinter.constants import LARGE_FILE_LINE_THRESHOLD
 from blinter.models import LintIssue
 from blinter.parsing.context import (
-    _call_subroutine_label_names,
     _goto_and_call_label_names,
     _is_comment_line,
     _is_endlocal_command,
@@ -711,6 +709,26 @@ def _collect_label_line_numbers(lines: List[str]) -> Dict[str, int]:
     return label_lines
 
 
+_EMPTY_ARG_IF = re.compile(
+    r'\bif\b[^&\r\n]*"%~?\d"\s*==\s*""',
+    re.IGNORECASE,
+)
+
+
+def _context_has_shift_exit_guard(context_lines: List[str]) -> bool:
+    """Return True when a nearby shift loop exits on an empty argument."""
+    has_shift = False
+    has_empty_arg = False
+    for ctx in context_lines:
+        if re.search(r"\bshift\b", ctx, re.IGNORECASE):
+            has_shift = True
+        if _EMPTY_ARG_IF.search(ctx):
+            has_empty_arg = True
+        if has_shift and has_empty_arg:
+            return True
+    return False
+
+
 def _check_infinite_loop_warnings(lines: List[str]) -> List[LintIssue]:
     """Check for potential infinite loops (W004)."""
     issues: List[LintIssue] = []
@@ -725,7 +743,7 @@ def _check_infinite_loop_warnings(lines: List[str]) -> List[LintIssue]:
             if target_line >= i:
                 continue
             context_lines = lines[max(0, i - 5) : min(len(lines), i + 5)]
-            has_exit_guard = any(
+            has_exit_guard = _context_has_shift_exit_guard(context_lines) or any(
                 "set /a" in ctx.lower() or "counter" in ctx.lower()
                 for ctx in context_lines
             )
@@ -775,30 +793,10 @@ def _check_locked_file_operations(lines: List[str]) -> List[LintIssue]:
     return issues
 
 
-def _collect_call_subroutine_labels(lines: List[str]) -> set[str]:
-    """Return label names invoked via CALL :label."""
-    call_labels: set[str] = set()
-    for line in lines:
-        call_labels.update(_call_subroutine_label_names(line))
-    return call_labels
-
-
-def _label_containing_line(lines: List[str], line_index: int) -> Optional[str]:
-    """Return the nearest preceding label name for a zero-based line index."""
-    for index in range(line_index, -1, -1):
-        label_match = re.match(
-            r"^\s*:([a-zA-Z_][a-zA-Z0-9_]*)\s*$", lines[index].strip()
-        )
-        if label_match:
-            return str(label_match.group(1)).lower()
-    return None
-
-
 def _check_endlocal_before_exit(lines: List[str]) -> List[LintIssue]:
     """Check for SETLOCAL without ENDLOCAL before EXIT (P006)."""
     issues: List[LintIssue] = []
     setlocal_depth = 0
-    call_subroutine_labels = _collect_call_subroutine_labels(lines)
 
     for i, line in enumerate(lines, start=1):
         stripped = line.strip().lower()
@@ -808,10 +806,10 @@ def _check_endlocal_before_exit(lines: List[str]) -> List[LintIssue]:
             setlocal_depth -= 1
         if not re.match(r"exit\b", stripped) or setlocal_depth <= 0:
             continue
+        # exit /b either returns from a called subroutine or ends this batch
+        # file. SETLOCAL ends with the batch file, so only a bare EXIT is flagged.
         if re.match(r"exit\s+/b\b", stripped):
-            current_label = _label_containing_line(lines, i - 1)
-            if current_label and current_label in call_subroutine_labels:
-                continue
+            continue
         issues.append(
             LintIssue(
                 line_number=i,

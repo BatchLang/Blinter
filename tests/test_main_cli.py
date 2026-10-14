@@ -870,6 +870,19 @@ class TestDirectoryFunctionality:
         finally:
             self.cleanup_temp_directory(temp_dir)
 
+    def test_find_batch_files_matches_uppercase_extensions(self) -> None:
+        """Directory scans accept .BAT and .CMD regardless of case."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            upper_bat = Path(temp_dir) / "Script.BAT"
+            upper_cmd = Path(temp_dir) / "nested" / "Tool.CMD"
+            upper_cmd.parent.mkdir()
+            upper_bat.write_text("@echo off\n", encoding="utf-8")
+            upper_cmd.write_text("@echo off\n", encoding="utf-8")
+            found = {path.name for path in find_batch_files(temp_dir, recursive=True)}
+            assert found == {"Script.BAT", "Tool.CMD"}
+            direct = find_batch_files(upper_bat)
+            assert direct == [upper_bat]
+
     def test_find_batch_files_directory_non_recursive(self) -> None:
         """Test find_batch_files with directory (non-recursive)."""
         temp_dir = self.create_temp_directory_with_files()
@@ -2229,6 +2242,13 @@ class TestCliUnexpectedErrorExit:  # pylint: disable=too-few-public-methods
                     with pytest.raises(SystemExit) as exc_info:
                         main()
                     assert exc_info.value.code == 2
+
+    def test_cli_exits_quietly_on_broken_pipe(self) -> None:
+        """A closed stdout pipe is not an internal error."""
+        with patch("blinter.cli.main._run_cli", side_effect=BrokenPipeError()):
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+            assert exc_info.value.code == 0
 
 
 class TestCliStdioAndModuleEntry:

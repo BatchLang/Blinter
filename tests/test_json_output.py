@@ -313,6 +313,65 @@ class TestJsonOutputCli:
             sys.stderr = old_stderr
             os.unlink(temp_file)
 
+    def test_format_json_skipped_files_stay_out_of_stdout(self) -> None:
+        """Skipped-file notes belong in the JSON report, not ahead of it."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            good_bat = os.path.join(tmpdir, "good.bat")
+            bad_bat = os.path.join(tmpdir, "bad.bat")
+            Path(good_bat).write_text("@echo off\nexit /b 0\n", encoding="utf-8")
+            Path(bad_bat).write_text("@echo off\n", encoding="utf-8")
+
+            def lint_side_effect(
+                file_path: str, *args: object, **kwargs: object
+            ) -> list[object]:
+                if file_path.endswith("bad.bat"):
+                    raise PermissionError("Access denied")
+                return []
+
+            old_stdout = sys.stdout
+            sys.stdout = captured = io.StringIO()
+            try:
+                with patch(
+                    "blinter.cli.main.lint_batch_file", side_effect=lint_side_effect
+                ):
+                    with patch("sys.argv", ["blinter.py", tmpdir, "--format", "json"]):
+                        with pytest.raises(SystemExit) as exc_info:
+                            main()
+                        assert exc_info.value.code == 1
+                output = captured.getvalue()
+            finally:
+                sys.stdout = old_stdout
+
+        assert not output.startswith("Skipped files")
+        report = json.loads(output)
+        assert report["skipped_files"]
+        assert any(item["path"].endswith("bad.bat") for item in report["skipped_files"])
+
+    def test_format_json_when_every_file_is_skipped(self) -> None:
+        """JSON mode still emits a report when every file is skipped."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bad_bat = os.path.join(tmpdir, "bad.bat")
+            Path(bad_bat).write_text("@echo off\n", encoding="utf-8")
+
+            old_stdout = sys.stdout
+            sys.stdout = captured = io.StringIO()
+            try:
+                with patch(
+                    "blinter.cli.main.lint_batch_file",
+                    side_effect=PermissionError("Access denied"),
+                ):
+                    with patch("sys.argv", ["blinter.py", tmpdir, "--format", "json"]):
+                        with pytest.raises(SystemExit) as exc_info:
+                            main()
+                        assert exc_info.value.code == 1
+                output = captured.getvalue()
+            finally:
+                sys.stdout = old_stdout
+
+        report = json.loads(output)
+        assert report["summary"]["files_processed"] == 0
+        assert report["skipped_files"]
+
 
 class TestJsonFormatterHelpers:
     """Tests for JSON formatter write/print helpers."""

@@ -3248,6 +3248,19 @@ IF 1==1(echo glued
         finally:
             os.unlink(temp_file)
 
+    def test_e003_ignores_equals_after_comparison(self) -> None:
+        """A single = in the command after a valid IF comparison is not E003."""
+        content = """@echo off
+if "%1"=="" set X=1
+if /i "%x%"=="y" echo a = b
+"""
+        temp_file = self.create_temp_batch_file(content)
+        try:
+            codes = {issue.rule.code for issue in lint_batch_file(temp_file)}
+            assert "E003" not in codes
+        finally:
+            os.unlink(temp_file)
+
     def test_e046_spaced_handle_dup_only(self) -> None:
         """E046 flags a space before & in 2> &1, not append-dup 2>>&1."""
         bad = self.create_temp_batch_file("@echo off\nDIR 2> &1\n")

@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "Redirection after a FOR block is not inside the loop",
+  "lines": {},
+  "must_not": [
+    "P022"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

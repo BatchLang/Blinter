@@ -271,6 +271,37 @@ class TestFileEncodingDetection:
         finally:
             os.unlink(temp_file_path)
 
+    def test_utf16_bom_decodes_as_utf16(self) -> None:
+        """A UTF-16 BOM is not decoded as cp1252."""
+        payload = "@echo off\r\necho ok\r\n".encode("utf-16")
+        with tempfile.NamedTemporaryFile(
+            mode="wb", delete=False, suffix=".bat"
+        ) as handle:
+            handle.write(payload)
+            temp_file_path = handle.name
+        try:
+            lines, encoding = read_file_with_encoding(temp_file_path)
+            assert encoding == "utf-16"
+            assert lines[0].startswith("@echo off")
+            assert "\x00" not in "".join(lines)
+            assert "ÿþ" not in lines[0]
+        finally:
+            os.unlink(temp_file_path)
+
+    def test_nul_bytes_that_are_not_unicode_raise(self) -> None:
+        """NUL bytes that are not UTF-8 or UTF-16 produce one encoding error."""
+        payload = b"\x81\x00\xff"
+        with tempfile.NamedTemporaryFile(
+            mode="wb", delete=False, suffix=".bat"
+        ) as handle:
+            handle.write(payload)
+            temp_file_path = handle.name
+        try:
+            with pytest.raises(OSError, match="NUL bytes"):
+                read_file_with_encoding(temp_file_path)
+        finally:
+            os.unlink(temp_file_path)
+
     @_VALIDATE_FILE_PATCH
     @patch("blinter.io.encoding.from_bytes")
     @patch("builtins.open")

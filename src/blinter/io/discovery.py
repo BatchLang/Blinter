@@ -6,6 +6,8 @@ from typing import List, Optional, Union
 from blinter.constants import MAX_SCAN_FILES
 from blinter.logging_config import logger
 
+_BATCH_SUFFIXES = frozenset({".bat", ".cmd"})
+
 
 def _resolved_is_under_root(resolved: Path, root_resolved: Path) -> bool:
     """Return True when resolved is inside root_resolved."""
@@ -86,7 +88,7 @@ def find_batch_files(
 
     if path_obj.is_file():
         # Return single file if it's a batch file
-        if path_obj.suffix.lower() in [".bat", ".cmd"]:
+        if path_obj.suffix.lower() in _BATCH_SUFFIXES:
             if root is not None and not is_path_under_root(path_obj, root):
                 return []
             return [path_obj]
@@ -96,14 +98,10 @@ def find_batch_files(
         # Find all batch files in directory
         batch_files: List[Path] = []
 
-        if recursive:
-            # Recursive search
-            for pattern in ["**/*.bat", "**/*.cmd"]:
-                batch_files.extend(path_obj.glob(pattern))
-        else:
-            # Non-recursive search
-            for pattern in ["*.bat", "*.cmd"]:
-                batch_files.extend(path_obj.glob(pattern))
+        candidates = path_obj.rglob("*") if recursive else path_obj.iterdir()
+        for candidate in candidates:
+            if candidate.is_file() and candidate.suffix.lower() in _BATCH_SUFFIXES:
+                batch_files.append(candidate)
 
         if root is not None:
             batch_files = [

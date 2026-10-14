@@ -1,0 +1,16 @@
+{
+  "config": {},
+  "description": "Unquoted %~1 in echo is still command injection",
+  "lines": {
+    "2": [
+      "SEC014"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "SEC014"
+  ],
+  "tags": [
+    "integration"
+  ]
+}

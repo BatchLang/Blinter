@@ -3,7 +3,15 @@ try {
     $binPath = '__BLINTER_BIN__'
     $path = [Environment]::GetEnvironmentVariable('Path', 'User')
     if (-not $path) { $path = '' }
-    if ($path -notlike "*$binPath*") {
+    $segments = @($path -split ';' | Where-Object { $_ -ne '' })
+    $alreadyPresent = $false
+    foreach ($segment in $segments) {
+        if ($segment -eq $binPath) {
+            $alreadyPresent = $true
+            break
+        }
+    }
+    if (-not $alreadyPresent) {
         if (-not $path) { $newPath = $binPath } else { $newPath = $path.TrimEnd(';') + ';' + $binPath }
         [Environment]::SetEnvironmentVariable('Path', $newPath, 'User')
         Write-Host 'Blinter added to User PATH permanently'

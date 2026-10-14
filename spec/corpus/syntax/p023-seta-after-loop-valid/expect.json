@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "set /a after a one-line FOR is not inside the loop",
+  "lines": {},
+  "must_not": [
+    "P023"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

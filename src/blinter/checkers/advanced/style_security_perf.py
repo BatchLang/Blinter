@@ -277,25 +277,39 @@ _for_block_cache_var: ContextVar[Optional[_ForBlockSlot]] = ContextVar(
 )
 
 
-def _build_inside_for_block(lines: List[str]) -> List[bool]:
-    """Match the historical per-line scan for every 1-based line.
+def _next_paren_depth(depth: int, line: str) -> int:
+    """Return parenthesis depth after ``line``, never below zero."""
+    lowered = line.strip().lower()
+    return max(depth + lowered.count("(") - lowered.count(")"), 0)
 
-    Once a ``for `` line is seen, parenthesis depth is a running sum that
-    never resets. A line counts as inside when that depth is still >= 0,
-    including the closing ``)`` and later lines that stay at depth 0.
+
+def _build_inside_for_block(lines: List[str]) -> List[bool]:
+    """Mark lines that belong to a FOR statement.
+
+    A one-line ``for ... do`` command is inside only on that line. A
+    parenthesized body stays inside through its closing parenthesis.
+    Lines after the block are outside, including an else-branch that follows.
     """
     flags: List[bool] = []
     depth = 0
-    in_for = False
+    resume_depth: Optional[int] = None
     for line in lines:
         lowered = line.strip().lower()
-        if lowered.startswith("for "):
-            in_for = True
-        if not in_for:
-            flags.append(False)
+        if resume_depth is None and lowered.startswith("for "):
+            flags.append(True)
+            depth_before = depth
+            depth = _next_paren_depth(depth, line)
+            if depth > depth_before:
+                resume_depth = depth_before
             continue
-        depth += lowered.count("(") - lowered.count(")")
-        flags.append(depth >= 0)
+        if resume_depth is None:
+            flags.append(False)
+            depth = _next_paren_depth(depth, line)
+            continue
+        flags.append(True)
+        depth = _next_paren_depth(depth, line)
+        if depth <= resume_depth:
+            resume_depth = None
     return flags
 
 
@@ -329,6 +343,44 @@ def _timeout_lacks_explanation(
         if 0 <= check_line - 1 < len(lines) and _is_comment_line(lines[check_line - 1]):
             return False
     return True
+
+
+def _group_has_unquoted_chain(text: str) -> bool:
+    """Return True when ``text`` contains ``&`` or ``|`` outside quotes."""
+    quote = ""
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if quote:
+            if char == quote:
+                quote = ""
+            index += 1
+            continue
+        if char in '"`':
+            quote = char
+            index += 1
+            continue
+        if char == "^" and index + 1 < len(text):
+            index += 2
+            continue
+        if char in "&|":
+            return True
+        index += 1
+    return False
+
+
+def _is_simple_parenthesized_if(stripped: str) -> bool:
+    """Return True for an IF whose only parentheses wrap one command."""
+    if not re.match(r"^\s*if\s+.+\)\s*$", stripped) or "(" not in stripped:
+        return False
+    inner = re.sub(r"^\s*if\s+", "", stripped, flags=re.IGNORECASE)
+    if inner.count("(") != 1:
+        return False
+    open_at = inner.find("(")
+    close_at = inner.rfind(")")
+    if close_at <= open_at:
+        return False
+    return not _group_has_unquoted_chain(inner[open_at + 1 : close_at])
 
 
 def _check_advanced_style_patterns(
@@ -394,16 +446,14 @@ def _check_advanced_style_patterns(
                 )
 
     # S028: Redundant parentheses in simple commands
-    if re.match(r"^\s*if\s+.+\)\s*$", stripped) and "(" in stripped:
-        inner = re.sub(r"^\s*if\s+", "", stripped, flags=re.IGNORECASE)
-        if inner.count("(") == 1 and "&&" not in inner and "||" not in inner:
-            issues.append(
-                LintIssue(
-                    line_number,
-                    RULES["S028"],
-                    context="Simple IF command does not need parentheses",
-                )
+    if _is_simple_parenthesized_if(stripped):
+        issues.append(
+            LintIssue(
+                line_number,
+                RULES["S028"],
+                context="Simple IF command does not need parentheses",
             )
+        )
 
     return issues
 

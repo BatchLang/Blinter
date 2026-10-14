@@ -1,7 +1,20 @@
 {
-  "description": "Synthetic 2838-line batch file median lint time",
-  "line_count": 2838,
-  "runs": 5,
-  "median_seconds": 25.0,
-  "margin_ratio": 0.15
+  "description": "Lint-time ceilings. margin_ratio 1.0 fails when a case takes more than twice its measured median.",
+  "margin_ratio": 1.0,
+  "cases": [
+    {
+      "name": "synthetic",
+      "description": "Synthetic multi-section batch file",
+      "kind": "synthetic",
+      "line_count": 2838,
+      "median_seconds": 2.28
+    },
+    {
+      "name": "labels",
+      "description": "File with 2000 labels and 2000 unique CALL targets",
+      "kind": "labels",
+      "label_count": 2000,
+      "median_seconds": 5.36
+    }
+  ]
 }
