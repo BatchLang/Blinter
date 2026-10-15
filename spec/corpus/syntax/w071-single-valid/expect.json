@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "A single-command %time% block and !errorlevel! are not W071",
+  "lines": {},
+  "must_not": [
+    "W071"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

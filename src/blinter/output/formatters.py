@@ -1,6 +1,9 @@
 """CLI output formatting: summaries, grouping, and help text."""
 
 from collections import defaultdict
+import importlib
+from pathlib import Path
+import sys
 from typing import (
     DefaultDict,
     Dict,
@@ -15,10 +18,25 @@ from blinter.models import LintIssue, RuleSeverity
 from blinter.paths import path_basename
 from blinter.rules.registry import RULES
 
+# Nuitka injects this module only into the standalone executable.
+try:
+    _COMPILED_MODULE: object | None = importlib.import_module("__compiled__")
+except ImportError:
+    _COMPILED_MODULE = None
+
+
+def version_origin() -> str:
+    """Return whether this process is the standalone exe or a Python install."""
+    if _COMPILED_MODULE is not None:
+        return "(standalone exe)"
+    package_dir = Path(__file__).resolve().parent
+    python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+    return f"(Python {python_version}, {package_dir})"
+
 
 def print_version() -> None:
     """Print version information."""
-    print(f"v{__version__}")
+    print(f"v{__version__} {version_origin()}")
 
 
 def print_help() -> None:

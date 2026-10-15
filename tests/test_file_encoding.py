@@ -398,7 +398,7 @@ class TestFileEncodingDetection:
 
         try:
             read_lines, read_encoding = read_file_with_encoding(temp_file_path)
-            validate_lines, validate_encoding, _ = _validate_and_read_file(
+            validate_lines, validate_encoding, _, _overlong = _validate_and_read_file(
                 temp_file_path
             )
             assert read_encoding == validate_encoding
@@ -780,18 +780,19 @@ class TestFileSizeLimit:  # pylint: disable=too-few-public-methods
 class TestLineLengthLimit:  # pylint: disable=too-few-public-methods
     """Test maximum per-line length enforcement."""
 
-    def test_rejects_line_exceeding_max_length(self, tmp_path: Path) -> None:
-        """Lines longer than MAX_LINE_LENGTH are rejected at read time."""
+    def test_blanks_line_exceeding_max_length(self, tmp_path: Path) -> None:
+        """Lines longer than MAX_LINE_LENGTH are blanked and reported."""
         within_limit = "A" * (MAX_LINE_LENGTH - 1) + "\n"
         overflow = "B" * MAX_LINE_LENGTH + "\n"
         bat_file = tmp_path / "longline.bat"
         bat_file.write_text(f"@echo off\n{within_limit}{overflow}", encoding="utf-8")
 
-        with pytest.raises(ValueError, match="exceeds maximum length"):
-            _validate_and_read_file(str(bat_file))
+        _lines, _encoding, _ending, overlong = _validate_and_read_file(str(bat_file))
+        assert overlong == [3]
+        assert _lines[2] == "\n"
 
-        with pytest.raises(ValueError, match="exceeds maximum length"):
-            read_file_with_encoding(str(bat_file))
+        read_lines, _read_encoding = read_file_with_encoding(str(bat_file))
+        assert read_lines[2] == "\n"
 
 
 class TestLineEndingStandaloneDetection:
@@ -815,7 +816,7 @@ class TestLineEndingStandaloneDetection:
         """Single-pass read returns line-ending statistics."""
         bat_file = tmp_path / "mixed.bat"
         bat_file.write_bytes(b"line1\r\nline2\n")
-        lines, encoding, ending_info = _validate_and_read_file(str(bat_file))
+        lines, encoding, ending_info, _overlong = _validate_and_read_file(str(bat_file))
         assert len(lines) == 2
         assert encoding in {"utf-8", "ascii", "cp1252", "iso-8859-1"}
         dominant_type, has_mixed, crlf_count, lf_only, _cr_only = ending_info

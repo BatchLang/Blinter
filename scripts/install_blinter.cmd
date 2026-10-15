@@ -74,11 +74,11 @@ echo + Blinter Installer/Updater +
 echo +===========================+
 echo.
 
-set BLINTER_DIR=%LOCALAPPDATA%\Programs\Blinter
-set BLINTER_BIN=%BLINTER_DIR%\bin
-set BLINTER_RELEASE_FILE=%BLINTER_DIR%\installed_release.txt
-set BLINTER_TEMP=%TEMP%\blinter_install_%RANDOM%_%RANDOM%
-set BLINTER_BACKUP=%TEMP%\blinter_backup_%RANDOM%_%RANDOM%
+set "BLINTER_DIR=%LOCALAPPDATA%\Programs\Blinter"
+set "BLINTER_BIN=%BLINTER_DIR%\bin"
+set "BLINTER_RELEASE_FILE=%BLINTER_DIR%\installed_release.txt"
+set "BLINTER_TEMP=%TEMP%\blinter_install_%RANDOM%_%RANDOM%"
+set "BLINTER_BACKUP=%TEMP%\blinter_backup_%RANDOM%_%RANDOM%"
 set /a MIN_DOWNLOAD_BYTES=500*1000
 
 REM Detect latest Blinter version and download URL from GitHub API
@@ -169,10 +169,16 @@ if exist "%BLINTER_RELEASE_FILE%" (
         if /i not "!INSTALLED_RELEASE:~0,1!"=="v" set "INSTALLED_RELEASE="
     )
     if "!INSTALLED_RELEASE!"=="!BLINTER_VERSION!" (
-        echo Blinter !BLINTER_VERSION! is already installed and up to date.
-        goto :end
-    )
-    if exist "%BLINTER_BIN%\blinter.exe" (
+        if exist "%BLINTER_BIN%\blinter.exe" if not "!CURRENT_VERSION!"=="" (
+            echo Blinter !BLINTER_VERSION! is already installed and up to date.
+            goto :end
+        )
+        echo Blinter !BLINTER_VERSION! is recorded as installed, but blinter.exe is missing or did not run.
+        echo.
+        echo Reinstalling Blinter !BLINTER_VERSION!...
+        echo.
+        if exist "%BLINTER_BIN%\blinter.exe" set NEEDS_BACKUP=1
+    ) else if exist "%BLINTER_BIN%\blinter.exe" (
         echo Upgrading from "!INSTALLED_RELEASE!" to !BLINTER_VERSION!...
         echo.
         set NEEDS_BACKUP=1
@@ -197,15 +203,13 @@ if !NEEDS_BACKUP! equ 1 (
     mkdir "%BLINTER_BACKUP%" >nul 2>&1
     if exist "%BLINTER_BIN%\blinter.exe" copy /Y "%BLINTER_BIN%\blinter.exe" "%BLINTER_BACKUP%\" >nul 2>&1
     if exist "%BLINTER_RELEASE_FILE%" copy /Y "%BLINTER_RELEASE_FILE%" "%BLINTER_BACKUP%\" >nul 2>&1
-
-    if exist "%BLINTER_BIN%\blinter.exe" del /F /Q "%BLINTER_BIN%\blinter.exe" >nul 2>&1
 )
 
 REM Download Blinter
 echo Downloading Blinter !BLINTER_VERSION! from:
 echo !BLINTER_URL!
 echo.
-curl -L -f --progress-bar -o "%BLINTER_TEMP%.zip" "!BLINTER_URL!" 2>&1
+curl -fL --connect-timeout 30 --max-time 300 --proto =https --progress-bar -o "%BLINTER_TEMP%.zip" "!BLINTER_URL!" 2>&1
 if !errorlevel! neq 0 (
     echo.
     echo ERROR: Failed to download Blinter. Error code: !errorlevel!
@@ -331,6 +335,25 @@ if exist "!PS_UPDATE_PATH!" del /F /Q "!PS_UPDATE_PATH!" >nul 2>&1
 REM Update PATH for current session
 set "PATH=%PATH%;%BLINTER_BIN%"
 
+REM The install folder is appended. Warn when an earlier PATH entry still wins.
+set "WHERE_TEMP=%TEMP%\blinter_where_%RANDOM%_%RANDOM%.txt"
+where blinter > "!WHERE_TEMP!" 2>nul
+set "FIRST_BLINTER="
+for /f "usebackq delims=" %%p in ("!WHERE_TEMP!") do (
+    if not defined FIRST_BLINTER set "FIRST_BLINTER=%%p"
+)
+if exist "!WHERE_TEMP!" del /F /Q "!WHERE_TEMP!" >nul 2>&1
+if defined FIRST_BLINTER (
+    if /I not "!FIRST_BLINTER!"=="!BLINTER_BIN!\blinter.exe" (
+        echo.
+        echo WARNING: Another blinter is earlier on PATH and will run instead:
+        echo !FIRST_BLINTER!
+        echo The standalone folder was appended and will not win:
+        echo !BLINTER_BIN!
+        echo.
+    )
+)
+
 REM Success! Clean up temporary files and backup
 call :cleanup
 REM LINT:IGNORE SEC003
@@ -354,6 +377,7 @@ REM "Access is denied" when cmd captures stdout with for /f. Retry because a sin
 REM empty or failed response used to be reported as a missing download.
 :write_get_release_script
 (
+echo #Requires -Version 5.1
 echo $ProgressPreference = 'SilentlyContinue'
 echo $release = $null
 echo $asset = $null
@@ -383,7 +407,8 @@ exit /b 0
 REM Write PowerShell script to return downloaded archive size in bytes
 :write_file_size_script
 (
-echo $item = Get-Item -LiteralPath '%BLINTER_TEMP%.zip' -ErrorAction Stop
+echo #Requires -Version 5.1
+echo $item = Get-Item -LiteralPath "$($env:BLINTER_TEMP).zip" -ErrorAction Stop
 echo Write-Output $item.Length
 ) > "!PS_FILE_SIZE!"
 exit /b 0
@@ -392,10 +417,11 @@ REM Write PowerShell script to verify the downloaded archive SHA256.
 REM Caret-escape each closing parenthesis, and write a literal caret as ^^, so this redirect stays intact.
 :write_hash_verify_script
 (
-echo $expected = '%BLINTER_SHA256%'
+echo #Requires -Version 5.1
+echo $expected = $env:BLINTER_SHA256
 echo $sha = [System.Security.Cryptography.SHA256]::Create(^)
 echo try {
-echo     $stream = [System.IO.File]::OpenRead('%BLINTER_TEMP%.zip'^)
+echo     $stream = [System.IO.File]::OpenRead("$($env:BLINTER_TEMP).zip"^)
 echo     try {
 echo         $actual = [System.BitConverter]::ToString($sha.ComputeHash($stream^)^).Replace('-', ''^)
 echo         $actual = $actual.ToLowerInvariant(^)
@@ -410,8 +436,9 @@ exit /b 0
 REM Write PowerShell script to expand the downloaded archive
 :write_expand_script
 (
+echo #Requires -Version 5.1
 echo try {
-echo     Expand-Archive -LiteralPath '%BLINTER_TEMP%.zip' -DestinationPath '%BLINTER_TEMP%' -Force
+echo     Expand-Archive -LiteralPath "$($env:BLINTER_TEMP).zip" -DestinationPath $env:BLINTER_TEMP -Force
 echo     exit 0
 echo }
 echo catch {
@@ -424,9 +451,33 @@ exit /b 0
 REM Write PowerShell script to add Blinter bin directory to user PATH
 :write_update_path_script
 (
+echo #Requires -Version 5.1
 echo try {
-echo     $binPath = '%BLINTER_BIN%'
-echo     $path = [Environment]::GetEnvironmentVariable('Path', 'User'^)
+echo     $binPath = $env:BLINTER_BIN
+echo     $kindName = 'String'
+echo     $path = ''
+echo     $key = $null
+echo     if ($env:BLINTER_PATH_TEST_MODE -eq '1'^) {
+echo         $path = [Environment]::GetEnvironmentVariable('Path', 'User'^)
+echo     } else {
+echo         try {
+echo             $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true^)
+echo             if ($key^) {
+echo                 try {
+echo                     $kind = $key.GetValueKind('Path'^)
+echo                     $raw = $key.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames^)
+echo                     if ($null -ne $raw^) { $path = [string]$raw }
+echo                     if ($kind -eq [Microsoft.Win32.RegistryValueKind]::ExpandString^) { $kindName = 'ExpandString' }
+echo                 } catch {
+echo                     $path = [Environment]::GetEnvironmentVariable('Path', 'User'^)
+echo                 }
+echo             } else {
+echo                 $path = [Environment]::GetEnvironmentVariable('Path', 'User'^)
+echo             }
+echo         } catch {
+echo             $path = [Environment]::GetEnvironmentVariable('Path', 'User'^)
+echo         }
+echo     }
 echo     if (-not $path^) { $path = '' }
 echo     $segments = @($path -split ';' ^| Where-Object { $_ -ne '' }^)
 echo     $alreadyPresent = $false
@@ -438,15 +489,22 @@ echo         }
 echo     }
 echo     if (-not $alreadyPresent^) {
 echo         if (-not $path^) { $newPath = $binPath } else { $newPath = $path.TrimEnd(';'^) + ';' + $binPath }
-echo         [Environment]::SetEnvironmentVariable('Path', $newPath, 'User'^)
-echo         Write-Host 'Blinter added to User PATH permanently'
+echo         if ($kindName -eq 'ExpandString' -and $key^) {
+echo             $key.SetValue('Path', $newPath, [Microsoft.Win32.RegistryValueKind]::ExpandString^)
+echo             Write-Host 'Blinter added to User PATH permanently'
+echo         } else {
+echo             [Environment]::SetEnvironmentVariable('Path', $newPath, 'User'^)
+echo             Write-Host 'Blinter added to User PATH permanently'
+echo         }
 echo     }
 echo     else {
 echo         Write-Host 'Blinter already in User PATH'
 echo     }
+echo     if ($key^) { $key.Close(^) }
 echo     exit 0
 echo }
 echo catch {
+echo     if ($key^) { $key.Close(^) }
 echo     Write-Host "ERROR: $_"
 echo     exit 1
 echo }

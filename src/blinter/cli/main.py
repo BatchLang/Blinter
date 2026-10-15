@@ -688,10 +688,15 @@ def _run_cli() -> None:
     if not suppress_human:
         print(f"Blinter v{__version__} - Batch File Linter\n")
 
-    config = load_config(
-        config_path=cli_args.config_path,
-        use_config=cli_args.use_config,
-    )
+    try:
+        config = load_config(
+            config_path=cli_args.config_path,
+            use_config=cli_args.use_config,
+        )
+    except FileNotFoundError as error:
+        _cli_error(f"Error: {error}")
+    except ValueError as error:
+        _cli_error(f"Error: {error}")
     _apply_cli_config_overrides(cli_args, config)
 
     target_path_obj = Path(cli_args.target_path)

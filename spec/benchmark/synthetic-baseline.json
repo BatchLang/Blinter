@@ -1,5 +1,5 @@
 {
-  "description": "Lint-time ceilings. margin_ratio 1.0 fails when a case takes more than twice its measured median.",
+  "description": "CPU-time ceilings from time.process_time. margin_ratio 1.0 fails when a case takes more than twice its measured median.",
   "margin_ratio": 1.0,
   "cases": [
     {
@@ -7,14 +7,14 @@
       "description": "Synthetic multi-section batch file",
       "kind": "synthetic",
       "line_count": 2838,
-      "median_seconds": 2.28
+      "median_seconds": 1.375
     },
     {
       "name": "labels",
       "description": "File with 2000 labels and 2000 unique CALL targets",
       "kind": "labels",
       "label_count": 2000,
-      "median_seconds": 5.36
+      "median_seconds": 1.906
     }
   ]
 }

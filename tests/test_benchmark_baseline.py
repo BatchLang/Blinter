@@ -5,6 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 import subprocess
 import sys
+import time
+
+from blinter import lint_batch_file
 
 _REPO = Path(__file__).resolve().parent.parent
 
@@ -29,3 +32,37 @@ def test_synthetic_lint_within_baseline() -> None:
     assert (
         result.returncode == 0
     ), f"benchmark baseline check failed:\n{result.stdout}\n{result.stderr}"
+
+
+def _cpu_seconds(script: Path) -> float:
+    """Return process CPU time spent linting ``script``."""
+    start = time.process_time()
+    lint_batch_file(str(script))
+    return time.process_time() - start
+
+
+def test_long_whitespace_line_lints_quickly(tmp_path: Path) -> None:
+    """S003 must not backtrack on a long run of spaces."""
+    script = tmp_path / "spaces.bat"
+    script.write_text(
+        "for /f %a in (" + (" " * 5000) + ") do echo %a\r\n",
+        encoding="utf-8",
+    )
+    assert _cpu_seconds(script) < 1.0
+
+
+def test_line_count_scales_linearly(tmp_path: Path) -> None:
+    """Eight thousand simple lines must stay within 10x the two-thousand-line run."""
+    warmup = tmp_path / "warmup.bat"
+    warmup.write_text("@echo off\r\necho hi\r\n", encoding="utf-8")
+    lint_batch_file(str(warmup))
+
+    def _write_echo_file(count: int) -> Path:
+        script = tmp_path / f"echo_{count}.bat"
+        lines = ["@echo off", *[f"echo hi {index}" for index in range(count)]]
+        script.write_text("\r\n".join(lines) + "\r\n", encoding="utf-8")
+        return script
+
+    small = _cpu_seconds(_write_echo_file(2000))
+    large = _cpu_seconds(_write_echo_file(8000))
+    assert large <= max(small, 0.05) * 10

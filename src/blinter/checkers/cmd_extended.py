@@ -6,7 +6,7 @@ from functools import lru_cache
 import re
 from typing import Dict, List, Optional, Set
 
-from blinter.constants import SYSTEM_ENV_VARS
+from blinter.constants import MAX_LINE_LENGTH, SYSTEM_ENV_VARS
 from blinter.logging_config import logger
 from blinter.models import LintIssue
 from blinter.parsing.context import (
@@ -120,6 +120,8 @@ _EXTENDED_RULES = {
     "W068": RULES["W068"],
     "W069": RULES["W069"],
     "W070": RULES["W070"],
+    "W071": RULES["W071"],
+    "E048": RULES["E048"],
 }
 _SPECIALS_IN_FOR_F = frozenset("&<>|")
 
@@ -465,10 +467,14 @@ def _echo_body(stripped: str) -> Optional[str]:
 
 
 def _echo_has_unescaped_paren(body: str) -> bool:
-    """True when ECHO text has an unquoted, unescaped parenthesis."""
+    """True when ECHO text has an unquoted, unescaped closing parenthesis.
+
+    An opening parenthesis in ECHO text does not end a parenthesized block.
+    Only an unescaped ``)`` does.
+    """
     unquoted = _strip_double_quoted_strings(body)
     for index, char in enumerate(unquoted):
-        if char in "()" and not _is_caret_escaped(unquoted, index):
+        if char == ")" and not _is_caret_escaped(unquoted, index):
             return True
     return False
 
@@ -494,7 +500,7 @@ def _check_e047_echo_parens(
         _issue(
             line_num,
             "E047",
-            "Unescaped parentheses in ECHO inside a block; escape as ^( ^)",
+            "Unescaped ) in ECHO inside a block; escape the closing parenthesis as ^)",
         )
     ]
 
@@ -522,9 +528,110 @@ def check_extended_warning_line(
 def check_extended_warning_file(
     lines: List[str], file_path: str = ""
 ) -> List[LintIssue]:
-    """File-level warnings that need block state (W068)."""
+    """File-level warnings that need block state (W068, W071)."""
     del file_path
-    return _check_w068_block_percent(lines)
+    issues = _check_w068_block_percent(lines)
+    issues.extend(_check_w071_block_pseudo(lines))
+    return issues
+
+
+def issues_for_overlong_lines(line_numbers: List[int]) -> List[LintIssue]:
+    """E048 for lines blanked because they exceed MAX_LINE_LENGTH."""
+    return [
+        _issue(
+            line_number,
+            "E048",
+            f"Line exceeds {MAX_LINE_LENGTH} characters; "
+            "the rest of the file was still linted",
+        )
+        for line_number in line_numbers
+    ]
+
+
+_W071_ERRORLEVEL_RE = re.compile(r"%errorlevel(?:%|:)", re.IGNORECASE)
+_W071_VOLATILE_RE = re.compile(r"%(random|time|date)(?:%|:)", re.IGNORECASE)
+
+
+def _w071_command_segments(stripped: str) -> List[str]:
+    """Return command pieces on a line, skipping comments and labels."""
+    segments: List[str] = []
+    for segment in _split_amp_commands(stripped):
+        text = segment.strip().lstrip("@")
+        if not text or _is_comment_line(text) or text.startswith(":"):
+            continue
+        segments.append(segment)
+    return segments
+
+
+def _w071_issues_for_segment(
+    line_num: int, segment: str, prior_commands: int, command_count: int
+) -> List[LintIssue]:
+    """Flag stale pseudo-variables in one command segment."""
+    issues: List[LintIssue] = []
+    if prior_commands > 0 and _W071_ERRORLEVEL_RE.search(segment):
+        issues.append(
+            _issue(
+                line_num,
+                "W071",
+                "%errorlevel% is expanded when the block is parsed and does not "
+                "see earlier commands in the block; use !errorlevel! or IF ERRORLEVEL",
+            )
+        )
+    if command_count > 1:
+        seen: Set[str] = set()
+        for match in _W071_VOLATILE_RE.finditer(segment):
+            captured = match.group(1)
+            if not isinstance(captured, str):
+                continue
+            name = captured.lower()
+            if name in seen:
+                continue
+            seen.add(name)
+            issues.append(
+                _issue(
+                    line_num,
+                    "W071",
+                    f"%{name}% is expanded once when the block is parsed; "
+                    f"use !{name}! with EnableDelayedExpansion",
+                )
+            )
+    return issues
+
+
+def _w071_flush_block(
+    block: List[tuple[int, List[str]]],
+) -> List[LintIssue]:
+    """Emit W071 for one parenthesized block."""
+    command_count = sum(len(segments) for _line_num, segments in block)
+    issues: List[LintIssue] = []
+    prior = 0
+    for line_num, segments in block:
+        for segment in segments:
+            issues.extend(
+                _w071_issues_for_segment(line_num, segment, prior, command_count)
+            )
+            prior += 1
+    return issues
+
+
+def _check_w071_block_pseudo(lines: List[str]) -> List[LintIssue]:
+    """W071: parse-time %errorlevel%, %random%, %time%, and %date% inside a block."""
+    issues: List[LintIssue] = []
+    block: List[tuple[int, List[str]]] = []
+    for line_num, line in enumerate(lines, 1):
+        depth_before = _paren_depth_before_line(lines, line_num)
+        if depth_before <= 0:
+            if block:
+                issues.extend(_w071_flush_block(block))
+                block = []
+            continue
+        stripped = line.strip()
+        if not stripped or _is_comment_line(stripped) or stripped.startswith(")"):
+            continue
+        block.append((line_num, _w071_command_segments(stripped)))
+    if block:
+        issues.extend(_w071_flush_block(block))
+    return issues
 
 
 def _check_w064_alluserprofile(stripped: str, line_num: int) -> List[LintIssue]:

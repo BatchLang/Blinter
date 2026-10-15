@@ -8,7 +8,7 @@
 
 </div>
 
-**Blinter** is a linter for Windows batch files (`.bat` and `.cmd`). It provides static analysis to identify syntax errors, security vulnerabilities, performance issues and style problems. Blinter helps you write safer, more reliable and maintainable batch scripts.
+**Blinter** is a linter for Windows batch files (`.bat` and `.cmd`). It provides static analysis to identify syntax errors, security vulnerabilities, performance issues and style problems. Blinter helps you write safer, more reliable and maintainable batch scripts. Linux and macOS are supported for linting; the standalone executable is Windows-only.
 
 - ✅ **Configurable Options** - Configurable rules, `--verbose`/`--quiet` logging, robust error handling
 - ✅ **Unicode Support** - Support for international characters and filenames
@@ -17,7 +17,7 @@
 ## Features ✨
 
 ### 🔍 **Rule Categories**
-- **Built-in Rules** -- the registry currently ships **191** rules across 5 severity levels (see `blinter.rules.registry.RULE_COUNT`)
+- **Built-in Rules** -- the registry currently ships **193** rules across 5 severity levels (see `blinter.rules.registry.RULE_COUNT`)
 - **Error Level (E001-E999)**: Critical syntax errors that prevent execution
 - **Warning Level (W001-W999)**: Potential runtime issues and bad practices
 - **Style Level (S001-S999)**: Code formatting and readability improvements
@@ -73,7 +73,7 @@ uvx blinter
 If you prefer a standalone `.exe` over pip or uv, use the one-line installer:
 
 ```cmd
-curl -L https://raw.githubusercontent.com/BatchLang/Blinter/main/scripts/install_blinter.cmd -o install_blinter.cmd && (call install_blinter.cmd || cd .) && del install_blinter.cmd
+curl -fL --proto =https https://raw.githubusercontent.com/BatchLang/Blinter/v1.1.42/scripts/install_blinter.cmd -o install_blinter.cmd && (call install_blinter.cmd || cd .) && del install_blinter.cmd
 ```
 
 This installs the latest `blinter.exe` to `%LOCALAPPDATA%\Programs\Blinter\bin`, adds it to your user `PATH`, and handles updates automatically. Restart your terminal or IDE after installation for `PATH` changes to take effect.
@@ -88,7 +88,7 @@ This installs the latest `blinter.exe` to `%LOCALAPPDATA%\Programs\Blinter\bin`,
 
 **Standalone executable (one-line un-installer):**
 ```cmd
-curl -L https://raw.githubusercontent.com/BatchLang/Blinter/main/scripts/uninstall_blinter.cmd -o uninstall_blinter.cmd && (call uninstall_blinter.cmd || cd .) && del uninstall_blinter.cmd
+curl -fL --proto =https https://raw.githubusercontent.com/BatchLang/Blinter/v1.1.42/scripts/uninstall_blinter.cmd -o uninstall_blinter.cmd && (call uninstall_blinter.cmd || cd .) && del uninstall_blinter.cmd
 ```
 
 **pip installation:**
@@ -172,7 +172,17 @@ blinter --help
 
 # Get version
 blinter --version
+
+# Create configuration file
+blinter --create-config
+
+# Ignore configuration file
+blinter script.bat --no-config
 ```
+
+### If you installed both
+
+pip, uv, and the standalone installer can all put `blinter` on `PATH`. The installer appends `%LOCALAPPDATA%\Programs\Blinter\bin` and does not move that folder ahead of an existing copy. When another `blinter` is earlier on `PATH`, the installer prints that path and says the standalone folder will not win. `blinter --version` prints `standalone exe` or `Python 3.x` plus the package directory so you can see which copy is running. The uninstaller stops only `%LOCALAPPDATA%\Programs\Blinter\bin\blinter.exe`.
 
 ### Command Line Options
 
@@ -210,7 +220,7 @@ blinter --version
 
 **Configuration notes:**
 - When both `enabled_rules` and `disabled_rules` are set, a rule must appear in `enabled_rules` to run; `disabled_rules` then removes matches from that allowlist.
-- `max_line_length` in `blinter.ini` controls style rules S011/S020 (default `100`). The hard read limit for individual lines is `10,000` characters (`MAX_LINE_LENGTH` in the engine); lines longer than that are rejected before linting.
+- `max_line_length` in `blinter.ini` controls style rules S011/S020 (default `100`). A line longer than `10,000` characters is reported as E048 and skipped so the rest of the file is still linted. A line longer than 1,000,000 characters is rejected before linting.
 
 ### Command Line Override
 

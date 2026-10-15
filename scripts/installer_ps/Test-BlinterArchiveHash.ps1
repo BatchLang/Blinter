@@ -1,8 +1,8 @@
 #Requires -Version 5.1
-$expected = '__BLINTER_SHA256__'
+$expected = $env:BLINTER_SHA256
 $sha = [System.Security.Cryptography.SHA256]::Create()
 try {
-    $stream = [System.IO.File]::OpenRead('__BLINTER_TEMP__.zip')
+    $stream = [System.IO.File]::OpenRead("$($env:BLINTER_TEMP).zip")
     try {
         $actual = [System.BitConverter]::ToString($sha.ComputeHash($stream)).Replace('-', '')
         $actual = $actual.ToLowerInvariant()

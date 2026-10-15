@@ -62,10 +62,10 @@ if %errorlevel% equ 0 (
     goto :error_exit
 )
 
-set BLINTER_DIR=%LOCALAPPDATA%\Programs\Blinter
-set BLINTER_BIN=%BLINTER_DIR%\bin
-set BLINTER_RELEASE_FILE=%BLINTER_DIR%\installed_release.txt
-set BLINTER_TEMP=%TEMP%\blinter_uninstall_%RANDOM%_%RANDOM%
+set "BLINTER_DIR=%LOCALAPPDATA%\Programs\Blinter"
+set "BLINTER_BIN=%BLINTER_DIR%\bin"
+set "BLINTER_RELEASE_FILE=%BLINTER_DIR%\installed_release.txt"
+set "BLINTER_TEMP=%TEMP%\blinter_uninstall_%RANDOM%_%RANDOM%"
 
 echo +=====================+
 echo + Blinter Uninstaller +
@@ -117,19 +117,20 @@ echo Checking for running Blinter processes...
 echo.
 
 set PROCESSES_KILLED=0
-for %%e in (blinter Blinter) do (
-    tasklist /FI "IMAGENAME eq %%e.exe" 2>nul | find /I "%%e.exe" >nul 2>&1
-    if !errorlevel! equ 0 (
-        echo Terminating %%e.exe...
-        taskkill /F /FI "IMAGENAME eq %%e.exe" /IM "%%e.exe" >nul 2>&1
-        if !errorlevel! equ 0 (
-            echo Terminated %%e.exe
-            set PROCESSES_KILLED=1
-        ) else (
-            echo WARNING: Failed to terminate %%e.exe
-        )
-    )
+set "PS_STOP_BLINTER=%BLINTER_TEMP%_stop.ps1"
+set "PS_STOP_OUT=%BLINTER_TEMP%_stop.out"
+call :write_stop_blinter_script
+powershell -NoProfile -ExecutionPolicy Bypass -File "!PS_STOP_BLINTER!" > "!PS_STOP_OUT!" 2>&1
+if !errorlevel! neq 0 (
+    echo WARNING: Failed to stop the installed blinter.exe.
+    echo.
 )
+for /f "usebackq delims=" %%p in ("!PS_STOP_OUT!") do (
+    echo Terminated !BLINTER_BIN!\blinter.exe ^(PID %%p^)
+    set PROCESSES_KILLED=1
+)
+if exist "!PS_STOP_BLINTER!" del /F /Q "!PS_STOP_BLINTER!" >nul 2>&1
+if exist "!PS_STOP_OUT!" del /F /Q "!PS_STOP_OUT!" >nul 2>&1
 
 if !PROCESSES_KILLED! equ 0 (
     echo No running Blinter processes found.
@@ -180,7 +181,7 @@ echo.
 set "PS_REMOVE_PATH=%BLINTER_TEMP%_remove_path.ps1"
 call :write_remove_path_script
 powershell -NoProfile -ExecutionPolicy Bypass -File "!PS_REMOVE_PATH!" 2>&1
-if %errorlevel% neq 0 (
+if !errorlevel! neq 0 (
     echo WARNING: Failed to remove Blinter from User PATH.
     echo You may need to manually remove it from your environment variables.
     echo.
@@ -194,14 +195,14 @@ echo.
 if exist "%BLINTER_DIR%" (
     REM LINT:IGNORE SEC003
     rmdir /S /Q "%BLINTER_DIR%" >nul 2>&1
-    if %errorlevel% equ 0 (
-        echo Installation directory removed: %BLINTER_DIR%
+    if !errorlevel! equ 0 (
+        echo Installation directory removed: !BLINTER_DIR!
         echo.
     ) else (
-        echo WARNING: Failed to remove installation directory. Error code: %errorlevel%
+        echo WARNING: Failed to remove installation directory. Error code: !errorlevel!
         echo.
         echo This may be because files are in use or protected.
-        echo You can manually delete: %BLINTER_DIR%
+        echo You can manually delete: !BLINTER_DIR!
         echo.
         set REMOVAL_FAILED=1
     )
@@ -226,25 +227,82 @@ echo Note: You may need to restart your terminal or IDE for PATH changes to take
 echo.
 goto :end
 
+REM Stop only the installed blinter.exe, not another copy earlier on PATH.
+:write_stop_blinter_script
+(
+echo #Requires -Version 5.1
+echo $ErrorActionPreference = 'Stop'
+echo $target = Join-Path $env:BLINTER_BIN 'blinter.exe'
+echo $processes = @(Get-CimInstance -ClassName Win32_Process -Filter "Name = 'blinter.exe'"^)
+echo foreach ($process in $processes^) {
+echo     $image = [string]$process.ExecutablePath
+echo     if (-not $image^) { continue }
+echo     if ($image -ine $target^) { continue }
+echo     try {
+echo         Stop-Process -Id $process.ProcessId -Force
+echo         Write-Output $process.ProcessId
+echo     } catch {
+echo         Write-Error $_
+echo         exit 1
+echo     }
+echo }
+echo exit 0
+) > "!PS_STOP_BLINTER!"
+exit /b 0
+
 REM Write PowerShell script to remove Blinter bin directory from user PATH
 :write_remove_path_script
 (
+echo #Requires -Version 5.1
 echo try {
-echo     $binPath = '%BLINTER_BIN%'
-echo     $path = [Environment]::GetEnvironmentVariable('Path', 'User'^)
-echo     if (-not $path^) { Write-Host 'User PATH is empty'; exit 0 }
+echo     $binPath = $env:BLINTER_BIN
+echo     $kindName = 'String'
+echo     $path = ''
+echo     $key = $null
+echo     if ($env:BLINTER_PATH_TEST_MODE -eq '1'^) {
+echo         $path = [Environment]::GetEnvironmentVariable('Path', 'User'^)
+echo     } else {
+echo         try {
+echo             $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true^)
+echo             if ($key^) {
+echo                 try {
+echo                     $kind = $key.GetValueKind('Path'^)
+echo                     $raw = $key.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames^)
+echo                     if ($null -ne $raw^) { $path = [string]$raw }
+echo                     if ($kind -eq [Microsoft.Win32.RegistryValueKind]::ExpandString^) { $kindName = 'ExpandString' }
+echo                 } catch {
+echo                     $path = [Environment]::GetEnvironmentVariable('Path', 'User'^)
+echo                 }
+echo             } else {
+echo                 $path = [Environment]::GetEnvironmentVariable('Path', 'User'^)
+echo             }
+echo         } catch {
+echo             $path = [Environment]::GetEnvironmentVariable('Path', 'User'^)
+echo         }
+echo     }
+echo     if (-not $path^) {
+echo         if ($key^) { $key.Close(^) }
+echo         Write-Host 'User PATH is empty'
+echo         exit 0
+echo     }
 echo     if ($path -like "*$binPath*"^) {
 echo         $pathArray = $path -split ';' ^| Where-Object { $_ -ne '' -and $_ -ne $binPath }
 echo         $newPath = $pathArray -join ';'
-echo         [Environment]::SetEnvironmentVariable('Path', $newPath, 'User'^)
+echo         if ($kindName -eq 'ExpandString' -and $key^) {
+echo             $key.SetValue('Path', $newPath, [Microsoft.Win32.RegistryValueKind]::ExpandString^)
+echo         } else {
+echo             [Environment]::SetEnvironmentVariable('Path', $newPath, 'User'^)
+echo         }
 echo         Write-Host 'Blinter removed from User PATH'
 echo     }
 echo     else {
 echo         Write-Host 'Blinter not found in User PATH'
 echo     }
+echo     if ($key^) { $key.Close(^) }
 echo     exit 0
 echo }
 echo catch {
+echo     if ($key^) { $key.Close(^) }
 echo     Write-Host "ERROR: $_"
 echo     exit 1
 echo }

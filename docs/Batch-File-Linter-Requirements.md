@@ -53,6 +53,7 @@
 - **E045**: Invalid internal command switch or argument
 - **E046**: Malformed stream redirection
 - **E047**: Unescaped specials in FOR /F command or ECHO in a block
+- **E048**: Line exceeds maximum length
 ### Warning Level Rules (W001-W999)
 **Auto-generated from spec/data/rules.yaml**
 
@@ -123,6 +124,7 @@
 - **W068**: Percent expansion of a variable set in the same parenthesized block
 - **W069**: TIME expansion without replacing the leading space
 - **W070**: SET PATH or PROMPT chained with AND in a .bat file
+- **W071**: Parse-time pseudo-variable inside a parenthesized block
 ### Style Level Rules (S001-S999)
 **Auto-generated from spec/data/rules.yaml**
 
@@ -213,7 +215,7 @@
 
 <!-- GENERATED:rule-catalog:end -->
 
-**Blinter** provides comprehensive static analysis with **built-in rules** registered in `blinter.rules.registry` (currently **191** rules; see `RULE_COUNT` in that module). Rule IDs may have gaps where rules were retired or consolidated (for example W041, S025, P011).
+**Blinter** provides comprehensive static analysis with **built-in rules** registered in `blinter.rules.registry` (currently **193** rules; see `RULE_COUNT` in that module). Rule IDs may have gaps where rules were retired or consolidated (for example W041, S025, P011).
 
 Across 5 severity levels:
 

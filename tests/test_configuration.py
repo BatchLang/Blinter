@@ -156,17 +156,23 @@ class TestConfigurationLoading:
     """Test configuration file loading functionality."""
 
     def test_load_config_no_file(self) -> None:
-        """Test loading configuration when no file exists."""
+        """An explicit --config path that does not exist is an error."""
         with tempfile.TemporaryDirectory() as temp_dir:
             config_path = os.path.join(temp_dir, "blinter.ini")
-            config = load_config(config_path)
+            with pytest.raises(FileNotFoundError, match="Configuration file not found"):
+                load_config(config_path)
 
-            # Should return default config
+    def test_load_config_missing_default_uses_defaults(self) -> None:
+        """A missing default blinter.ini still uses built-in defaults."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            previous = os.getcwd()
+            os.chdir(temp_dir)
+            try:
+                config = load_config()
+            finally:
+                os.chdir(previous)
             assert config.recursive is True
-            assert config.show_summary is False
             assert config.max_line_length == 100
-            assert config.enabled_rules == set()
-            assert config.disabled_rules == set()
             assert config.min_severity is None
 
     def test_load_config_use_config_false(self) -> None:
@@ -384,6 +390,24 @@ disabled_rules = S001 ,S002,  S003
             except (OSError, PermissionError):
                 pass  # Ignore cleanup errors
 
+    def test_load_config_invalid_max_line_length(self) -> None:
+        """Out-of-range max_line_length in a found config file is an error."""
+        config_content = """
+[general]
+max_line_length = 0
+"""
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".ini", delete=False, encoding="utf-8"
+        ) as config_file:
+            config_file.write(config_content)
+            config_file.flush()
+            config_file.close()
+        try:
+            with pytest.raises(ValueError, match="max_line_length"):
+                load_config(config_file.name)
+        finally:
+            os.unlink(config_file.name)
+
     def test_load_config_invalid_severity(self) -> None:
         """Test loading configuration with invalid severity value."""
         config_content = """
@@ -399,12 +423,8 @@ min_severity = INVALID
             config_file.close()  # Close file before reading on Windows
 
             try:
-                with patch("blinter.config.loader.logger") as mock_logger:
-                    config = load_config(config_file.name)
-
-                    # Should use default (None) and log warning
-                    assert config.min_severity is None
-                    mock_logger.warning.assert_called_once()
+                with pytest.raises(ValueError, match="Invalid min_severity"):
+                    load_config(config_file.name)
             finally:
                 try:
                     os.unlink(config_file.name)

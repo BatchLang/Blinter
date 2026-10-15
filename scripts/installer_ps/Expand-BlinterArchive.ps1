@@ -1,6 +1,6 @@
 #Requires -Version 5.1
 try {
-    Expand-Archive -LiteralPath '__BLINTER_TEMP__.zip' -DestinationPath '__BLINTER_TEMP__' -Force
+    Expand-Archive -LiteralPath "$($env:BLINTER_TEMP).zip" -DestinationPath $env:BLINTER_TEMP -Force
     exit 0
 }
 catch {

@@ -1,0 +1,16 @@
+{
+  "config": {},
+  "description": "A line over 10000 characters is E048 and the file is still linted",
+  "lines": {
+    "2": [
+      "E048"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "E048"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}

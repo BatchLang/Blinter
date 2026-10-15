@@ -1,0 +1,16 @@
+{
+  "config": {},
+  "description": "%random% inside a multi-command block (W071)",
+  "lines": {
+    "3": [
+      "W071"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "W071"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}

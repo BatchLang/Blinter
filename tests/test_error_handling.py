@@ -123,11 +123,13 @@ class TestRealWorldErrorHandling:
         finally:
             os.unlink(temp_path)
 
-    def test_rejects_file_with_line_exceeding_max_length(self) -> None:
-        """Files with a single line beyond MAX_LINE_LENGTH must be rejected."""
+    def test_long_line_is_an_error_and_rest_of_file_is_linted(self) -> None:
+        """A line over MAX_LINE_LENGTH is E048; later lines are still checked."""
         from blinter.constants import MAX_LINE_LENGTH
 
-        content = "@ECHO OFF\n" + ("A" * (MAX_LINE_LENGTH + 1)) + "\n"
+        content = (
+            "@ECHO OFF\n" + ("A" * (MAX_LINE_LENGTH + 1)) + "\necho hi\nEXIT /B 0\n"
+        )
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".bat", delete=False, encoding="utf-8"
         ) as temp_file:
@@ -135,7 +137,26 @@ class TestRealWorldErrorHandling:
             temp_path = temp_file.name
 
         try:
-            with pytest.raises(ValueError, match="exceeds maximum length"):
+            issues = lint_batch_file(temp_path)
+            e048 = [issue for issue in issues if issue.rule.code == "E048"]
+            assert len(e048) == 1
+            assert e048[0].line_number == 2
+        finally:
+            os.unlink(temp_path)
+
+    def test_rejects_line_over_absolute_maximum(self) -> None:
+        """A line over the absolute cap still rejects the whole file."""
+        from blinter.constants import ABSOLUTE_MAX_LINE_LENGTH
+
+        content = "@ECHO OFF\n" + ("A" * (ABSOLUTE_MAX_LINE_LENGTH + 1)) + "\n"
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".bat", delete=False, encoding="utf-8"
+        ) as temp_file:
+            temp_file.write(content)
+            temp_path = temp_file.name
+
+        try:
+            with pytest.raises(ValueError, match="absolute maximum length"):
                 lint_batch_file(temp_path)
         finally:
             os.unlink(temp_path)

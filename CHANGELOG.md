@@ -2,6 +2,34 @@
 
 All notable changes to Blinter are documented in this file. Release tags follow [Semantic Versioning](https://semver.org/).
 
+## [1.1.42] - 2026-10-15
+
+### Fixed
+
+- Command-casing checks no longer backtrack on long runs of spaces, and large files no longer rebuild delayed-expansion or label-block state for every line
+- `CALL` targets that use backslashes resolve on Linux and macOS
+- An explicit `--config` path that is missing or has an invalid `max_line_length` or `min_severity` fails instead of continuing with defaults
+- Lines longer than 10,000 characters are reported and skipped so the rest of the file is still linted. A line over 1,000,000 characters still rejects the file
+- The large-file size warning prints one decimal place
+- The installer no longer deletes `blinter.exe` before a download succeeds, and an up-to-date marker is ignored when that executable is missing or will not run
+- The uninstaller reads `!errorlevel!` inside parenthesized blocks and stops only its own `blinter.exe`
+- Installer PowerShell reads paths from the environment and writes `REG_EXPAND_SZ` user `PATH` values back unexpanded
+
+### Added
+
+- E048 flags a line that exceeds the maximum length the linter will fully parse
+- W071 flags parse-time `%errorlevel%`, `%random%`, `%time%`, and `%date%` inside a parenthesized block when that use is stale
+- `blinter --version` names the standalone executable or the Python version and package directory
+- The installer warns when another `blinter` is earlier on `PATH`
+- Release jobs attest the Windows zip and the Python distributions
+
+### Changed
+
+- Package metadata accepts `charset-normalizer>=3.5.2,<4`. The Windows executable build still pins `charset-normalizer==3.5.2`
+- Nuitka and setuptools are pinned in CI
+- The README install and uninstall one-liners download the v1.1.42 scripts with `curl -fL --proto =https`
+- Pinned batch-spec to v0.72.2
+
 ## [1.1.41] - 2026-10-15
 
 ### Changed
@@ -356,6 +384,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 Older 1.0.x releases are available on the [GitHub Releases](https://github.com/BatchLang/Blinter/releases) page.
 
+[1.1.42]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.42
 [1.1.41]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.41
 [1.1.40]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.40
 [1.1.39]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.39

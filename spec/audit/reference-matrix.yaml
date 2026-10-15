@@ -837,7 +837,7 @@ entries:
   - cmd.exe parenthesized block parsing
   ssot_artifacts:
   - rules E003 E036 E043 E044 E045 E046 E047 S016 S029 S030 SEC001 SEC014 SEC025 W017
-    W044 W064 W065 W066 W067 W068 W069 W070
+    W044 W064 W065 W066 W067 W068 W069 W070 W071
   rules:
   - E003
   - E036
@@ -861,6 +861,7 @@ entries:
   - W068
   - W069
   - W070
+  - W071
   corpus:
   - syntax/w017-errorlevel-zero
   - syntax/w017-not-errorlevel-zero
@@ -881,6 +882,7 @@ entries:
   - syntax/e047-for-f-unescaped
   - syntax/e047-echo-parens-block
   - syntax/e047-escaped-valid
+  - syntax/e047-echo-open-paren-valid
   - syntax/s016-double-colon-lf
   - syntax/s029-at-command
   - syntax/s029-echo-off-valid
@@ -910,3 +912,16 @@ entries:
   - syntax/w069-time-zero-valid
   - syntax/w070-set-and-bat
   - syntax/w070-set-and-cmd-valid
+  - syntax/w071-errorlevel-stale
+  - syntax/w071-errorlevel-first-valid
+  - syntax/w071-random-multi
+  - syntax/w071-single-valid
+- construct: Lines longer than the linter will fully parse
+  sources:
+  - cmd.exe command-line length limit
+  ssot_artifacts:
+  - rules E048
+  rules:
+  - E048
+  corpus:
+  - syntax/e048-line-too-long

@@ -4,7 +4,7 @@ requires = [ "uv-build>=0.13.1,<0.14" ]
 
 [project]
 name = "Blinter"
-version = "1.1.41"
+version = "1.1.42"
 description = """\
   Blinter is a linter for Windows batch files. It provides comprehensive static analysis to identify syntax errors, \
   security vulnerabilities, performance issues and style problems.\
@@ -38,6 +38,7 @@ classifiers = [
   "Environment :: Console",
   "Intended Audience :: Developers",
   "Operating System :: Microsoft :: Windows",
+  "Operating System :: OS Independent",
   "Programming Language :: Python :: 3 :: Only",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
@@ -48,7 +49,7 @@ classifiers = [
   "Topic :: Software Development :: Quality Assurance",
   "Topic :: System :: Systems Administration",
 ]
-dependencies = [ "charset-normalizer==3.5.2" ]
+dependencies = [ "charset-normalizer>=3.5.2,<4" ]
 optional-dependencies.dev = [
   "autopep8",
   "bandit",

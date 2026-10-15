@@ -1158,6 +1158,20 @@ class TestDependenciesInternals:
         assert 2 in called_vars
         assert "HELPER_VAR" in called_vars[2]
 
+    def test_follow_calls_resolves_backslash_subdirectory(self, tmp_path: Path) -> None:
+        """CALL targets written with backslashes resolve in a subdirectory."""
+        lib = tmp_path / "lib"
+        lib.mkdir()
+        helper = lib / "helper.cmd"
+        helper.write_text("@ECHO OFF\nSET LIB_VAR=1\n", encoding="utf-8")
+        main_script = tmp_path / "main.bat"
+        main_script.write_text(
+            "@ECHO OFF\nCALL lib\\helper.cmd\nCALL .\\lib\\helper.cmd\n",
+            encoding="utf-8",
+        )
+        called_vars = _collect_called_vars(main_script, scan_root=str(tmp_path))
+        assert any("LIB_VAR" in names for names in called_vars.values())
+
     def test_read_batch_lines_logs_warning_for_called_script(
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture
     ) -> None:

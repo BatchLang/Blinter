@@ -103,6 +103,7 @@ _MATRIX_CORPUS_RULE_ALLOWLIST: frozenset[str] = frozenset(
         "syntax/e045-switch-valid",
         "syntax/e046-redir-valid",
         "syntax/e047-escaped-valid",
+        "syntax/e047-echo-open-paren-valid",
         "syntax/sec014-quoted-arg-valid",
         "syntax/sec025-quoted-cd-valid",
         "syntax/sec001-setp-quoted-valid",
@@ -113,6 +114,8 @@ _MATRIX_CORPUS_RULE_ALLOWLIST: frozenset[str] = frozenset(
         "syntax/s030-nul-valid",
         "syntax/w067-set-custom-valid",
         "syntax/w068-delayed-valid",
+        "syntax/w071-errorlevel-first-valid",
+        "syntax/w071-single-valid",
         "syntax/w069-time-zero-valid",
         "syntax/w070-set-and-cmd-valid",
     }

@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "%errorlevel% on the first line of a block still sees the pre-block value",
+  "lines": {},
+  "must_not": [
+    "W071"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

@@ -74,12 +74,16 @@ _target_line_cache_var: ContextVar[
 _sorted_labels_cache_var: ContextVar[
     Optional[Dict[int, tuple[object, List[Tuple[str, int]]]]]
 ] = ContextVar("sorted_labels_cache", default=None)
+_label_block_cache_var: ContextVar[
+    Optional[Dict[int, tuple[object, object, List[Optional[Tuple[str, int]]]]]]
+] = ContextVar("label_block_cache", default=None)
 
 
 def _begin_invocation_prefix_pass() -> None:
     """Start per-lint label-target caches for the current execution context."""
     _target_line_cache_var.set({})
     _sorted_labels_cache_var.set({})
+    _label_block_cache_var.set({})
 
 
 def _build_first_target_line(lines: List[str]) -> Dict[str, int]:
@@ -123,23 +127,43 @@ def _label_was_targeted_before(
     return first_line < before_line - 1
 
 
-def _label_block_for_line(
-    line_number: int, sorted_labels: List[Tuple[str, int]], total_lines: int
-) -> Optional[Tuple[str, int]]:
-    """
-    Return (label_name, label_line) for the block containing ``line_number``.
+def _build_label_block_index(
+    sorted_labels: List[Tuple[str, int]], total_lines: int
+) -> List[Optional[Tuple[str, int]]]:
+    """Map each 1-based line to the label body that contains it.
 
-    Label bodies span from the line after the label until the next label (exclusive).
+    Label bodies span from the line after the label until the next label
+    (exclusive). The label line itself is not part of the body.
     """
+    blocks: List[Optional[Tuple[str, int]]] = [None] * (total_lines + 1)
     for index, (label_name, label_line) in enumerate(sorted_labels):
         next_label_line = (
             sorted_labels[index + 1][1]
             if index + 1 < len(sorted_labels)
             else total_lines + 1
         )
-        if label_line < line_number < next_label_line:
-            return label_name, label_line
-    return None
+        block = (label_name, label_line)
+        for line_number in range(label_line + 1, next_label_line):
+            if 1 <= line_number <= total_lines:
+                blocks[line_number] = block
+    return blocks
+
+
+def _label_blocks_for(
+    lines: List[str], labels: Dict[str, int]
+) -> List[Optional[Tuple[str, int]]]:
+    """Return the per-line label-body index, cached for this lint pass."""
+    sorted_labels = _sorted_labels_for(labels)
+    cache = _label_block_cache_var.get()
+    if cache is None:
+        return _build_label_block_index(sorted_labels, len(lines))
+    source_id = id(lines)
+    cached = cache.get(source_id)
+    if cached is None or cached[0] is not lines or cached[1] is not labels:
+        blocks = _build_label_block_index(sorted_labels, len(lines))
+        cache[source_id] = (lines, labels, blocks)
+        return blocks
+    return cached[2]
 
 
 def _label_sort_key(item: tuple[str, int]) -> int:
@@ -160,8 +184,8 @@ def _is_in_subroutine_context(
     if not labels or line_number < 1:
         return False
 
-    sorted_labels = _sorted_labels_for(labels)
-    block = _label_block_for_line(line_number, sorted_labels, len(lines))
+    blocks = _label_blocks_for(lines, labels)
+    block = blocks[line_number] if line_number < len(blocks) else None
     if block is None:
         return False
 
@@ -426,7 +450,7 @@ def _paren_depth_before_line(lines: List[str], line_num: int) -> int:
 
 
 _delayed_expansion_cache_var: ContextVar[
-    Optional[Dict[tuple[str, ...], List[bool]]]
+    Optional[Dict[int, tuple[object, List[bool]]]]
 ] = ContextVar("delayed_expansion_cache", default=None)
 
 
@@ -457,15 +481,11 @@ def _build_delayed_expansion_state(lines: List[str]) -> List[bool]:
 
 def _delayed_expansion_state_for_lines(lines: List[str]) -> List[bool]:
     """Return cached delayed-expansion state per line within a single lint pass."""
-    cache = _delayed_expansion_cache_var.get()
-    if cache is None:
-        return _build_delayed_expansion_state(lines)
-    lines_key = tuple(lines)
-    cached = cache.get(lines_key)
-    if cached is None:
-        cached = _build_delayed_expansion_state(lines)
-        cache[lines_key] = cached
-    return cached
+    return _identity_cached(
+        _delayed_expansion_cache_var.get(),
+        lines,
+        lambda: _build_delayed_expansion_state(lines),
+    )
 
 
 def _delayed_expansion_active_at_line(lines: List[str], line_num: int) -> bool:

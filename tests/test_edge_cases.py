@@ -785,7 +785,9 @@ class TestAdditionalEdgeCaseScenarios:
                 with patch(
                     "builtins.open", mock_open(read_data="@echo off\necho test")
                 ):
-                    lines, encoding, _ending_info = _validate_and_read_file(temp_path)
+                    lines, encoding, _ending_info, _overlong = _validate_and_read_file(
+                        temp_path
+                    )
                     assert len(lines) > 0
                     assert encoding in [
                         "utf-8",

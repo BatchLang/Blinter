@@ -133,8 +133,8 @@ jobs:
       - name: Install dependencies in virtual environment
         run: |
           .\venv\Scripts\Activate.ps1
-          uv pip install --upgrade setuptools
-          uv pip install --upgrade nuitka
+          uv pip install setuptools==84.0.0
+          uv pip install nuitka==4.3
           $env:CHARSET_NORMALIZER_USE_MYPYC = "0"
           uv pip install --upgrade -r requirements.txt --no-binary charset-normalizer
         shell: pwsh
@@ -242,6 +242,10 @@ jobs:
     needs: [check-version]
     if: needs.check-version.outputs.should_release == 'true'
     runs-on: windows-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -262,8 +266,8 @@ jobs:
       - name: Install dependencies in virtual environment
         run: |
           .\venv\Scripts\Activate.ps1
-          uv pip install --upgrade setuptools
-          uv pip install --upgrade nuitka
+          uv pip install setuptools==84.0.0
+          uv pip install nuitka==4.3
           $env:CHARSET_NORMALIZER_USE_MYPYC = "0"
           uv pip install --upgrade -r requirements.txt --no-binary charset-normalizer
         shell: pwsh
@@ -283,6 +287,11 @@ jobs:
           Compress-Archive -Path $folder -DestinationPath "dist/Blinter-v$version.zip"
         shell: pwsh
 
+      - name: Attest Windows zip
+        uses: actions/attest-build-provenance@96278af6caaf10aea03fd8d33a09a777ca52d62f # v3.2.0
+        with:
+          subject-path: dist/Blinter-v${{ steps.version.outputs.version }}.zip
+
       - name: Upload artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
@@ -294,6 +303,10 @@ jobs:
     needs: [check-version]
     if: needs.check-version.outputs.should_release == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -306,6 +319,11 @@ jobs:
 
       - name: Build pure Python wheel and sdist
         run: uv build
+
+      - name: Attest Python distributions
+        uses: actions/attest-build-provenance@96278af6caaf10aea03fd8d33a09a777ca52d62f # v3.2.0
+        with:
+          subject-path: dist/*
 
       - name: Store artifacts
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7

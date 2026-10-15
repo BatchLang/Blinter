@@ -51,7 +51,7 @@ def _read_batch_lines(
     if lines is not None:
         return lines
     try:
-        file_lines, _encoding, _ending = _validate_and_read_file(str(path))
+        file_lines, _encoding, _ending, _overlong = _validate_and_read_file(str(path))
         return file_lines
     except (OSError, ValueError) as read_error:
         if warn_on_read_failure:
@@ -142,6 +142,7 @@ def _resolve_script_path(
     Returns:
         Resolved Path object, or None if resolution fails or path is outside scan_root
     """
+    script_path_str = script_path_str.replace("\\", "/")
     if "%~dp0" in script_path_str:
         script_path_str = script_path_str.replace("%~dp0", "")
         resolved = batch_dir / script_path_str

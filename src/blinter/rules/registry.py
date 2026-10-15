@@ -330,8 +330,15 @@ RULES: Dict[str, Rule] = {
         code="E047",
         name="Unescaped specials in FOR /F command or ECHO in a block",
         severity=RuleSeverity.ERROR,
-        explanation="Unescaped & < > | inside a FOR /F IN ('command') string, or unescaped parentheses in ECHO inside a parenthesized block, terminate the loop or block early",
-        recommendation="Escape as ^& ^< ^> ^| and ^( ^) inside those contexts",
+        explanation="Unescaped & < > | inside a FOR /F IN ('command') string, or an unescaped ) in ECHO inside a parenthesized block, terminate the loop or block early. An opening parenthesis in ECHO text does not end the block",
+        recommendation="Escape as ^& ^< ^> ^| inside FOR /F, and escape a closing parenthesis in ECHO as ^)",
+    ),
+    "E048": Rule(
+        code="E048",
+        name="Line exceeds maximum length",
+        severity=RuleSeverity.ERROR,
+        explanation="cmd.exe rejects lines longer than about 8191 characters. Blinter reports a line over 10000 characters as an error and skips that line so the rest of the file is still linted",
+        recommendation="Split the line with a caret continuation or move the text into a called script",
     ),
     # Performance Level Rules (P001-P999)
     "P001": Rule(
@@ -1351,6 +1358,13 @@ RULES: Dict[str, Rule] = {
         severity=RuleSeverity.WARNING,
         explanation="In .bat files SET, PATH, and PROMPT do not reset ERRORLEVEL to 0 on success, so cmd1 && cmd2 may skip the second command; .cmd files do reset it",
         recommendation="Avoid && after SET, PATH, or PROMPT in .bat files; use a separate line, or rename the script to .cmd",
+    ),
+    "W071": Rule(
+        code="W071",
+        name="Parse-time pseudo-variable inside a parenthesized block",
+        severity=RuleSeverity.WARNING,
+        explanation="cmd.exe expands %errorlevel%, %random%, %time%, and %date% once when it parses a parenthesized block, so later commands in that block do not update them",
+        recommendation="Use !errorlevel!, !random!, !time!, or !date! with SETLOCAL EnableDelayedExpansion, or test IF ERRORLEVEL outside the block",
     ),
 }
 

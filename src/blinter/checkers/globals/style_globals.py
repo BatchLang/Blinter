@@ -15,6 +15,16 @@ from blinter.parsing.context import _is_comment_line
 from blinter.patterns import COMMAND_CASING_KEYWORDS
 from blinter.rules.registry import RULES
 
+# One compiled pattern per keyword. A single separator character plus ``\s*``
+# avoids the ``\s+`` / ``\s*`` overlap that backtracks on long space runs.
+_COMMAND_CASE_PATTERNS: Tuple[Tuple[str, re.Pattern[str]], ...] = tuple(
+    (
+        keyword,
+        re.compile(rf"(^|[\s&|(])\s*({re.escape(keyword)})\b", re.IGNORECASE),
+    )
+    for keyword in sorted(COMMAND_CASING_KEYWORDS)
+)
+
 
 def _check_redundant_operations(lines: List[str]) -> List[LintIssue]:
     """Check for redundant file operations."""
@@ -372,12 +382,8 @@ def _collect_cmd_cases(lines: List[str]) -> Dict[str, List[Tuple[int, str]]]:
             continue
 
         # Find commands in this line - only at the start or after common batch separators
-        for keyword in COMMAND_CASING_KEYWORDS:
-            # Only match commands at line start or after certain separators
-            pattern = rf"(^|\s+|&|\||\()\s*({keyword})\b"
-            matches = re.finditer(pattern, stripped, re.IGNORECASE)
-
-            for match in matches:
+        for keyword, pattern in _COMMAND_CASE_PATTERNS:
+            for match in pattern.finditer(stripped):
                 actual_case = match.group(2)  # Group 2 is the keyword itself
                 if keyword not in command_cases:
                     command_cases[keyword] = []

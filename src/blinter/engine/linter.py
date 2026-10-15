@@ -9,6 +9,7 @@ from typing import (
     Set,
 )
 
+from blinter.checkers.cmd_extended import issues_for_overlong_lines
 from blinter.checkers.globals import (
     _check_global_style_rules,
     _check_new_global_rules,
@@ -89,7 +90,9 @@ def lint_batch_file(  # pylint: disable=too-many-locals
         scan_root = str(Path(file_path).parent.resolve())
 
     # Read and validate file
-    lines, _encoding_used, line_ending_info = _validate_and_read_file(file_path)
+    lines, _encoding_used, line_ending_info, overlong_lines = _validate_and_read_file(
+        file_path
+    )
     if lines_cache is not None:
         store_cached_lines(lines_cache, Path(file_path), lines)
 
@@ -102,6 +105,7 @@ def lint_batch_file(  # pylint: disable=too-many-locals
     skip_lines = _detect_embedded_script_blocks(lines)
 
     issues: List[LintIssue] = []
+    issues.extend(issues_for_overlong_lines(overlong_lines))
 
     # Analyze script structure for context-aware checking
     structure_data = _analyze_script_structure(lines)

@@ -12,6 +12,7 @@ from typing import (
 from charset_normalizer import from_bytes
 
 from blinter.constants import (
+    ABSOLUTE_MAX_LINE_LENGTH,
     LARGE_FILE_WARNING_BYTES,
     MAX_FILE_SIZE_BYTES,
     MAX_LINE_LENGTH,
@@ -35,8 +36,8 @@ def _validate_file_for_read(file_path: str) -> Path:
     file_size = file_obj.stat().st_size
     if file_size > LARGE_FILE_WARNING_BYTES:
         logger.warning(
-            "Large file detected (%dMB). Processing may take longer.",
-            file_size // 1024 // 1024,
+            "Large file detected (%.1fMB). Processing may take longer.",
+            file_size / (1024 * 1024),
         )
 
     if file_size > MAX_FILE_SIZE_BYTES:
@@ -238,14 +239,32 @@ def _detect_charset_norm_bytes(raw_data: bytes, encodings_list: List[str]) -> Li
     return encodings_list
 
 
-def _validate_line_lengths(lines: List[str], file_path: str) -> None:
-    """Reject files containing lines longer than MAX_LINE_LENGTH."""
-    for line_num, line in enumerate(lines, start=1):
-        if len(line) > MAX_LINE_LENGTH:
+def _blank_overlong_lines(lines: List[str], file_path: str) -> List[int]:
+    """Blank lines over MAX_LINE_LENGTH and reject lines over the absolute cap.
+
+    A line cmd.exe cannot execute becomes an E048 finding later. Replacing it
+    keeps the rest of the file lintable without feeding a huge line to regexes.
+    """
+    overlong: List[int] = []
+    for index, line in enumerate(lines):
+        length = len(line)
+        line_num = index + 1
+        if length > ABSOLUTE_MAX_LINE_LENGTH:
             raise ValueError(
-                f"Line {line_num} exceeds maximum length of {MAX_LINE_LENGTH} "
-                f"characters in file: {file_path}"
+                f"Line {line_num} exceeds absolute maximum length of "
+                f"{ABSOLUTE_MAX_LINE_LENGTH} characters in file: {file_path}"
             )
+        if length > MAX_LINE_LENGTH:
+            logger.warning(
+                "Line %d in %s has %d characters, above the %d character limit",
+                line_num,
+                file_path,
+                length,
+                MAX_LINE_LENGTH,
+            )
+            overlong.append(line_num)
+            lines[index] = "\n"
+    return overlong
 
 
 def _try_decode_bytes(raw_data: bytes, encoding: str) -> Optional[List[str]]:
@@ -287,18 +306,18 @@ def _encoding_from_bom(raw_data: bytes) -> Optional[str]:
 
 def _accept_decoded_lines(
     file_path: str, raw_data: bytes, encoding: str
-) -> Optional[Tuple[List[str], str]]:
+) -> Optional[Tuple[List[str], str, List[int]]]:
     """Return decoded lines when ``encoding`` accepts ``raw_data``."""
     lines = _try_decode_bytes(raw_data, encoding)
     if lines is None:
         return None
-    _validate_line_lengths(lines, file_path)
-    return lines, encoding
+    overlong = _blank_overlong_lines(lines, file_path)
+    return lines, encoding, overlong
 
 
 def _decode_wide_or_reject_nuls(
     file_path: str, raw_data: bytes
-) -> Tuple[List[str], str]:
+) -> Tuple[List[str], str, List[int]]:
     """Decode NUL-bearing bytes as UTF-16 or UTF-32, or raise one clear error."""
     for encoding in _WIDE_ENCODINGS:
         decoded = _accept_decoded_lines(file_path, raw_data, encoding)
@@ -310,7 +329,9 @@ def _decode_wide_or_reject_nuls(
     )
 
 
-def _read_lines_from_bytes(file_path: str, raw_data: bytes) -> Tuple[List[str], str]:
+def _read_lines_from_bytes(
+    file_path: str, raw_data: bytes
+) -> Tuple[List[str], str, List[int]]:
     """Decode pre-read file bytes using charset detection and fallbacks."""
     bom_encoding = _encoding_from_bom(raw_data)
     if bom_encoding is not None:
@@ -378,22 +399,23 @@ def read_file_with_encoding(file_path: str) -> Tuple[List[str], str]:
     """
     file_obj = _validate_file_for_read(file_path)
     raw_data = file_obj.read_bytes()
-    return _read_lines_from_bytes(file_path, raw_data)
+    lines, encoding_used, _overlong = _read_lines_from_bytes(file_path, raw_data)
+    return lines, encoding_used
 
 
 def _validate_and_read_file(
     file_path: str,
-) -> Tuple[List[str], str, LineEndingInfo]:
+) -> Tuple[List[str], str, LineEndingInfo, List[int]]:
     """Validate file and read its contents in a single binary pass.
 
     Returns:
-        Tuple of (lines, encoding_used, line_ending_info)
+        Tuple of (lines, encoding_used, line_ending_info, overlong_line_numbers)
     """
     file_obj = _validate_file_for_read(file_path)
 
     raw_data = file_obj.read_bytes()
     line_ending_info = _line_ending_stats_from_bytes(raw_data)
-    lines, encoding_used = _read_lines_from_bytes(file_path, raw_data)
+    lines, encoding_used, overlong_lines = _read_lines_from_bytes(file_path, raw_data)
 
     # Log when we had to fall back from UTF-8, but not for pure ASCII files
     if encoding_used.lower() not in ["utf-8", "utf-8-sig", "ascii"]:
@@ -404,4 +426,4 @@ def _validate_and_read_file(
             encoding_used,
         )
 
-    return lines, encoding_used, line_ending_info
+    return lines, encoding_used, line_ending_info, overlong_lines

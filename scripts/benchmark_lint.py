@@ -145,9 +145,9 @@ def _check_committed_baselines(runs: int) -> int:
 
 
 def _run_timed_lint(file_path: Path) -> float:
-    start = time.perf_counter()
+    start = time.process_time()
     lint_batch_file(str(file_path))
-    return time.perf_counter() - start
+    return time.process_time() - start
 
 
 def _print_profile(file_path: Path, top_n: int) -> None:

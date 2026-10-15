@@ -1488,10 +1488,25 @@ class TestVersionFunctionality:
                 output = captured.getvalue()
 
         # Check for version information in output (just the version number)
-        assert f"v{project_version}" in output
+        assert f"v{project_version} (Python " in output
+        assert "standalone exe" not in output
         # Ensure author and license are NOT shown
         assert "Author:" not in output
         assert "License:" not in output
+
+    def test_version_flag_standalone_origin(self) -> None:
+        """Nuitka's __compiled__ module marks the standalone executable."""
+        project_version = get_project_version()
+        with (
+            patch("blinter.output.formatters._COMPILED_MODULE", object()),
+            patch("sys.argv", ["blinter", "--version"]),
+            StdoutCapture() as captured,
+        ):
+            main()
+            output = captured.getvalue()
+
+        assert f"v{project_version} (standalone exe)" in output
+        assert "Python " not in output
 
     def test_version_in_help(self) -> None:
         """Test that version is displayed in help menu."""

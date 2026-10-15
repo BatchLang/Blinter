@@ -424,8 +424,8 @@ rules:
 - code: E047
   name: Unescaped specials in FOR /F command or ECHO in a block
   severity: ERROR
-  explanation: 'Unescaped & < > | inside a FOR /F IN (''command'') string, or unescaped parentheses in ECHO inside a parenthesized block, terminate the loop or block early'
-  recommendation: 'Escape as ^& ^< ^> ^| and ^( ^) inside those contexts'
+  explanation: 'Unescaped & < > | inside a FOR /F IN (''command'') string, or an unescaped ) in ECHO inside a parenthesized block, terminate the loop or block early. An opening parenthesis in ECHO text does not end the block'
+  recommendation: 'Escape as ^& ^< ^> ^| inside FOR /F, and escape a closing parenthesis in ECHO as ^)'
   checker: regex
   examples:
     bad:
@@ -440,6 +440,21 @@ rules:
         if 1==1 (
           echo text ^(parens^)
         )
+      - |-
+        if 1==1 (
+          echo if ($x -eq 1^) { y }
+        )
+- code: E048
+  name: Line exceeds maximum length
+  severity: ERROR
+  explanation: 'cmd.exe rejects lines longer than about 8191 characters. Blinter reports a line over 10000 characters as an error and skips that line so the rest of the file is still linted'
+  recommendation: 'Split the line with a caret continuation or move the text into a called script'
+  checker: regex
+  examples:
+    bad:
+      - A line longer than 10000 characters
+    good:
+      - echo short line
 - code: P001
   name: Redundant file existence check
   severity: PERFORMANCE
@@ -1409,3 +1424,23 @@ rules:
       - |-
         set foo=bar
         echo ok
+- code: W071
+  name: Parse-time pseudo-variable inside a parenthesized block
+  severity: WARNING
+  explanation: 'cmd.exe expands %errorlevel%, %random%, %time%, and %date% once when it parses a parenthesized block, so later commands in that block do not update them'
+  recommendation: 'Use !errorlevel!, !random!, !time!, or !date! with SETLOCAL EnableDelayedExpansion, or test IF ERRORLEVEL outside the block'
+  checker: regex
+  examples:
+    bad:
+      - |-
+        if exist folder (
+          rmdir /s /q folder
+          if %errorlevel% equ 0 echo removed
+        )
+    good:
+      - |-
+        setlocal EnableDelayedExpansion
+        if exist folder (
+          rmdir /s /q folder
+          if !errorlevel! equ 0 echo removed
+        )

@@ -1,0 +1,16 @@
+{
+  "config": {},
+  "description": "%errorlevel% after a command in the same block (W071)",
+  "lines": {
+    "4": [
+      "W071"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "W071"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}

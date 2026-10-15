@@ -25,16 +25,20 @@ def _load_general_settings(
     config.show_summary = general.getboolean("show_summary", fallback=False)
     try:
         max_line_length = general.getint("max_line_length", fallback=100)
-        if 0 < max_line_length <= MAX_LINE_LENGTH:
-            config.max_line_length = max_line_length
-        else:
-            logger.warning(
-                "Invalid max_line_length %s in config (must be 1-%s), using default",
-                max_line_length,
-                MAX_LINE_LENGTH,
-            )
-    except ValueError:
-        logger.warning("Invalid max_line_length value in config, using default")
+    except ValueError as error:
+        logger.error("Invalid max_line_length value in config: %s", error)
+        raise ValueError("Invalid max_line_length value in config") from error
+    if not 0 < max_line_length <= MAX_LINE_LENGTH:
+        logger.error(
+            "Invalid max_line_length %s in config (must be 1-%s)",
+            max_line_length,
+            MAX_LINE_LENGTH,
+        )
+        raise ValueError(
+            f"Invalid max_line_length {max_line_length} in config "
+            f"(must be 1-{MAX_LINE_LENGTH})"
+        )
+    config.max_line_length = max_line_length
     try:
         max_scan_files = general.getint("max_scan_files", fallback=MAX_SCAN_FILES)
         if max_scan_files > 0:
@@ -65,8 +69,9 @@ def _set_min_severity(config: BlinterConfig, severity_str: str) -> None:
     severity_upper = severity_str.upper()
     if severity_upper in severity_map:
         config.min_severity = severity_map[severity_upper]
-    else:
-        logger.warning("Invalid min_severity value: %s", severity_str)
+        return
+    logger.error("Invalid min_severity value: %s", severity_str)
+    raise ValueError(f"Invalid min_severity value: {severity_str}")
 
 
 def _validate_rule_codes(rule_codes: set[str], setting_name: str) -> set[str]:
@@ -129,11 +134,16 @@ def load_config(
     if not use_config:
         return config
 
-    # Determine config file path
+    # Determine config file path. An explicit --config path that is missing
+    # is a user error. The default blinter.ini lookup may be absent.
+    explicit_config = config_path is not None
     config_path = config_path or "blinter.ini"
     config_file = Path(config_path)
 
     if not config_file.exists():
+        if explicit_config:
+            logger.error("Configuration file not found: %s", config_file)
+            raise FileNotFoundError(f"Configuration file not found: {config_file}")
         logger.info("No configuration file found at %s, using defaults", config_file)
         return config
 
@@ -146,7 +156,7 @@ def load_config(
 
         logger.info("Configuration loaded from %s", config_file)
 
-    except (configparser.Error, OSError, ValueError) as error:
+    except (configparser.Error, OSError) as error:
         logger.warning(
             "Error loading configuration from %s: %s. Using defaults.",
             config_file,

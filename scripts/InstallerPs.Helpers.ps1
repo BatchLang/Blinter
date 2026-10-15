@@ -10,28 +10,29 @@ function Get-InstallerPsScriptMap {
             }
             'write_file_size_script' = @{
                 Fixture      = 'Get-DownloadedFileSize.ps1'
-                Placeholders = @{ '%BLINTER_TEMP%' = '__BLINTER_TEMP__' }
+                Placeholders = @{}
             }
             'write_hash_verify_script' = @{
                 Fixture      = 'Test-BlinterArchiveHash.ps1'
-                Placeholders = @{
-                    '%BLINTER_TEMP%'   = '__BLINTER_TEMP__'
-                    '%BLINTER_SHA256%' = '__BLINTER_SHA256__'
-                }
+                Placeholders = @{}
             }
             'write_expand_script' = @{
                 Fixture      = 'Expand-BlinterArchive.ps1'
-                Placeholders = @{ '%BLINTER_TEMP%' = '__BLINTER_TEMP__' }
+                Placeholders = @{}
             }
             'write_update_path_script' = @{
                 Fixture      = 'Update-BlinterUserPath.ps1'
-                Placeholders = @{ '%BLINTER_BIN%' = '__BLINTER_BIN__' }
+                Placeholders = @{}
             }
         }
         'uninstall_blinter.cmd' = [ordered]@{
+            'write_stop_blinter_script' = @{
+                Fixture      = 'Stop-InstalledBlinter.ps1'
+                Placeholders = @{}
+            }
             'write_remove_path_script' = @{
                 Fixture      = 'Remove-BlinterUserPath.ps1'
-                Placeholders = @{ '%BLINTER_BIN%' = '__BLINTER_BIN__' }
+                Placeholders = @{}
             }
         }
     }
@@ -40,14 +41,26 @@ function Get-InstallerPsScriptMap {
 function ConvertFrom-BatchEchoEscape {
     param([string]$Line)
 
-    $result = $Line
-    $result = $result -replace '\^\|', '|'
-    $result = $result -replace '\^\)', ')'
-    $result = $result -replace '\^\>', '>'
-    $result = $result -replace '\^&', '&'
-    # Cmd removes one caret from an even pair after the special-character escapes above.
-    $result = $result -replace '\^\^', '^'
-    return $result
+    # Caret escapes apply only outside double quotes. Inside quotes, cmd keeps the caret.
+    $builder = [System.Text.StringBuilder]::new()
+    $inQuotes = $false
+    $chars = $Line.ToCharArray()
+    for ($index = 0; $index -lt $chars.Length; $index++) {
+        $char = $chars[$index]
+        if ($char -eq '"') {
+            [void]$builder.Append($char)
+            $inQuotes = -not $inQuotes
+            continue
+        }
+        $hasNext = ($index + 1) -lt $chars.Length
+        if (-not $inQuotes -and $char -eq '^' -and $hasNext) {
+            [void]$builder.Append($chars[$index + 1])
+            $index++
+            continue
+        }
+        [void]$builder.Append($char)
+    }
+    return $builder.ToString()
 }
 
 function Get-BatchEchoScriptContent {
@@ -149,7 +162,7 @@ function Get-InstallerPsParityPairs {
             $extracted = Get-BatchEchoScriptContent -CmdFilePath $cmdPath -LabelName $labelEntry.Key
             $extracted = Apply-InstallerPsPlaceholders -Content $extracted -Placeholders $config.Placeholders
             $fixture = Get-InstallerPsFixtureContent -InstallerPsRoot $InstallerPsRoot -FixtureName $config.Fixture
-            $fixtureBody = ($fixture -split "`n" | Select-Object -Skip 1) -join "`n"
+            $fixtureBody = $fixture
             $pairs.Add([PSCustomObject]@{
                     CmdFile   = $cmdEntry.Key
                     Label     = $labelEntry.Key
@@ -250,11 +263,13 @@ function Invoke-InstallerPsPathFixture {
 
     # Pester Mock cannot intercept .NET static methods, so tests rewrite the
     # fixture against a global fake User PATH instead of mutating the real one.
-    $script = $script.Replace('__BLINTER_BIN__', $BinPath)
+    # BLINTER_PATH_TEST_MODE skips the registry read so the rewrite is the only path.
     $script = $script.Replace($getCall, '$global:BlinterTestUserPath')
     $script = $script.Replace($setCall, '$global:BlinterTestUserPath = $newPath')
 
     Set-Content -LiteralPath $TempScriptPath -Value $script
+    $env:BLINTER_BIN = $BinPath
+    $env:BLINTER_PATH_TEST_MODE = '1'
     $global:BlinterTestUserPath = $InitialUserPath
     Write-Verbose "Invoking path fixture $FixturePath with fake User PATH '$InitialUserPath'"
     & $TempScriptPath

@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "Unescaped opening parenthesis in ECHO is not E047 when ) is escaped",
+  "lines": {},
+  "must_not": [
+    "E047"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

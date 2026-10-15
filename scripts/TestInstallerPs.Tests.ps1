@@ -9,7 +9,7 @@ BeforeAll {
 Describe 'Installer batch PowerShell parity' {
     It 'matches fixture content for each write_*_script block' {
         $pairs = Get-InstallerPsParityPairs -ScriptsRoot $script:ScriptsRoot -InstallerPsRoot $script:InstallerPsRoot
-        $pairs.Count | Should -Be 6
+        $pairs.Count | Should -Be 7
 
         foreach ($pair in $pairs) {
             $normalizedExtracted = Normalize-InstallerPsText -Content $pair.Extracted
@@ -139,25 +139,29 @@ Describe 'Test-BlinterArchiveHash.ps1' {
                 $hash = [System.BitConverter]::ToString($sha.ComputeHash($stream)).Replace('-', '')
             } finally { $stream.Dispose() }
         } finally { $sha.Dispose() }
-        $script = Get-Content -LiteralPath (Join-Path $script:InstallerPsRoot 'Test-BlinterArchiveHash.ps1') -Raw
-        $script = $script.Replace('__BLINTER_TEMP__', ($tempFile -replace '\.zip$', ''))
-        $script = $script.Replace('__BLINTER_SHA256__', "sha256:$hash")
-        $tempScript = Join-Path $TestDrive 'verify.ps1'
-        Set-Content -LiteralPath $tempScript -Value $script
-        & $tempScript
-        $LASTEXITCODE | Should -Be 0
+        $env:BLINTER_TEMP = ($tempFile -replace '\.zip$', '')
+        $env:BLINTER_SHA256 = "sha256:$hash"
+        try {
+            & (Join-Path $script:InstallerPsRoot 'Test-BlinterArchiveHash.ps1')
+            $LASTEXITCODE | Should -Be 0
+        } finally {
+            Remove-Item Env:BLINTER_TEMP -ErrorAction SilentlyContinue
+            Remove-Item Env:BLINTER_SHA256 -ErrorAction SilentlyContinue
+        }
     }
 
     It 'exits 1 when the archive hash does not match' {
         $tempFile = Join-Path $TestDrive 'archive.zip'
         Set-Content -LiteralPath $tempFile -Value 'blinter-archive' -NoNewline
-        $script = Get-Content -LiteralPath (Join-Path $script:InstallerPsRoot 'Test-BlinterArchiveHash.ps1') -Raw
-        $script = $script.Replace('__BLINTER_TEMP__', ($tempFile -replace '\.zip$', ''))
-        $script = $script.Replace('__BLINTER_SHA256__', 'sha256:deadbeef')
-        $tempScript = Join-Path $TestDrive 'verify.ps1'
-        Set-Content -LiteralPath $tempScript -Value $script
-        & $tempScript
-        $LASTEXITCODE | Should -Be 1
+        $env:BLINTER_TEMP = ($tempFile -replace '\.zip$', '')
+        $env:BLINTER_SHA256 = 'sha256:deadbeef'
+        try {
+            & (Join-Path $script:InstallerPsRoot 'Test-BlinterArchiveHash.ps1')
+            $LASTEXITCODE | Should -Be 1
+        } finally {
+            Remove-Item Env:BLINTER_TEMP -ErrorAction SilentlyContinue
+            Remove-Item Env:BLINTER_SHA256 -ErrorAction SilentlyContinue
+        }
     }
 }
 
@@ -198,12 +202,16 @@ Describe 'Installer batch hash helper emission' {
         $text | Should -Not -Match 'SHA256::Create'
 
         $fixtureLines = @(Get-Content -LiteralPath (Join-Path $script:InstallerPsRoot 'Test-BlinterArchiveHash.ps1'))
-        $expectedLines = @($fixtureLines | Select-Object -Skip 1 | ForEach-Object {
-                $_.Replace('__BLINTER_TEMP__', $tempStem).Replace('__BLINTER_SHA256__', "sha256:$hash")
-            })
-        @(Get-Content -LiteralPath $outFile) | Should -Be $expectedLines
+        @(Get-Content -LiteralPath $outFile) | Should -Be $fixtureLines
 
-        $verifyOutput = & $outFile
+        $env:BLINTER_TEMP = $tempStem
+        $env:BLINTER_SHA256 = "sha256:$hash"
+        try {
+            $verifyOutput = & $outFile
+        } finally {
+            Remove-Item Env:BLINTER_TEMP -ErrorAction SilentlyContinue
+            Remove-Item Env:BLINTER_SHA256 -ErrorAction SilentlyContinue
+        }
         $LASTEXITCODE | Should -Be 0
         $verifyOutput | Should -Be 'OK'
     }
@@ -301,13 +309,12 @@ Describe 'Expand-BlinterArchive.ps1' {
         $tempStem = Join-Path $TestDrive 'blinter-temp'
         Compress-Archive -LiteralPath $payloadFile -DestinationPath "$tempStem.zip" -Force
 
-        $tempScript = Join-Path $TestDrive 'expand.ps1'
-        New-InstallerPsSubstitutedScript `
-            -FixturePath (Join-Path $script:InstallerPsRoot 'Expand-BlinterArchive.ps1') `
-            -Replacements @{ '__BLINTER_TEMP__' = $tempStem } `
-            -DestinationPath $tempScript
-
-        & $tempScript
+        $env:BLINTER_TEMP = $tempStem
+        try {
+            & (Join-Path $script:InstallerPsRoot 'Expand-BlinterArchive.ps1')
+        } finally {
+            Remove-Item Env:BLINTER_TEMP -ErrorAction SilentlyContinue
+        }
         $LASTEXITCODE | Should -Be 0
         $extracted = Join-Path $tempStem 'readme.txt'
         Test-Path -LiteralPath $extracted | Should -BeTrue
@@ -315,13 +322,12 @@ Describe 'Expand-BlinterArchive.ps1' {
     }
 
     It 'exits 1 when the archive is missing' {
-        $tempScript = Join-Path $TestDrive 'expand-missing.ps1'
-        New-InstallerPsSubstitutedScript `
-            -FixturePath (Join-Path $script:InstallerPsRoot 'Expand-BlinterArchive.ps1') `
-            -Replacements @{ '__BLINTER_TEMP__' = (Join-Path $TestDrive 'missing-archive') } `
-            -DestinationPath $tempScript
-
-        & $tempScript
+        $env:BLINTER_TEMP = Join-Path $TestDrive 'missing-archive'
+        try {
+            & (Join-Path $script:InstallerPsRoot 'Expand-BlinterArchive.ps1')
+        } finally {
+            Remove-Item Env:BLINTER_TEMP -ErrorAction SilentlyContinue
+        }
         $LASTEXITCODE | Should -Be 1
     }
 }
@@ -331,23 +337,21 @@ Describe 'Get-DownloadedFileSize.ps1' {
         $tempStem = Join-Path $TestDrive 'size-archive'
         [System.IO.File]::WriteAllBytes("$tempStem.zip", [byte[]](1..20))
 
-        $tempScript = Join-Path $TestDrive 'size.ps1'
-        New-InstallerPsSubstitutedScript `
-            -FixturePath (Join-Path $script:InstallerPsRoot 'Get-DownloadedFileSize.ps1') `
-            -Replacements @{ '__BLINTER_TEMP__' = $tempStem } `
-            -DestinationPath $tempScript
-
-        $output = & $tempScript
+        $env:BLINTER_TEMP = $tempStem
+        try {
+            $output = & (Join-Path $script:InstallerPsRoot 'Get-DownloadedFileSize.ps1')
+        } finally {
+            Remove-Item Env:BLINTER_TEMP -ErrorAction SilentlyContinue
+        }
         $output | Should -Be 20
     }
 
     It 'throws when the zip is missing' {
-        $tempScript = Join-Path $TestDrive 'size-missing.ps1'
-        New-InstallerPsSubstitutedScript `
-            -FixturePath (Join-Path $script:InstallerPsRoot 'Get-DownloadedFileSize.ps1') `
-            -Replacements @{ '__BLINTER_TEMP__' = (Join-Path $TestDrive 'missing-size') } `
-            -DestinationPath $tempScript
-
-        { & $tempScript } | Should -Throw
+        $env:BLINTER_TEMP = Join-Path $TestDrive 'missing-size'
+        try {
+            { & (Join-Path $script:InstallerPsRoot 'Get-DownloadedFileSize.ps1') } | Should -Throw
+        } finally {
+            Remove-Item Env:BLINTER_TEMP -ErrorAction SilentlyContinue
+        }
     }
 }
