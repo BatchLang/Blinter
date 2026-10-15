@@ -1,2 +1,2 @@
 # Required runtime dependency for encoding detection
-charset_normalizer
+charset-normalizer==3.5.2

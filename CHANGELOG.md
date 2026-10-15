@@ -2,6 +2,12 @@
 
 All notable changes to Blinter are documented in this file. Release tags follow [Semantic Versioning](https://semver.org/).
 
+## [1.1.41] - 2026-10-15
+
+### Changed
+
+- `charset-normalizer` is pinned to 3.5.2 in package metadata and `requirements.txt`
+
 ## [1.1.40] - 2026-10-15
 
 ### Changed
@@ -350,6 +356,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 Older 1.0.x releases are available on the [GitHub Releases](https://github.com/BatchLang/Blinter/releases) page.
 
+[1.1.41]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.41
 [1.1.40]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.40
 [1.1.39]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.39
 [1.1.38]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.38
