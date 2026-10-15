@@ -4,7 +4,7 @@ requires = [ "uv-build>=0.13.1,<0.14" ]
 
 [project]
 name = "Blinter"
-version = "1.1.39"
+version = "1.1.40"
 description = """\
   Blinter is a linter for Windows batch files. It provides comprehensive static analysis to identify syntax errors, \
   security vulnerabilities, performance issues and style problems.\
@@ -32,7 +32,7 @@ license = "AGPL-3.0-or-later"
 license-files = [ "COPYING" ]
 maintainers = [ { name = "tboy1337", email = "BatchLang@proton.me" } ]
 authors = [ { name = "tboy1337", email = "BatchLang@proton.me" } ]
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.16"
 classifiers = [
   "Development Status :: 5 - Production/Stable",
   "Environment :: Console",

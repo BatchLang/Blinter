@@ -2,6 +2,12 @@
 
 All notable changes to Blinter are documented in this file. Release tags follow [Semantic Versioning](https://semver.org/).
 
+## [1.1.40] - 2026-10-15
+
+### Changed
+
+- Package metadata requires Python `>=3.11,<3.16`, so installers skip Python 3.16 until that version is supported
+
 ## [1.1.39] - 2026-10-14
 
 ### Added
@@ -344,6 +350,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 Older 1.0.x releases are available on the [GitHub Releases](https://github.com/BatchLang/Blinter/releases) page.
 
+[1.1.40]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.40
 [1.1.39]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.39
 [1.1.38]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.38
 [1.1.37]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.37
