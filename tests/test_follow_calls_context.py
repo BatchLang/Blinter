@@ -1260,7 +1260,7 @@ class TestDependenciesInternals:
             "%~d0\\subdir\\helper.bat", tmp_path / "scripts"
         )
         expected_drive = (tmp_path / "scripts").drive
-        assert resolved == Path(f"{expected_drive}\\subdir\\helper.bat")
+        assert resolved == Path(f"{expected_drive}/subdir/helper.bat")
 
     def test_extract_called_scripts_deduplicates(self, tmp_path: Path) -> None:
         """Duplicate CALL targets appear only once in the result list."""

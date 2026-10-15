@@ -508,7 +508,7 @@ recursive = true
                 pass
 
     def test_config_file_max_line_length_invalid(self) -> None:
-        """Test that invalid max_line_length in config uses default."""
+        """Test that an invalid max_line_length in config is rejected."""
         config_content = """
 [general]
 max_line_length = invalid
@@ -521,9 +521,8 @@ max_line_length = invalid
             config_file_path = config_file.name
 
         try:
-            # Invalid value should fall back to default (100)
-            config = load_config(config_file_path)
-            assert config.max_line_length == 100
+            with pytest.raises(ValueError, match="Invalid max_line_length"):
+                load_config(config_file_path)
         finally:
             try:
                 os.unlink(config_file_path)
