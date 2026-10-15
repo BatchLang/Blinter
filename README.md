@@ -46,7 +46,7 @@
 - **Escaping Techniques**: Validates caret escape sequences, multilevel escaping, and continuation characters
 - **FOR Command Analysis**: Checks for usebackq, proper tokenizing, delimiters, and skip options
 - **Process Management Best Practices**: Timeout command usage, process verification, and restart patterns
-- **Enhanced Security Patterns**: User input validation, temporary file security, and self-modification detection
+- **Security Patterns**: User input validation, temporary file security, and self-modification detection
 
 ## Installation 🛠️
 
