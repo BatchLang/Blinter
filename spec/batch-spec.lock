@@ -1,6 +1,6 @@
 {
   "repo": "https://github.com/BatchLang/batch-spec",
-  "ref": "v0.72.2",
-  "commit": "06b9baeea58d35586a05be26ff79e81af31f9ee5",
+  "ref": "v0.72.3",
+  "commit": "2d92c2560c79b5e6f44f54ce6505e354f9c26f1a",
   "path": "vendor/batch-spec"
 }

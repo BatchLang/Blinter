@@ -2,6 +2,12 @@
 
 All notable changes to Blinter are documented in this file. Release tags follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- Pinned batch-spec to v0.72.3 (tooling and docs only; grammar and command catalogs unchanged)
+
 ## [1.1.42] - 2026-10-15
 
 ### Fixed
