@@ -242,14 +242,18 @@ function Assert-BlinterInstalled {
     if (-not (Test-Path -LiteralPath $layout.Exe)) {
         throw "blinter.exe was not installed at $($layout.Exe)"
     }
-    $versionOutput = (& $layout.Exe --version | Out-String).Trim()
+    # Width keeps a long package path on one line. The release marker stores
+    # only the vX.Y.Z tag; --version also names the runtime.
+    $versionOutput = (& $layout.Exe --version 2>&1 | Out-String -Width 4096).Trim()
     Write-InstallerTestLog "Installed version: $versionOutput"
-    if ($versionOutput -notmatch '^v\d+\.\d+\.\d+$') {
+    $versionPattern = '^v(\d+\.\d+\.\d+) \((standalone exe|Python \d+\.\d+, .+)\)$'
+    if ($versionOutput -notmatch $versionPattern) {
         throw "Unexpected blinter --version output: $versionOutput"
     }
+    $versionTag = "v$($Matches[1])"
     $marker = ([System.IO.File]::ReadAllText($layout.ReleaseFile)).Trim()
-    if ($marker -ne $versionOutput) {
-        throw "Release marker '$marker' does not match blinter --version '$versionOutput'"
+    if ($marker -ne $versionTag) {
+        throw "Release marker '$marker' does not match blinter version '$versionTag' from '$versionOutput'"
     }
     if (-not (Test-BlinterBinOnUserPath -BinPath $layout.Bin)) {
         throw "User PATH does not contain $($layout.Bin)"

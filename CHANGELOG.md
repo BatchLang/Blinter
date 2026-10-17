@@ -4,6 +4,10 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ## [Unreleased]
 
+### Fixed
+
+- The installer check accepts `blinter --version` output that names the standalone executable or the Python version and package directory
+
 ### Changed
 
 - Pinned batch-spec to v0.72.3 (tooling and docs only; grammar and command catalogs unchanged)
