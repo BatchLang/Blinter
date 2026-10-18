@@ -4,6 +4,10 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ## [Unreleased]
 
+### Added
+
+- MegaLinter plugin descriptor for `.bat` and `.cmd` files (`mega-linter-plugin-blinter/blinter.megalinter-descriptor.yml`)
+
 ### Fixed
 
 - The installer check accepts `blinter --version` output that names the standalone executable or the Python version and package directory

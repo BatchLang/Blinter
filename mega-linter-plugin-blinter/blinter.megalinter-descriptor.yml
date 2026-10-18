@@ -1,0 +1,49 @@
+---
+descriptor_id: BATCH
+descriptor_type: language
+descriptor_label: Batch
+file_extensions:
+  - ".bat"
+  - ".cmd"
+linters:
+  - linter_name: blinter
+    name: BATCH_BLINTER
+    linter_url: https://github.com/BatchLang/Blinter
+    linter_repo: https://github.com/BatchLang/Blinter
+    linter_spdx_license: AGPL-3.0-or-later
+    linter_text: |
+      Blinter is a static analysis linter for Windows batch scripts (`.bat` and `.cmd`).
+      Error and Security findings fail the run. Warning, Style, and Performance findings do not.
+    linter_rules_url: https://github.com/BatchLang/Blinter/blob/main/docs/Batch-File-Linter-Requirements.md
+    linter_rules_configuration_url: https://github.com/BatchLang/Blinter/blob/main/docs/MegaLinter.md
+    linter_rules_inline_disable_url: https://github.com/BatchLang/Blinter/blob/main/README.md#inline-suppression-comments
+    is_formatter: false
+    cli_lint_mode: file
+    supported_cli_lint_modes:
+      - file
+      - project
+    cli_lint_mode_project_extra_args_after:
+      - "."
+    cli_config_arg_name: "--config"
+    config_file_name: blinter.ini
+    cli_lint_extra_args:
+      - "--summary"
+    cli_help_arg_name: "--help"
+    cli_version_arg_name: "--version"
+    cli_lint_errors_count: regex_number
+    cli_lint_errors_regex: 'Found ([0-9]+) critical issues?'
+    cli_lint_warnings_count: regex_number
+    cli_lint_warnings_regex: 'but ([0-9]+) (?:total )?issues? detected'
+    can_output_sarif: true
+    cli_sarif_args:
+      - "--format"
+      - "sarif"
+      - "--output"
+      - "{{SARIF_OUTPUT_FILE}}"
+    examples:
+      - "blinter script.bat --summary"
+      - "blinter script.cmd --config blinter.ini --summary"
+      - "blinter . --summary"
+    install:
+      dockerfile:
+        - RUN pip install --no-cache-dir "Blinter==1.1.42"

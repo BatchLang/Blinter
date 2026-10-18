@@ -258,6 +258,8 @@ python -m blinter myscript.bat --format sarif
 python -m blinter project\\scripts --output results.sarif --format sarif
 ```
 
+<a id="inline-suppression-comments"></a>
+
 ### 🔕 Inline Suppression Comments
 
 You can suppress specific linter warnings directly in your batch files using special comments:
@@ -402,6 +404,10 @@ Blinter-v1.x.x\blinter.exe ./my-batch-scripts
     print(f'Batch file passed with {len(issues)} total issues')
     "
 ```
+
+### MegaLinter
+
+Blinter can lint `.bat` and `.cmd` files as a [MegaLinter plugin](docs/MegaLinter.md). Add the descriptor URL to `PLUGINS` in `.mega-linter.yml`.
 
 The `blinter` CLI exit codes:
 
