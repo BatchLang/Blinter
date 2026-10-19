@@ -1,4 +1,4 @@
-"""Blinter - professional batch file linter for Windows.
+"""Blinter - Batch file linter for Windows.
 
 Public API
 ----------

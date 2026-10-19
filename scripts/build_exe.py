@@ -23,7 +23,7 @@ OUTPUT_DIR = Path("dist")
 OUTPUT_FILENAME = "blinter.exe"
 COMPANY_NAME = "BatchLang"
 PRODUCT_NAME = "Blinter"
-FILE_DESCRIPTION = "Blinter - Professional Batch File Linter for Windows"
+FILE_DESCRIPTION = "Blinter - Batch File Linter for Windows"
 # Cached extract path: faster relaunch, stable path for Windows Firewall/AV.
 ONEFILE_TEMPDIR_SPEC = "{CACHE_DIR}/{COMPANY}/{PRODUCT}/{VERSION}"
 PYTHON_FLAGS: tuple[str, ...] = ("-m", "no_docstrings", "no_asserts", "safe_path")
