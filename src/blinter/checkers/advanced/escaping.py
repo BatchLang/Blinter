@@ -4,6 +4,7 @@ import re
 from typing import List
 
 from blinter.models import LintIssue
+from blinter.rules.helpers import strip_percent_expansions
 from blinter.rules.registry import RULES
 
 
@@ -111,7 +112,7 @@ def _check_double_percent_escaping(stripped: str, line_number: int) -> List[Lint
         # Variable references like %var% are fine
         # Check for percentage signs that might need escaping (number followed by %)
         # But exclude variable references %VAR%
-        line_without_vars = re.sub(r"%[A-Za-z_][A-Za-z0-9_]*%", "", stripped)
+        line_without_vars = strip_percent_expansions(stripped)
         if re.search(r"\b\d+%(?!%)", line_without_vars):
             issues.append(
                 LintIssue(

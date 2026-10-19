@@ -42,7 +42,8 @@ jobs:
           python scripts/spec/generate_expansion.py --check
           python scripts/spec/generate_commands.py --check
           python scripts/spec/generate_docs.py --check
-          python scripts/spec/audit_ssot.py --strict
+          python scripts/spec/audit_ssot.py --strict --check
+          uv lock --check
           python -m black --check src tests scripts
           python -m isort --check-only src tests scripts
           python -m mypy src/blinter tests scripts/verify.py scripts/corpus_lint.py scripts/corpus_baseline.py scripts/generate_corpus_baseline.py scripts/benchmark_lint.py

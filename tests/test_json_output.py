@@ -14,7 +14,7 @@ import pytest
 
 from blinter.cli.main import _count_fatal_issues_for_exit
 from blinter import main
-from blinter.models import LintIssue, ProcessingResults, RuleSeverity
+from blinter.models import BlinterConfig, LintIssue, ProcessingResults, RuleSeverity
 from blinter.output.formatters import (
     compute_most_common_rule,
     compute_severity_counts,
@@ -125,7 +125,7 @@ class TestBuildReport:
             ],
             skipped_files=[("C:\\project\\bad.bat", "Permission denied")],
         )
-        fatal_count = _count_fatal_issues_for_exit(results)
+        fatal_count = _count_fatal_issues_for_exit(results, BlinterConfig())
         report = build_report(
             results,
             "C:\\project\\main.bat",

@@ -12,7 +12,6 @@ __pycache__/
 *$py.class
 
 # Python packaging and distribution
-uv.lock
 build/
 dist/
 sdist/

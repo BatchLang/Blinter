@@ -8,7 +8,10 @@ from typing import (
     Tuple,
 )
 
-from blinter.checkers.cmd_extended import check_extended_warning_line
+from blinter.checkers.cmd_extended import (
+    _split_amp_commands,
+    check_extended_warning_line,
+)
 from blinter.checkers.warnings_compat import _check_compatibility_warnings
 from blinter.constants import PSEUDO_ENV_VARS
 from blinter.models import LintIssue
@@ -472,23 +475,43 @@ def _check_set_a_octal_literal(stripped: str, line_num: int) -> List[LintIssue]:
     return []
 
 
+_LEADING_ZERO_LHS_RE = re.compile(
+    r"\b0+\d+\b\s+(?:equ|neq|==|!=|lss|leq|gtr|geq)\b",
+    re.IGNORECASE,
+)
+_LEADING_ZERO_RHS_RE = re.compile(
+    r"\b(?:equ|neq|==|!=|lss|leq|gtr|geq)\s+0+\d+\b",
+    re.IGNORECASE,
+)
+
+
+def _if_segment_has_leading_zero(segment: str) -> bool:
+    """Return True when one IF command compares an unquoted leading-zero number."""
+    body = segment.strip().lstrip("@").lstrip("(").strip()
+    if not re.match(r"if\b", body, re.IGNORECASE):
+        return False
+    return (
+        _LEADING_ZERO_LHS_RE.search(body) is not None
+        or _LEADING_ZERO_RHS_RE.search(body) is not None
+    )
+
+
 def _check_unquoted_numeric_if_compare(stripped: str, line_num: int) -> List[LintIssue]:
     """Check unquoted IF numeric comparisons with leading zeros (W046)."""
-    lhs_pattern = r"if\s+(?!\"|')[^\"']*?\b0+\d+\b\s+(equ|neq|==|!=|lss|leq|gtr|geq)\s+"
-    rhs_pattern = (
-        r"if\s+(?!\"|')[^\"']*?\b(?:equ|neq|==|!=|lss|leq|gtr|geq)\s+\b0+\d+\b"
-    )
-    if re.search(lhs_pattern, stripped, re.IGNORECASE) or re.search(
-        rhs_pattern, stripped, re.IGNORECASE
+    if "if" not in stripped.lower():
+        return []
+    masked = _strip_double_quoted_strings(stripped)
+    if not any(
+        _if_segment_has_leading_zero(part) for part in _split_amp_commands(masked)
     ):
-        return [
-            LintIssue(
-                line_number=line_num,
-                rule=RULES["W046"],
-                context="Unquoted numeric IF comparisons use numeric equality semantics",
-            )
-        ]
-    return []
+        return []
+    return [
+        LintIssue(
+            line_number=line_num,
+            rule=RULES["W046"],
+            context="Unquoted numeric IF comparisons use numeric equality semantics",
+        )
+    ]
 
 
 def _uppercased_defined_vars(set_vars: Set[str]) -> frozenset[str]:

@@ -726,12 +726,12 @@ def _get_safe_system_variables() -> List[str]:
 
 def _uses_only_system_variables(stripped: str) -> bool:
     """Return True when expanded variables are system or redirect macros."""
-    system_variables = _get_safe_system_variables()
+    system_variables = {name.lower() for name in _get_safe_system_variables()}
     variables_in_line: List[str] = cast(
         List[str], re.findall(r"%([a-zA-Z_][a-zA-Z0-9_()]*)%", stripped)
     )
     return all(
-        var in system_variables
+        var.lower() in system_variables
         or var.lower() in _REDIRECT_MACRO_VARS
         or var.startswith("~")
         or var.isdigit()
@@ -784,6 +784,68 @@ def _is_safe_installer_style_redirection(stripped: str) -> bool:
     return False
 
 
+def _unquoted_percent_var_spans(stripped: str) -> List[Tuple[int, int]]:
+    """Return spans of ``%VAR%`` that are outside quotes."""
+    spans: List[Tuple[int, int]] = []
+    quote = ""
+    index = 0
+    length = len(stripped)
+    while index < length:
+        char = stripped[index]
+        if quote:
+            if char == quote:
+                quote = ""
+            index += 1
+            continue
+        if char == "^" and index + 1 < length:
+            index += 2
+            continue
+        if char in '"`':
+            quote = char
+            index += 1
+            continue
+        if char == "%":
+            match = re.match(r"%[A-Za-z_][A-Za-z0-9_]*%", stripped[index:])
+            if match:
+                end = index + match.end()
+                spans.append((index, end))
+                index = end
+                continue
+        index += 1
+    return spans
+
+
+def _percent_var_is_command(stripped: str, start: int) -> bool:
+    """Return True when ``%VAR%`` is the command token, not an argument."""
+    prefix = stripped[:start].strip()
+    if not prefix or prefix == "@":
+        return True
+    return prefix.rstrip().endswith(("&", "|", "("))
+
+
+def _percent_var_touches_operator(stripped: str, start: int, end: int) -> bool:
+    """Return True when an unquoted variable sits next to a shell operator."""
+    left = start - 1
+    while left >= 0 and stripped[left].isspace():
+        left -= 1
+    if left >= 0 and stripped[left] in "&|<>":
+        return True
+    right = end
+    while right < len(stripped) and stripped[right].isspace():
+        right += 1
+    return right < len(stripped) and stripped[right] in "&|<>"
+
+
+def _has_unquoted_injection_var(stripped: str) -> bool:
+    """Return True when an unquoted variable can inject a shell operator."""
+    for start, end in _unquoted_percent_var_spans(stripped):
+        if _percent_var_is_command(stripped, start) or _percent_var_touches_operator(
+            stripped, start, end
+        ):
+            return True
+    return False
+
+
 def _is_safe_command_injection(stripped: str) -> bool:
     """Check if a command with variables is safe from injection attacks."""
     if _uses_only_system_variables(stripped):
@@ -827,7 +889,7 @@ def _check_enhanced_security_rules(lines: List[str]) -> List[LintIssue]:
 
         # Check for command injection via variables (SEC013)
         # Exclude echo statements as they are generally safe for output
-        if re.search(r"%[a-zA-Z_][a-zA-Z0-9_]*%.*[&|<>]", stripped):
+        if _has_unquoted_injection_var(stripped):
             # Skip echo statements - they are safe for variable expansion
             if not re.match(r"\s*echo\s+", stripped, re.IGNORECASE):
                 if not _is_safe_command_injection(stripped):

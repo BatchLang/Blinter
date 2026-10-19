@@ -878,12 +878,32 @@ def _format_report(findings: list[AuditFinding]) -> str:
     return "\n".join(lines)
 
 
+def _sync_baseline(report: str, out: Path, *, check: bool) -> bool:
+    """Write the baseline when it changed. --check compares and writes nothing."""
+    existing = out.read_text(encoding="utf-8") if out.is_file() else None
+    if existing == report:
+        print(f"{out} is unchanged")
+        return True
+    if check:
+        print(f"SSOT baseline differs from {out}. Re-run without --check to update it.")
+        return False
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(report, encoding="utf-8", newline="\n")
+    print(f"Wrote {out}")
+    return True
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Audit Blinter SSOT consistency")
     parser.add_argument(
         "--strict",
         action="store_true",
         help="Exit 1 if any error-level findings",
+    )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Exit 1 if the report differs from the tracked baseline; write nothing",
     )
     parser.add_argument(
         "--write-baseline",
@@ -894,11 +914,14 @@ def main() -> None:
     args = parser.parse_args()
     findings = run_audit()
     report = _format_report(findings)
-    out = args.write_baseline or (AUDIT_DIR / "baseline-latest.md")
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(report, encoding="utf-8", newline="\n")
     print(report)
-    print(f"Wrote {out}")
+    out = (
+        AUDIT_DIR / "baseline-latest.md"
+        if args.check
+        else args.write_baseline or (AUDIT_DIR / "baseline-latest.md")
+    )
+    if not _sync_baseline(report, out, check=args.check):
+        raise SystemExit(1)
     errors = [f for f in findings if f.level == "error"]
     if args.strict and errors:
         raise SystemExit(1)

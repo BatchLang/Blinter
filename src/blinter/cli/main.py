@@ -27,7 +27,7 @@ from blinter.models import (
     OutputFormat,
     ProcessingResults,
     ProcessingState,
-    RuleSeverity,
+    parse_fail_on,
 )
 from blinter.output.formatters import (
     print_detailed,
@@ -81,11 +81,6 @@ def _cli_error(message: str) -> NoReturn:
     """Print an error message to stderr and exit with status code 1."""
     print(message, file=sys.stderr)
     raise SystemExit(1)
-
-
-def _is_fatal_severity(severity: RuleSeverity) -> bool:
-    """Return True when an issue severity should cause a non-zero CLI exit."""
-    return severity in (RuleSeverity.ERROR, RuleSeverity.SECURITY)
 
 
 _FILE_PROCESSING_ERRORS: Tuple[type[BaseException], ...] = (
@@ -146,7 +141,7 @@ def _process_single_called_script(
             state.processed_file_paths.append((called_path_str, parent_path))
 
         has_fatal = any(
-            _is_fatal_severity(issue.rule.severity) for issue in called_issues
+            config.is_fatal_severity(issue.rule.severity) for issue in called_issues
         )
         return (1, 1 if has_fatal else 0)
 
@@ -182,6 +177,11 @@ def _process_called_scripts(
     Returns:
         Tuple of (files_processed, files_with_errors)
     """
+    resolved_file = batch_file.resolve()
+    if resolved_file in state.expanded_files:
+        logger.debug("Skipping already-expanded called script: %s", batch_file)
+        return 0, 0
+
     if depth > MAX_FOLLOW_CALL_DEPTH:
         logger.warning(
             "Follow-calls depth limit (%d) reached at %s",
@@ -189,6 +189,8 @@ def _process_called_scripts(
             batch_file,
         )
         return 0, 0
+
+    state.expanded_files.add(resolved_file)
 
     files_processed = 0
     files_with_errors = 0
@@ -276,7 +278,7 @@ def _process_batch_files(
             state.processed_files.add(batch_file.resolve())
             state.processed_file_paths.append((str(batch_file), None))
 
-            if any(_is_fatal_severity(issue.rule.severity) for issue in issues):
+            if any(config.is_fatal_severity(issue.rule.severity) for issue in issues):
                 files_with_errors += 1
 
             if config.follow_calls:
@@ -415,6 +417,29 @@ def _display_results(
     print_severity_info(results.all_issues)
 
 
+def _target_scan_root(target_path: str) -> Path:
+    """Return the directory that contains the resolved CLI target."""
+    resolved = Path(target_path).resolve()
+    if resolved.is_dir():
+        return resolved
+    return resolved.parent
+
+
+def _report_no_batch_files(target_path: str, discovery_root: Path) -> None:
+    """Exit when discovery returns nothing, naming a rejected single file."""
+    target = Path(target_path)
+    if target.is_file() and target.suffix.lower() in {".bat", ".cmd"}:
+        try:
+            resolved = target.resolve()
+        except OSError:
+            resolved = target
+        _cli_error(
+            f"Error: '{target_path}' resolves to '{resolved}', "
+            f"which is outside '{discovery_root}'."
+        )
+    _cli_error(f"No batch files (.bat or .cmd) found in: {target_path}")
+
+
 def _normalized_path(path: str) -> str:
     """Return a resolved, comparable path string."""
     return str(Path(path).resolve())
@@ -429,13 +454,15 @@ def _primary_target_paths(results: ProcessingResults) -> set[str]:
     }
 
 
-def _count_fatal_issues_for_exit(results: ProcessingResults) -> int:
+def _count_fatal_issues_for_exit(
+    results: ProcessingResults, config: BlinterConfig
+) -> int:
     """Count fatal issues on primary targets only; callee findings are informational."""
     primary_paths = _primary_target_paths(results)
     return sum(
         1
         for issue in results.all_issues
-        if _is_fatal_severity(issue.rule.severity)
+        if config.is_fatal_severity(issue.rule.severity)
         and issue.file_path is not None
         and _normalized_path(issue.file_path) in primary_paths
     )
@@ -473,7 +500,7 @@ def _exit_directory_results(
         if not suppress_stdout:
             print(
                 f"\nWARNING  Found {fatal_count} critical issue{_plural(fatal_count)} "
-                f"(errors or security) across {results.files_with_errors} "
+                f"at or above the failure threshold across {results.files_with_errors} "
                 f"file{_plural(results.files_with_errors)} that must be fixed."
             )
         sys.exit(1)
@@ -507,7 +534,7 @@ def _exit_single_file_results(
         if not suppress_stdout:
             print(
                 f"\nWARNING  Found {fatal_count} critical issue{_plural(fatal_count)} "
-                f"(errors or security) that must be fixed."
+                f"at or above the failure threshold that must be fixed."
             )
         sys.exit(1)
     elif results.all_issues:
@@ -526,11 +553,12 @@ def _exit_single_file_results(
 def _exit_with_results(
     results: ProcessingResults,
     target_path: str,
+    config: BlinterConfig,
     *,
     suppress_stdout: bool = False,
 ) -> None:
     """Exit with appropriate code based on results."""
-    fatal_count = _count_fatal_issues_for_exit(results)
+    fatal_count = _count_fatal_issues_for_exit(results, config)
     _handle_skipped_files_exit(results, suppress_stdout=suppress_stdout)
 
     if Path(target_path).is_dir():
@@ -569,9 +597,11 @@ def _write_structured_report(write: Callable[[], None], label: str) -> None:
         sys.exit(1)
 
 
-def _emit_json_report(results: ProcessingResults, cli_args: CliArguments) -> None:
+def _emit_json_report(
+    results: ProcessingResults, cli_args: CliArguments, config: BlinterConfig
+) -> None:
     """Build and write or print a JSON lint report."""
-    fatal_count = _count_fatal_issues_for_exit(results)
+    fatal_count = _count_fatal_issues_for_exit(results, config)
     report = build_report(
         results,
         cli_args.target_path,
@@ -609,7 +639,9 @@ def _emit_sarif_report(results: ProcessingResults, cli_args: CliArguments) -> No
         print_sarif_report(report)
 
 
-def _emit_structured_report(results: ProcessingResults, cli_args: CliArguments) -> None:
+def _emit_structured_report(
+    results: ProcessingResults, cli_args: CliArguments, config: BlinterConfig
+) -> None:
     """Emit JSON or SARIF based on the selected format.
 
     ``--output`` without ``--format`` keeps the historical JSON report.
@@ -618,7 +650,7 @@ def _emit_structured_report(results: ProcessingResults, cli_args: CliArguments) 
         case OutputFormat.SARIF:
             _emit_sarif_report(results, cli_args)
         case OutputFormat.JSON | OutputFormat.TEXT:
-            _emit_json_report(results, cli_args)
+            _emit_json_report(results, cli_args, config)
         case _ as unreachable:
             assert_never(unreachable)
 
@@ -636,12 +668,10 @@ def _apply_cli_config_overrides(
         config.follow_calls = cli_args.cli_follow_calls
     if cli_args.cli_max_line_length is not None:
         config.max_line_length = cli_args.cli_max_line_length
+    if cli_args.cli_fail_on is not None:
+        config.fail_on = parse_fail_on(cli_args.cli_fail_on)
 
-    target_path_obj = Path(cli_args.target_path)
-    if target_path_obj.is_dir():
-        config.scan_root = str(target_path_obj.resolve())
-    else:
-        config.scan_root = str(target_path_obj.parent.resolve())
+    config.scan_root = str(_target_scan_root(cli_args.target_path))
 
 
 def _configure_stdio_utf8() -> None:
@@ -699,12 +729,7 @@ def _run_cli() -> None:
         _cli_error(f"Error: {error}")
     _apply_cli_config_overrides(cli_args, config)
 
-    target_path_obj = Path(cli_args.target_path)
-    discovery_root = (
-        target_path_obj.resolve()
-        if target_path_obj.is_dir()
-        else target_path_obj.parent.resolve()
-    )
+    discovery_root = _target_scan_root(cli_args.target_path)
     try:
         batch_files = find_batch_files(
             cli_args.target_path,
@@ -720,7 +745,7 @@ def _run_cli() -> None:
         _cli_error(f"Error: Cannot access '{cli_args.target_path}': {path_error}")
 
     if not batch_files:
-        _cli_error(f"No batch files (.bat or .cmd) found in: {cli_args.target_path}")
+        _report_no_batch_files(cli_args.target_path, discovery_root)
 
     results = _process_batch_files(
         batch_files,
@@ -731,12 +756,13 @@ def _run_cli() -> None:
         sys.exit(1)
 
     if _should_emit_structured(cli_args):
-        _emit_structured_report(results, cli_args)
+        _emit_structured_report(results, cli_args, config)
 
     if not suppress_human:
         _display_results(results, cli_args.target_path, config)
     _exit_with_results(
         results,
         cli_args.target_path,
+        config,
         suppress_stdout=suppress_human,
     )

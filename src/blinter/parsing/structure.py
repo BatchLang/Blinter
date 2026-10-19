@@ -324,14 +324,7 @@ def _parse_suppression_comments(lines: List[str]) -> Dict[int, Set[str]]:
 
 _CacheValueT = TypeVar("_CacheValueT")
 
-_BLOCK_CLOSE_PATTERN = re.compile(
-    r"^\)(?:\s*(?:"
-    r">>?\s*(?:\"[^\"]*\"|\S+)?|"
-    r"[12]>&?[12]?|"
-    r">\s*(?:\"[^\"]*\"|\S+)"
-    r"))?",
-    re.IGNORECASE,
-)
+_PAREN_BLOCK_KEYWORDS = frozenset({"do", "in", "else", "if"})
 
 _paren_depth_cache_var: ContextVar[Optional[Dict[int, tuple[object, List[int]]]]] = (
     ContextVar("paren_depth_cache", default=None)
@@ -361,44 +354,137 @@ def _identity_cached(
     return cached[1]
 
 
-def _is_bare_paren_block_open(line: str) -> bool:
-    """Return True for ``( command `` groups that are not IF/FOR headers."""
-    if not re.match(r"^\(", line):
+class _ParenScan:  # pylint: disable=too-few-public-methods
+    """Mutable cursor for one quote- and caret-aware parenthesis scan."""
+
+    __slots__ = ("delta", "same_line_open", "command", "quote")
+
+    def __init__(self) -> None:
+        self.delta = 0
+        self.same_line_open = 0
+        self.command: List[str] = []
+        self.quote = ""
+
+
+def _is_paren_comment_line(line: str) -> bool:
+    """Return True for blank lines and REM/:: comments."""
+    lowered = line.strip().lower()
+    return not lowered or lowered.startswith("rem") or lowered.startswith("::")
+
+
+def _first_command_token(command: str) -> str:
+    """Return the first command token, ignoring a leading @."""
+    body = command.strip().lstrip("@").strip()
+    if not body:
+        return ""
+    return body.split(None, 1)[0].lower()
+
+
+def _paren_opens_block(command: str) -> bool:
+    """Return True when '(' opens an IF, FOR, ELSE, or command group."""
+    if _first_command_token(command) == "echo":
         return False
-    return re.search(r"\b(?:if|for)\b", line, re.IGNORECASE) is None
+    if not command.strip():
+        return True
+    tokens = {token.lower() for token in command.split()}
+    return bool(tokens & _PAREN_BLOCK_KEYWORDS)
 
 
-def _line_opens_block_depth(line: str) -> int:
-    """Return how many IF/FOR/(group) blocks open on this line."""
-    if _is_bare_paren_block_open(line):
-        return 1
-    if re.search(r"\bfor\b", line, re.IGNORECASE) and (
-        re.search(r"\bdo\s*\(\s*$", line, re.IGNORECASE)
-        or re.search(r"\bin\s*\(\s*$", line, re.IGNORECASE)
-    ):
-        return 1
-    if (
-        re.search(r"\bif\b", line, re.IGNORECASE)
-        and re.search(r"\(\s*$", line)
-        and not re.match(r"echo\b", line, re.IGNORECASE)
-    ):
+def _redir_amp_end(text: str, index: int) -> Optional[int]:
+    """Return the index after an ``n>&n`` or ``>&`` redirection."""
+    if text[index] in "12" and text.startswith(">&", index + 1):
+        end = index + 3
+        if end < len(text) and text[end] in "12":
+            end += 1
+        return end
+    if text[index] == ">" and index + 1 < len(text) and text[index + 1] == "&":
+        end = index + 2
+        if end < len(text) and text[end] in "12":
+            end += 1
+        return end
+    return None
+
+
+def _separator_span(text: str, index: int) -> int:
+    """Return the length of an unquoted command separator at index, or 0."""
+    pair = text[index : index + 2]
+    if pair in ("&&", "||"):
+        return 2
+    if text[index] in "&|":
         return 1
     return 0
 
 
+def _apply_open_paren(scan: _ParenScan) -> None:
+    """Count a structural '(' or keep a literal one in the command buffer."""
+    if _paren_opens_block("".join(scan.command)):
+        scan.delta += 1
+        scan.same_line_open += 1
+        scan.command = []
+        return
+    scan.command.append("(")
+
+
+def _apply_close_paren(scan: _ParenScan) -> None:
+    """Count a structural ')' or keep a literal one in the command buffer."""
+    if scan.same_line_open > 0:
+        scan.same_line_open -= 1
+        scan.delta -= 1
+        scan.command = []
+        return
+    if not "".join(scan.command).strip():
+        scan.delta -= 1
+        scan.command = []
+        return
+    scan.command.append(")")
+
+
+def _block_paren_delta(line: str) -> int:
+    """Return the net IF/FOR/group parenthesis change for one line."""
+    scan = _ParenScan()
+    index = 0
+    length = len(line)
+    while index < length:
+        if scan.quote:
+            if line[index] == scan.quote:
+                scan.quote = ""
+            index += 1
+            continue
+        if line[index] == "^":
+            index += 2 if index + 1 < length else 1
+            continue
+        if line[index] in '"`':
+            scan.quote = line[index]
+            index += 1
+            continue
+        redir_end = _redir_amp_end(line, index)
+        if redir_end is not None:
+            scan.command.append(line[index:redir_end])
+            index = redir_end
+            continue
+        separator = _separator_span(line, index)
+        if separator:
+            scan.command = []
+            index += separator
+            continue
+        if line[index] == "(":
+            _apply_open_paren(scan)
+            index += 1
+            continue
+        if line[index] == ")":
+            _apply_close_paren(scan)
+            index += 1
+            continue
+        scan.command.append(line[index])
+        index += 1
+    return scan.delta
+
+
 def _update_paren_depth(line: str, current_depth: int) -> int:
     """Update parentheses depth based on the line content."""
-    close_match = _BLOCK_CLOSE_PATTERN.match(line)
-    if close_match:
-        current_depth -= 1
-        remainder = line[close_match.end() :].strip()
-        if re.match(r"else\b", remainder, re.IGNORECASE) and re.search(
-            r"\(", remainder
-        ):
-            current_depth += 1
+    if _is_paren_comment_line(line):
         return current_depth
-
-    return current_depth + _line_opens_block_depth(line)
+    return current_depth + _block_paren_delta(line)
 
 
 def _begin_paren_depth_pass() -> None:

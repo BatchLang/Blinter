@@ -54,9 +54,8 @@ def _check_goto_labels(
     elif target_label == ":eof":
         # :eof is a built-in construct, always valid with colon
         pass
-    # Check for dynamic labels (containing variables)
-    elif re.search(r"%[^%]+%|!\w+!", label_text):
-        # Dynamic labels like "label.%errorlevel%" or "label[%variable%]" can't be
+    elif _is_dynamic_jump_target(label_text):
+        # Dynamic labels like "label.%errorlevel%", ":%1", or "%~1" can't be
         # statically validated
         pass
     else:
@@ -74,18 +73,27 @@ def _check_goto_labels(
     return issues
 
 
+_DYNAMIC_JUMP_RE = re.compile(
+    r"%[^%\s]+%|!\w+!|%(?:~[fdpnxsatz$]*)?(?:\d|\*)",
+    re.IGNORECASE,
+)
+
+
+def _is_dynamic_jump_target(target: str) -> bool:
+    """Return True when a GOTO/CALL target is expanded at runtime."""
+    body = target[1:] if target.startswith(":") else target
+    return _DYNAMIC_JUMP_RE.search(body) is not None
+
+
 def _check_call_labels(stripped: str, line_num: int) -> List[LintIssue]:
     """Check for CALL label issues (E014)."""
     issues: List[LintIssue] = []
-    call_match = re.match(r"call\s+([^:\s]\S*)", stripped, re.IGNORECASE)
+    call_match = re.match(r"call\s+(:?\S+)", stripped, re.IGNORECASE)
     if not call_match:
         return issues
 
     call_label_text: str = call_match.group(1)
-
-    # Skip if the call target contains environment variables (runtime expansion)
-    # Pattern matches %VAR%, %@VAR%, and similar variable syntax
-    if re.search(r"%[@\w]+%", call_label_text):
+    if _is_dynamic_jump_target(call_label_text) or call_label_text.startswith(":"):
         return issues
 
     # Check if this looks like a label call (not an external program)
@@ -391,22 +399,19 @@ def _check_errorlevel_syntax(stripped: str, line_num: int) -> List[LintIssue]:
 def _check_if_exist_mixing(stripped: str, line_num: int) -> List[LintIssue]:
     """Check for IF EXIST syntax mixing (E004)."""
     issues: List[LintIssue] = []
-    if not re.match(r"if\s+exist\s+\S+\s+==", stripped, re.IGNORECASE):
+    exist_to_equals = re.search(r"if\s+exist\s+(\S+)\s+==", stripped, re.IGNORECASE)
+    if exist_to_equals is None:
         return issues
-
-    # Check if there's another "if" between "exist" and "=="
-    exist_to_equals = re.search(r"if\s+exist\s+(.*?)==", stripped, re.IGNORECASE)
-    if exist_to_equals:
-        between_text = exist_to_equals.group(1)
-        # If there's no "if" keyword between exist and ==, then it's mixing
-        if not re.search(r"\bif\b", between_text, re.IGNORECASE):
-            issues.append(
-                LintIssue(
-                    line_number=line_num,
-                    rule=RULES["E004"],
-                    context="Mixing IF EXIST with comparison operators",
-                )
-            )
+    between_text = exist_to_equals.group(1)
+    if re.search(r"\bif\b", between_text, re.IGNORECASE):
+        return issues
+    issues.append(
+        LintIssue(
+            line_number=line_num,
+            rule=RULES["E004"],
+            context="Mixing IF EXIST with comparison operators",
+        )
+    )
     return issues
 
 
@@ -908,6 +913,8 @@ def _is_legitimate_quote_pattern(stripped: str) -> bool:
         re.search(r'\bcall\s+:[^\s]+.*\s+""\s+', stripped, re.IGNORECASE) is not None,
         # Empty string as command parameter (not just in CALL): command param "" param
         re.search(r'\s+""\s+[^\s]', stripped) is not None,
+        # Empty argument, including find /v "" inside a FOR /F ('...') command
+        re.search(r'(?:^|[\s=])""(?:$|[\s\')|&<>])', stripped) is not None,
     ]
 
     return any(legitimate_patterns)
@@ -1053,13 +1060,15 @@ def _is_caret_escaped(text: str, index: int) -> bool:
 
 
 def _first_unquoted_open_paren(text: str) -> Optional[int]:
-    """Return the index of the first unquoted, unescaped '('."""
+    """Return the first unquoted '(' that opens a block, skipping NAME(X86)."""
     in_quotes = False
     for index, char in enumerate(text):
         if char == '"' and not _is_caret_escaped(text, index):
             in_quotes = not in_quotes
             continue
         if in_quotes or char != "(" or _is_caret_escaped(text, index):
+            continue
+        if index > 0 and (text[index - 1].isalnum() or text[index - 1] == "_"):
             continue
         return index
     return None

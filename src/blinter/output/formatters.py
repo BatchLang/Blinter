@@ -59,6 +59,8 @@ Options:
   --config <path>     Path to blinter.ini configuration file (default: blinter.ini).
   --max-line-length <n>  Set maximum line length for S011 and S020 rules (default: 100).
   --no-recursive      When processing directories, don't search subdirectories (default: recursive).
+  --fail-on <level>   Exit 1 when an issue is at or above this severity.
+                     Levels: error, security (default), warning, performance, style, none.
   --follow-calls      Scan scripts called by CALL statements from each seed file.
                      Variable context may be collected transitively; each seed file
                      lints its direct CALL targets only.

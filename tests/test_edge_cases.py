@@ -1544,6 +1544,33 @@ class TestTextAfterCloseParenE042:
         issues = lint_batch_file(str(batch_file))
         assert 3 in self._e042_codes(issues)
 
+    def test_else_if_block_is_not_e001(self, tmp_path: Path) -> None:
+        """') else if exist file (' keeps the surrounding block balanced."""
+        batch_file = tmp_path / "else-if.cmd"
+        batch_file.write_text(
+            "@echo off\n"
+            "if exist a (\n"
+            "    echo inside\n"
+            ") else if exist b (\n"
+            "    echo other\n"
+            ") else (\n"
+            "    echo none\n"
+            ")\n",
+            encoding="utf-8",
+        )
+        issues = lint_batch_file(str(batch_file))
+        assert not [issue for issue in issues if issue.rule.code == "E001"]
+
+    def test_programfiles_x86_not_e042(self, tmp_path: Path) -> None:
+        """The standard 64-bit PROGRAMFILES(X86) check is not a block."""
+        batch_file = tmp_path / "arch.cmd"
+        batch_file.write_text(
+            "@echo off\nif defined PROGRAMFILES(X86) echo 64bit\n",
+            encoding="utf-8",
+        )
+        issues = lint_batch_file(str(batch_file))
+        assert not self._e042_codes(issues)
+
     def test_nothing_after_close_not_e042(self, tmp_path: Path) -> None:
         """Inner (parens) with nothing after the close is valid inside a block."""
         batch_file = tmp_path / "nothing-after.cmd"
@@ -1797,6 +1824,29 @@ class TestSecurityChecking:
         issues = _check_nested_paren_mismatch(["for %%x in ("])
         assert len(issues) == 1
         assert issues[0].rule.code == "E001"
+
+    def test_operator_prefixed_groups_not_e001(self) -> None:
+        """Blocks opened after &&, ||, or & balance with a following close."""
+        samples = [
+            ["cmd || (", "    echo fallback", ")"],
+            ["cmd && (", "    echo ok", ")"],
+            ["echo x & (", "    echo y", ")"],
+        ]
+        for lines in samples:
+            issues = _check_nested_paren_mismatch(lines)
+            assert not issues, lines
+
+    def test_one_line_groups_not_e001(self) -> None:
+        """A group that opens and closes on one line is balanced."""
+        samples = [
+            ["(echo a) >> log.txt"],
+            ['(echo x) | find "x"'],
+            ["if 1==1 (echo hi)"],
+            ["for %%a in (a b) do echo %%a"],
+        ]
+        for lines in samples:
+            issues = _check_nested_paren_mismatch(lines)
+            assert not issues, lines
 
     def test_admin_privilege_commands(self) -> None:
         """Test detection of commands requiring admin privileges."""
@@ -3020,6 +3070,20 @@ class TestSpecializedEdgeCases:
 
         issues = _check_enhanced_security_rules(lines)
         assert isinstance(issues, list)
+
+    def test_quoted_var_beside_operator_not_sec013(self) -> None:
+        """Quoted variables next to && or || are not command injection."""
+        lines = [
+            'findstr /i "x" "%f%" >nul && echo found',
+            'md "%TEMP%\\a" || echo exists',
+        ]
+        issues = _check_enhanced_security_rules(lines)
+        assert not [issue for issue in issues if issue.rule.code == "SEC013"]
+
+    def test_unquoted_command_var_still_sec013(self) -> None:
+        """An unquoted variable used as the command is still injection."""
+        issues = _check_enhanced_security_rules(["%cmd% & echo done"])
+        assert [issue for issue in issues if issue.rule.code == "SEC013"]
 
     def test_nul_macro_conditional_block_not_sec013(self) -> None:
         """Redirect macros before && ( should not trigger SEC013."""

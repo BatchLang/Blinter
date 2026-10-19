@@ -11,7 +11,12 @@ from blinter.parsing.context import (
     _strip_if_predicate,
 )
 from blinter.rules.expansion_data import VALID_MODIFIERS
-from blinter.rules.helpers import PERCENT_TILDE_TOKEN_RE, strip_for_metavar_tilde_tokens
+from blinter.rules.helpers import (
+    PERCENT_TILDE_TOKEN_RE,
+    REPLACEMENT_OP_RE,
+    SUBSTRING_OP_RE,
+    strip_for_metavar_tilde_tokens,
+)
 from blinter.rules.registry import RULES
 
 _FOR_F_OPTIONS_RE = re.compile(
@@ -723,16 +728,6 @@ def _check_for_loop_var_syntax(stripped: str, line_number: int) -> List[LintIssu
     return issues
 
 
-_SUBSTRING_OP_RE = re.compile(
-    r"%([a-zA-Z_][a-zA-Z0-9_]*):~([^%]*)%",
-    re.IGNORECASE,
-)
-_REPLACEMENT_OP_RE = re.compile(
-    r"%([a-zA-Z_][a-zA-Z0-9_]*):(?!~)([^%]*)%",
-    re.IGNORECASE,
-)
-
-
 def _substring_indices_are_valid(spec: str) -> bool:
     if not spec:
         return False
@@ -754,7 +749,7 @@ def _check_string_operation_syntax(stripped: str, line_number: int) -> List[Lint
     """Check string operations syntax (E021)."""
     issues: List[LintIssue] = []
 
-    for match in _SUBSTRING_OP_RE.finditer(stripped):
+    for match in SUBSTRING_OP_RE.finditer(stripped):
         matched_text = match.group(0)
         if not _substring_indices_are_valid(match.group(2)):
             issues.append(
@@ -765,7 +760,7 @@ def _check_string_operation_syntax(stripped: str, line_number: int) -> List[Lint
                 )
             )
 
-    for match in _REPLACEMENT_OP_RE.finditer(stripped):
+    for match in REPLACEMENT_OP_RE.finditer(stripped):
         matched_text = match.group(0)
         body = match.group(2)
         if "=" not in body or matched_text.count("%") != 2:

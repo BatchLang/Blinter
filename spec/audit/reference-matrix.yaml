@@ -13,6 +13,7 @@ entries:
   corpus:
   - syntax/e001-nested-parens
   - syntax/e001-for-f-in-quoted-valid
+  - syntax/e001-operator-group-valid
 - construct: Text after closing parenthesis inside parenthesized blocks
   sources:
   - MS Learn batch syntax
@@ -26,6 +27,7 @@ entries:
   - syntax/e042-nested-if-in-for
   - syntax/e042-text-after-paren-valid
   - syntax/e042-same-line-block
+  - syntax/e042-programfiles-x86-valid
 - construct: GOTO label resolution and unreachable flow
   sources:
   - MS Learn goto
@@ -39,6 +41,7 @@ entries:
   - W019
   corpus:
   - syntax/e002-missing-label
+  - syntax/e002-dynamic-param-valid
   - integration/special-filename-percent
   - syntax/w019-goto-lf
   - syntax/for-in-parens-valid
@@ -183,6 +186,7 @@ entries:
   - syntax/e011-bang-invalid-expansion
   - syntax/e011-invalid-expansion
   - syntax/e028-complex-quotes
+  - syntax/e028-for-f-empty-find-valid
 - construct: FOR loop syntax and variable forms
   sources:
   - vendor/batch-spec/audit/cmd-help/for-help.txt
@@ -370,6 +374,7 @@ entries:
   - syntax/e031-multilevel-caret
   - syntax/e032-continuation-trailing-space
   - syntax/e033-double-percent
+  - syntax/e033-expansion-percent-valid
 - construct: Smart/curly quotes in source
   sources:
   - Unicode not valid as cmd.exe delimiters
@@ -762,6 +767,7 @@ entries:
   - integration/sec011-path-traversal
   - integration/sec013-var-injection
   - integration/sec013-installer-redirection-valid
+  - integration/sec013-quoted-operator-valid
   - integration/sec014-unescaped-input
   - integration/sec014-echo-unquoted
   - integration/sec015-taskkill-unfiltered
@@ -877,6 +883,7 @@ entries:
   - syntax/e044-else-sameline-valid
   - syntax/e045-invalid-switch
   - syntax/e045-switch-valid
+  - syntax/e045-ver-pipe-valid
   - syntax/e046-malformed-redir
   - syntax/e046-redir-valid
   - syntax/e047-for-f-unescaped

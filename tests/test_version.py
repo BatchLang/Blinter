@@ -88,8 +88,7 @@ class TestVersion:
         self, mocker: MockerFixture, tmp_path: Path
     ) -> None:
         """Test installed metadata is used when pyproject.toml is not present."""
-        missing = tmp_path / "missing.toml"
-        mocker.patch("blinter._version._pyproject_path", return_value=missing)
+        mocker.patch("blinter._version._source_checkout_pyproject", return_value=None)
         try:
             installed = version("Blinter")
         except PackageNotFoundError:
@@ -107,7 +106,7 @@ class TestVersion:
             "blinter._version.version",
             side_effect=PackageNotFoundError("Blinter"),
         )
-        mocker.patch("blinter._version._pyproject_path", return_value=Path("missing"))
+        mocker.patch("blinter._version._source_checkout_pyproject", return_value=None)
         version_value = get_version()
         assert version_value == "unknown"
 
@@ -151,6 +150,39 @@ class TestVersion:
 
         mocker.patch("blinter._version._BAKED_VERSION", "")
         assert get_version() == get_project_version()
+
+    def test_stray_pyproject_prefers_installed_metadata(
+        self, mocker: MockerFixture, tmp_path: Path
+    ) -> None:
+        """A pyproject.toml outside a src/ Blinter checkout does not win."""
+        package_dir = tmp_path / "vendor" / "blinter"
+        package_dir.mkdir(parents=True)
+        module_file = package_dir / "_version.py"
+        module_file.write_text("", encoding="utf-8")
+        stray = tmp_path / "pyproject.toml"
+        stray.write_text(
+            '[project]\nname = "Other"\nversion = "9.9.9"\n',
+            encoding="utf-8",
+        )
+        mocker.patch("blinter._version.__file__", str(module_file))
+        mocker.patch("blinter._version.version", return_value="1.2.3")
+        assert get_version() == "1.2.3"
+
+    def test_src_checkout_with_other_name_prefers_metadata(
+        self, mocker: MockerFixture, tmp_path: Path
+    ) -> None:
+        """A src/ layout whose project name is not Blinter uses metadata."""
+        package_dir = tmp_path / "src" / "blinter"
+        package_dir.mkdir(parents=True)
+        module_file = package_dir / "_version.py"
+        module_file.write_text("", encoding="utf-8")
+        (tmp_path / "pyproject.toml").write_text(
+            '[project]\nname = "Other"\nversion = "9.9.9"\n',
+            encoding="utf-8",
+        )
+        mocker.patch("blinter._version.__file__", str(module_file))
+        mocker.patch("blinter._version.version", return_value="1.2.3")
+        assert get_version() == "1.2.3"
 
     def test_readme_rule_count_matches_registry(self) -> None:
         """README should reference the live RULE_COUNT from the registry."""

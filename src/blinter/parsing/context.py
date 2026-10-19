@@ -1,7 +1,7 @@
 """Comment detection and safe-context helpers for checkers."""
 
 import re
-from typing import Iterator, cast
+from typing import Iterator, List, Optional, cast
 
 from blinter.logging_config import logger
 from blinter.patterns import (
@@ -90,6 +90,51 @@ def _split_command_separators(body: str) -> list[str]:
             parts.append("".join(current))
             current = []
             index += 2 if two in ("&&", "||") else 1
+            continue
+        current.append(char)
+        index += 1
+    parts.append("".join(current))
+    return parts
+
+
+def _split_pipe_stages(body: str) -> list[str]:
+    """Split one command segment on unquoted, unescaped ``|`` pipes.
+
+    ``||`` is not a pipe. A caret escapes the following character, so ``^|``
+    stays inside the current stage.
+    """
+    parts: list[str] = []
+    current: list[str] = []
+    quote = ""
+    index = 0
+    length = len(body)
+    while index < length:
+        char = body[index]
+        if quote:
+            current.append(char)
+            if char == quote:
+                quote = ""
+            index += 1
+            continue
+        if char == "^":
+            current.append(char)
+            if index + 1 < length:
+                current.append(body[index + 1])
+            index += 2
+            continue
+        if char in '"`':
+            quote = char
+            current.append(char)
+            index += 1
+            continue
+        if char == "|" and not body.startswith("|", index + 1):
+            parts.append("".join(current))
+            current = []
+            index += 1
+            continue
+        if body.startswith("||", index):
+            current.append("||")
+            index += 2
             continue
         current.append(char)
         index += 1
@@ -341,3 +386,90 @@ def _is_safe_ctx_for_privilege(line: str) -> bool:
         return True
 
     return False
+
+
+def _consume_quote_body(
+    text: str, index: int, quote: str, current: List[str]
+) -> tuple[int, str]:
+    """Append one quoted character and clear the quote when it closes."""
+    current.append(text[index])
+    if text[index] == quote:
+        return index + 1, ""
+    return index + 1, quote
+
+
+def _consume_caret(text: str, index: int, current: List[str]) -> Optional[int]:
+    """Consume a caret escape, including the escaped character."""
+    if text[index] != "^":
+        return None
+    current.append("^")
+    if index + 1 < len(text):
+        current.append(text[index + 1])
+        return index + 2
+    return index + 1
+
+
+def _consume_quote_open(
+    text: str, index: int, current: List[str]
+) -> Optional[tuple[int, str]]:
+    """Start a double or single quoted region."""
+    if text[index] not in '"`':
+        return None
+    current.append(text[index])
+    return index + 1, text[index]
+
+
+def _consume_redir(text: str, index: int, current: List[str]) -> Optional[int]:
+    """Consume ``1>&`` / ``2>&`` so the ampersand is not a separator."""
+    if text[index] not in "12" or index + 2 >= len(text):
+        return None
+    if text[index + 1 : index + 3] != ">&":
+        return None
+    span = 4 if index + 3 < len(text) else len(text) - index
+    current.append(text[index : index + span])
+    return index + span
+
+
+def _consume_separator(text: str, index: int, *, andand_only: bool) -> Optional[int]:
+    """Return the index after an unquoted command separator."""
+    two = text[index : index + 2]
+    if two == "&&" or (not andand_only and two == "||"):
+        return index + 2
+    if not andand_only and text[index] == "&":
+        return index + 1
+    return None
+
+
+def _split_unquoted(text: str, *, andand_only: bool) -> List[str]:
+    """Split on unquoted separators without breaking ``2>&1``."""
+    parts: List[str] = []
+    current: List[str] = []
+    quote = ""
+    index = 0
+    length = len(text)
+    while index < length:
+        if quote:
+            index, quote = _consume_quote_body(text, index, quote, current)
+            continue
+        caret_index = _consume_caret(text, index, current)
+        if caret_index is not None:
+            index = caret_index
+            continue
+        opened = _consume_quote_open(text, index, current)
+        if opened is not None:
+            index, quote = opened
+            continue
+        redir_index = _consume_redir(text, index, current)
+        if redir_index is not None:
+            index = redir_index
+            continue
+        separator_index = _consume_separator(text, index, andand_only=andand_only)
+        if separator_index is not None:
+            parts.append("".join(current))
+            current = []
+            index = separator_index
+            continue
+        current.append(text[index])
+        index += 1
+    parts.append("".join(current))
+    return parts

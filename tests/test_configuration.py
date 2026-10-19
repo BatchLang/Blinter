@@ -16,6 +16,7 @@ from blinter import (
     lint_batch_file,
     load_config,
 )
+from blinter.config.loader import ConfigError
 
 
 class TestBlinterConfig:
@@ -32,6 +33,7 @@ class TestBlinterConfig:
         assert config.enabled_rules == set()
         assert config.disabled_rules == set()
         assert config.min_severity is None
+        assert config.fail_on == RuleSeverity.SECURITY
 
     def test_invalid_max_line_length_rejected(self) -> None:
         """max_line_length must be positive and within bounds."""
@@ -443,18 +445,73 @@ min_severity = INVALID
             config_file.close()  # Close file before reading on Windows
 
         try:
-            with patch("blinter.config.loader.logger") as mock_logger:
-                config = load_config(config_file.name)
-
-                # Should return defaults and log warning
-                assert config.recursive is True
-                assert config.show_summary is False
-                mock_logger.warning.assert_called_once()
+            with pytest.raises(ConfigError, match="section headers"):
+                load_config(config_file.name)
         finally:
             try:
                 os.unlink(config_file.name)
             except (OSError, PermissionError):
                 pass  # Ignore cleanup errors
+
+    def test_load_config_utf8_bom_keeps_rules(self) -> None:
+        """A UTF-8 BOM, as written by Notepad, must not drop the config."""
+        with tempfile.NamedTemporaryFile(suffix=".ini", delete=False) as handle:
+            config_path = handle.name
+        try:
+            Path(config_path).write_bytes(
+                b"\xef\xbb\xbf[general]\nrecursive = false\n"
+                b"[rules]\ndisabled_rules = E001\n"
+            )
+            config = load_config(config_path)
+            assert config.recursive is False
+            assert config.disabled_rules == {"E001"}
+        finally:
+            os.unlink(config_path)
+
+    def test_load_config_bad_boolean_names_key(self) -> None:
+        """Invalid booleans name the file, section, and key."""
+        config_content = "[general]\nrecursive = maybe\n"
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".ini", delete=False, encoding="utf-8"
+        ) as config_file:
+            config_file.write(config_content)
+            config_file.flush()
+            config_path = config_file.name
+        try:
+            with pytest.raises(
+                ConfigError, match=r"\[general\] recursive: Not a boolean: maybe"
+            ):
+                load_config(config_path)
+        finally:
+            os.unlink(config_path)
+
+    def test_load_config_fail_on(self) -> None:
+        """fail_on accepts a severity name or none."""
+        for raw, expected in (("warning", RuleSeverity.WARNING), ("none", None)):
+            content = f"[general]\nfail_on = {raw}\n"
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".ini", delete=False, encoding="utf-8"
+            ) as config_file:
+                config_file.write(content)
+                config_file.flush()
+                config_path = config_file.name
+            try:
+                config = load_config(config_path)
+                assert config.fail_on == expected
+            finally:
+                os.unlink(config_path)
+
+    def test_fail_on_threshold_includes_higher_severities(self) -> None:
+        """Each fail_on level is fatal for itself and every more severe level."""
+        assert BlinterConfig().is_fatal_severity(RuleSeverity.SECURITY)
+        assert not BlinterConfig().is_fatal_severity(RuleSeverity.WARNING)
+        warning = BlinterConfig(fail_on=RuleSeverity.WARNING)
+        assert warning.is_fatal_severity(RuleSeverity.WARNING)
+        assert warning.is_fatal_severity(RuleSeverity.ERROR)
+        assert not warning.is_fatal_severity(RuleSeverity.STYLE)
+        assert not BlinterConfig(fail_on=None).is_fatal_severity(RuleSeverity.ERROR)
+        style = BlinterConfig(fail_on=RuleSeverity.STYLE)
+        assert style.is_fatal_severity(RuleSeverity.PERFORMANCE)
 
     def test_load_config_partial_settings(self) -> None:
         """Test loading configuration with only some settings specified."""

@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "Empty find argument inside FOR /F is not broken quoting (E028 negative)",
+  "lines": {},
+  "must_not": [
+    "E028"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

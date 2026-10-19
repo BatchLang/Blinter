@@ -51,6 +51,28 @@ def test_long_whitespace_line_lints_quickly(tmp_path: Path) -> None:
     assert _cpu_seconds(script) < 1.0
 
 
+def test_if_chain_scales_linearly(tmp_path: Path) -> None:
+    """A long chain of IF commands stays near-linear between 2,500 and 8,000 characters.
+
+    The line-length cap blanks anything over 10,000 characters, so the large
+    case stays under that cap.
+    """
+    chunk = "if exist file.txt echo ok && "
+    warmup = tmp_path / "warmup_if.bat"
+    warmup.write_text("@echo off\r\necho hi\r\n", encoding="utf-8")
+    lint_batch_file(str(warmup))
+
+    def _write(length: int) -> Path:
+        line = (chunk * ((length // len(chunk)) + 1))[:length]
+        script = tmp_path / f"if_{length}.bat"
+        script.write_text("@echo off\r\n" + line + "\r\n", encoding="utf-8")
+        return script
+
+    small = _cpu_seconds(_write(2500))
+    large = _cpu_seconds(_write(8000))
+    assert large <= max(small, 0.05) * 8
+
+
 def test_line_count_scales_linearly(tmp_path: Path) -> None:
     """Eight thousand simple lines must stay within 10x the two-thousand-line run."""
     warmup = tmp_path / "warmup.bat"

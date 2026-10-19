@@ -1581,6 +1581,38 @@ START "" notepad.exe
         finally:
             os.unlink(temp_file)
 
+    def test_e028_for_f_empty_find_argument(self) -> None:
+        """FOR /F find /v \"\" is an empty argument, not broken quoting."""
+        content = 'for /f "delims=" %%a in (\'ver ^| find /v ""\') do echo %%a\n'
+        temp_file = self.create_temp_batch_file(content)
+        try:
+            issues = lint_batch_file(temp_file)
+            assert not [issue for issue in issues if issue.rule.code == "E028"]
+        finally:
+            os.unlink(temp_file)
+
+    def test_e045_ver_pipe_is_not_an_argument(self) -> None:
+        """A pipe after VER is the next command, not an argument."""
+        content = 'ver | find "10.0" >nul\n'
+        temp_file = self.create_temp_batch_file(content)
+        try:
+            issues = lint_batch_file(temp_file)
+            assert not [issue for issue in issues if issue.rule.code == "E045"]
+        finally:
+            os.unlink(temp_file)
+
+    def test_e002_parameter_dispatch_is_dynamic(self) -> None:
+        """goto :%1 and call :%~1 cannot be resolved statically."""
+        content = "goto :%1\ncall :%~1\n"
+        temp_file = self.create_temp_batch_file(content)
+        try:
+            issues = lint_batch_file(temp_file)
+            codes = {issue.rule.code for issue in issues}
+            assert "E002" not in codes
+            assert "E014" not in codes
+        finally:
+            os.unlink(temp_file)
+
     def test_e029_seta_expression_errors(self) -> None:
         """Test E029: Complex SET /A expression errors."""
         content = """@ECHO OFF
@@ -2030,6 +2062,16 @@ echo Value is %MYVAR%
             e033_issues = [issue for issue in issues if issue.rule.code == "E033"]
             assert len(e033_issues) == 1
             assert e033_issues[0].line_number == 1
+        finally:
+            os.unlink(temp_file)
+
+    def test_e033_substring_and_replace_not_literal_percent(self) -> None:
+        """Substring and replacement expansions are not literal percents."""
+        content = "echo %date:~-4%\necho %str:~0,5%\necho %s:a=1%\n"
+        temp_file = self.create_temp_batch_file(content)
+        try:
+            issues = lint_batch_file(temp_file)
+            assert not [issue for issue in issues if issue.rule.code == "E033"]
         finally:
             os.unlink(temp_file)
 

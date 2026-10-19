@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "Operator-prefixed and one-line groups are balanced (E001 negative)",
+  "lines": {},
+  "must_not": [
+    "E001"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "Substring and replacement expansions are not literal percents (E033 negative)",
+  "lines": {},
+  "must_not": [
+    "E033"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

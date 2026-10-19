@@ -4,12 +4,13 @@ import io
 import logging
 import os
 from pathlib import Path
+import runpy
 import shutil
 import subprocess
 import sys
 import tempfile
 from types import TracebackType
-from typing import TYPE_CHECKING, Dict, Optional, Protocol, Set, TextIO
+from typing import TYPE_CHECKING, Dict, List, Optional, Protocol, Set, TextIO
 from unittest.mock import patch
 
 import pytest
@@ -22,6 +23,7 @@ from blinter.cli.main import (
     _process_single_called_script,
     main as cli_main,
 )
+from blinter.engine.dependencies import _extract_called_scripts
 from blinter.engine.linter import lint_batch_file as engine_lint_batch_file
 from blinter import (
     find_batch_files,
@@ -123,6 +125,32 @@ class TestMainFunction:
 
         assert "Blinter - Help Menu" in output
         assert "Usage:" in output
+
+    def test_fail_on_changes_exit_code(self) -> None:
+        """--fail-on selects which severities make the process exit 1."""
+        style_file = self.create_temp_batch_file("echo hi\n")
+        error_file = self.create_temp_batch_file("echo Progress: 50%\n")
+        cases = (
+            (style_file, "security", 0),
+            (style_file, "warning", 1),
+            (style_file, "style", 1),
+            (style_file, "none", 0),
+            (error_file, "security", 1),
+            (error_file, "error", 1),
+            (error_file, "none", 0),
+        )
+        try:
+            for path, level, expected in cases:
+                with patch(
+                    "sys.argv",
+                    ["blinter.py", path, "--no-config", "--fail-on", level],
+                ):
+                    with pytest.raises(SystemExit) as exit_info:
+                        main()
+                    assert exit_info.value.code == expected, level
+        finally:
+            os.unlink(style_file)
+            os.unlink(error_file)
 
     def test_main_nonexistent_file(self) -> None:
         """Test main function with non-existent file."""
@@ -1727,9 +1755,71 @@ class TestScanRootDerivation:  # pylint: disable=too-few-public-methods
             )
             config = BlinterConfig()
             _apply_cli_config_overrides(cli_args, config)
-            assert config.scan_root == str(Path(temp_path).parent.resolve())
+            assert config.scan_root == str(Path(temp_path).resolve().parent)
         finally:
             os.unlink(temp_path)
+
+    def test_scan_root_follows_symlinked_file(self, tmp_path: Path) -> None:
+        """A symlinked file uses the resolved target's directory as scan_root."""
+        real_dir = tmp_path / "real"
+        real_dir.mkdir()
+        real_file = real_dir / "script.bat"
+        real_file.write_text("@echo off\n", encoding="utf-8")
+        link = tmp_path / "link.bat"
+        try:
+            link.symlink_to(real_file)
+        except OSError:
+            pytest.skip("symlinks cannot be created")
+
+        cli_args = CliArguments(
+            target_path=str(link),
+            use_config=False,
+            cli_show_summary=None,
+            cli_recursive=None,
+            cli_follow_calls=None,
+            cli_max_line_length=None,
+            cli_log_level=None,
+        )
+        config = BlinterConfig()
+        _apply_cli_config_overrides(cli_args, config)
+        assert config.scan_root == str(real_dir.resolve())
+
+    def test_symlinked_file_is_linted(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Linting a symlink to a batch file does not report a missing target."""
+        real_dir = tmp_path / "real"
+        real_dir.mkdir()
+        real_file = real_dir / "script.bat"
+        real_file.write_text("@echo off\n", encoding="utf-8")
+        link = tmp_path / "link.bat"
+        try:
+            link.symlink_to(real_file)
+        except OSError:
+            pytest.skip("symlinks cannot be created")
+
+        with patch.object(sys, "argv", ["blinter", str(link), "--no-config"]):
+            with pytest.raises(SystemExit) as exit_info:
+                main()
+        assert exit_info.value.code == 0
+        captured = capsys.readouterr()
+        assert "No batch files" not in captured.out
+        assert "No batch files" not in captured.err
+
+    def test_rejected_file_reports_resolved_path(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A single file rejected by discovery names the resolved path."""
+        batch_file = tmp_path / "script.bat"
+        batch_file.write_text("@echo off\n", encoding="utf-8")
+        with patch("blinter.cli.main.find_batch_files", return_value=[]):
+            with patch.object(sys, "argv", ["blinter", str(batch_file), "--no-config"]):
+                with pytest.raises(SystemExit) as exit_info:
+                    main()
+        assert exit_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "resolves to" in captured.err
+        assert "outside" in captured.err
 
 
 class TestCliLogging:  # pylint: disable=too-few-public-methods
@@ -2015,6 +2105,98 @@ class TestFollowCallsProcessing:  # pylint: disable=too-few-public-methods
             lines_cache=state.lines_cache,
         )
 
+    @staticmethod
+    def _follow_state(primary: Path) -> ProcessingState:
+        """State as the CLI leaves it after linting a primary target."""
+        return ProcessingState(
+            processed_files={primary.resolve()},
+            all_issues=[],
+            file_results={},
+            processed_file_paths=[(str(primary), None)],
+        )
+
+    @pytest.mark.timeout(10)
+    def test_process_called_scripts_three_script_cycle_terminates(
+        self, tmp_path: Path
+    ) -> None:
+        """A calls B calls C calls A finishes after each script is expanded once."""
+        script_a = tmp_path / "a.bat"
+        script_b = tmp_path / "b.bat"
+        script_c = tmp_path / "c.bat"
+        script_a.write_text('@ECHO OFF\nCALL "b.bat"\n', encoding="utf-8")
+        script_b.write_text('@ECHO OFF\nCALL "c.bat"\n', encoding="utf-8")
+        script_c.write_text('@ECHO OFF\nCALL "a.bat"\n', encoding="utf-8")
+
+        state = self._follow_state(script_a)
+        config = BlinterConfig(follow_calls=True, scan_root=str(tmp_path))
+        extract_calls: List[str] = []
+
+        def _counting_extract(
+            batch_file: Path,
+            scan_root: Optional[str] = None,
+            lines: Optional[List[str]] = None,
+        ) -> List[Path]:
+            extract_calls.append(batch_file.name)
+            return _extract_called_scripts(batch_file, scan_root=scan_root, lines=lines)
+
+        with patch("blinter.cli.main._extract_called_scripts", _counting_extract):
+            processed, _errors = _process_called_scripts(script_a, config, state)
+
+        assert processed == 2
+        assert extract_calls == ["a.bat", "b.bat", "c.bat"]
+        assert {path.name for path in state.expanded_files} == {
+            "a.bat",
+            "b.bat",
+            "c.bat",
+        }
+
+    @pytest.mark.timeout(10)
+    def test_process_called_scripts_self_call_terminates(self, tmp_path: Path) -> None:
+        """A script that calls itself is expanded once and not re-linted."""
+        script = tmp_path / "self.bat"
+        script.write_text('@ECHO OFF\nCALL "self.bat"\n', encoding="utf-8")
+
+        state = self._follow_state(script)
+        config = BlinterConfig(follow_calls=True, scan_root=str(tmp_path))
+
+        processed, errors = _process_called_scripts(script, config, state)
+
+        assert (processed, errors) == (0, 0)
+        assert state.expanded_files == {script.resolve()}
+
+    @pytest.mark.timeout(10)
+    def test_process_called_scripts_diamond_expands_each_script_once(
+        self, tmp_path: Path
+    ) -> None:
+        """Shared callees in a diamond graph are walked a single time."""
+        script_a = tmp_path / "a.bat"
+        script_b = tmp_path / "b.bat"
+        script_c = tmp_path / "c.bat"
+        script_d = tmp_path / "d.bat"
+        script_a.write_text('@ECHO OFF\nCALL "b.bat"\nCALL "c.bat"\n', encoding="utf-8")
+        script_b.write_text('@ECHO OFF\nCALL "d.bat"\n', encoding="utf-8")
+        script_c.write_text('@ECHO OFF\nCALL "d.bat"\n', encoding="utf-8")
+        script_d.write_text("@ECHO OFF\nEXIT /b 0\n", encoding="utf-8")
+
+        state = self._follow_state(script_a)
+        config = BlinterConfig(follow_calls=True, scan_root=str(tmp_path))
+        extract_calls: List[str] = []
+
+        def _counting_extract(
+            batch_file: Path,
+            scan_root: Optional[str] = None,
+            lines: Optional[List[str]] = None,
+        ) -> List[Path]:
+            extract_calls.append(batch_file.name)
+            return _extract_called_scripts(batch_file, scan_root=scan_root, lines=lines)
+
+        with patch("blinter.cli.main._extract_called_scripts", _counting_extract):
+            processed, _errors = _process_called_scripts(script_a, config, state)
+
+        assert processed == 3
+        assert extract_calls.count("d.bat") == 1
+        assert len(extract_calls) == 4
+
 
 class TestCLIArgumentValidation:  # pylint: disable=too-few-public-methods
     """Test CLI argument validation edge cases."""
@@ -2268,6 +2450,12 @@ class TestCliUnexpectedErrorExit:  # pylint: disable=too-few-public-methods
 
 class TestCliStdioAndModuleEntry:
     """Test console encoding setup and python -m blinter entry point."""
+
+    def test_module_main_invokes_cli(self) -> None:
+        """python -m blinter calls the CLI main function."""
+        with patch("blinter.cli.main.main") as mocked:
+            runpy.run_module("blinter", run_name="__main__")
+        mocked.assert_called_once_with()
 
     def test_configure_stdio_utf8_handles_missing_reconfigure(self) -> None:
         """Streams without reconfigure() are skipped without error."""

@@ -361,7 +361,7 @@ def _run_python_checks(root: Path, *, fix: bool) -> None:
             ),
             (
                 "SSOT audit (strict)",
-                [sys.executable, str(_SPEC_AUDIT), "--strict"],
+                [sys.executable, str(_SPEC_AUDIT), "--strict", "--check"],
             ),
         ]
     )

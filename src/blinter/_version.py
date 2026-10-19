@@ -3,6 +3,7 @@
 from importlib.metadata import PackageNotFoundError, version
 import logging
 from pathlib import Path
+import re
 
 __author__ = "tboy1337"
 
@@ -25,8 +26,14 @@ except ImportError:
     _BAKED_VERSION = None
 
 
+_PROJECT_NAME_RE = re.compile(
+    r"""^\s*name\s*=\s*['"]Blinter['"]\s*$""",
+    re.MULTILINE | re.IGNORECASE,
+)
+
+
 def _pyproject_path() -> Path:
-    """Return pyproject.toml for a source checkout."""
+    """Return pyproject.toml two directories above this module."""
     module_file = Path(__file__).resolve()
     package_dir = module_file.parent
     source_path = package_dir.parent.parent / "pyproject.toml"
@@ -34,12 +41,25 @@ def _pyproject_path() -> Path:
     return source_path
 
 
-def _fallback_version() -> str:
-    """Read version from pyproject.toml when the package is not installed."""
-    pyproject = _pyproject_path()
+def _source_checkout_pyproject() -> Path | None:
+    """Return pyproject.toml only for a src/ checkout of this project."""
+    package_dir = Path(__file__).resolve().parent
+    if package_dir.parent.name != "src":
+        logger.debug("Package directory %s is not a src/ checkout", package_dir)
+        return None
+    pyproject = package_dir.parent.parent / "pyproject.toml"
     if not pyproject.is_file():
         logger.debug("pyproject.toml is missing at %s", pyproject)
-        return "unknown"
+        return None
+    text = pyproject.read_text(encoding="utf-8")
+    if _PROJECT_NAME_RE.search(text) is None:
+        logger.debug("pyproject.toml at %s does not declare name = Blinter", pyproject)
+        return None
+    return pyproject
+
+
+def _version_from_pyproject(pyproject: Path) -> str:
+    """Read the version assignment from a pyproject.toml file."""
     for line in pyproject.read_text(encoding="utf-8").splitlines():
         stripped = line.strip()
         if stripped.startswith("version = "):
@@ -50,20 +70,30 @@ def _fallback_version() -> str:
     return "unknown"
 
 
+def _fallback_version() -> str:
+    """Read version from pyproject.toml when the package is not installed."""
+    pyproject = _pyproject_path()
+    if not pyproject.is_file():
+        logger.debug("pyproject.toml is missing at %s", pyproject)
+        return "unknown"
+    return _version_from_pyproject(pyproject)
+
+
 def get_version() -> str:
     """Return the package version, preferring the Nuitka build constant."""
     if isinstance(_BAKED_VERSION, str) and _BAKED_VERSION:
         logger.debug("Using build-time version %s", _BAKED_VERSION)
         return _BAKED_VERSION
-    if _pyproject_path().is_file():
-        pyproject_version = _fallback_version()
+    source_pyproject = _source_checkout_pyproject()
+    if source_pyproject is not None:
+        pyproject_version = _version_from_pyproject(source_pyproject)
         if pyproject_version != "unknown":
             return pyproject_version
     try:
         installed = version(_PACKAGE_NAME)
     except PackageNotFoundError:
         logger.debug("Package metadata for %s was not found", _PACKAGE_NAME)
-        return _fallback_version()
+        return "unknown"
     logger.debug("Using installed metadata version %s", installed)
     return installed
 

@@ -1285,3 +1285,4 @@ Scripts may suppress findings on a line using documentation comments:
 - `max_scan_files` — directory scan cap (default: `1000`)
 - `follow_calls` — analyze CALL targets (default: `false`)
 - `min_severity` — minimum severity to report (`ERROR`, `SECURITY`, `WARNING`, `PERFORMANCE`, `STYLE`)
+- `fail_on` — lowest severity that exits 1 (`error`, `security`, `warning`, `performance`, `style`, or `none`; default `security`). `--fail-on` overrides this key

@@ -15,8 +15,8 @@ _DESCRIPTOR_PATH = (
 )
 
 _FATAL_SAMPLES = (
-    "Found 1 critical issue (errors or security) that must be fixed.",
-    "Found 2 critical issues (errors or security) across 1 file that must be fixed.",
+    "Found 1 critical issue at or above the failure threshold that must be fixed.",
+    "Found 2 critical issues at or above the failure threshold across 1 file that must be fixed.",
 )
 _NONFATAL_SAMPLES = (
     "but 1 issue detected.",

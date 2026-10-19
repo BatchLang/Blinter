@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Parameter dispatch targets are dynamic (E002 negative)",
+  "lines": {},
+  "must_not": [
+    "E002",
+    "E014"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

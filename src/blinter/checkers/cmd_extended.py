@@ -13,7 +13,9 @@ from blinter.parsing.context import (
     _command_body,
     _is_comment_line,
     _is_echo_statement,
+    _split_pipe_stages,
     _split_tokens,
+    _split_unquoted,
 )
 from blinter.parsing.structure import _paren_depth_before_line
 from blinter.rules.registry import RULES
@@ -143,102 +145,16 @@ def _is_caret_escaped(text: str, index: int) -> bool:
 
 def _split_amp_commands(text: str) -> List[str]:
     """Split on unquoted ``&`` / ``&&`` / ``||`` without breaking ``2>&1``."""
-    parts: List[str] = []
-    current: List[str] = []
-    quote = ""
-    index = 0
-    length = len(text)
-    while index < length:
-        char = text[index]
-        if quote:
-            current.append(char)
-            if char == quote:
-                quote = ""
-            index += 1
-            continue
-        if char == "^":
-            current.append(char)
-            if index + 1 < length:
-                current.append(text[index + 1])
-                index += 2
-                continue
-            index += 1
-            continue
-        if char in '"`':
-            quote = char
-            current.append(char)
-            index += 1
-            continue
-        if char in "12" and index + 2 < length and text[index + 1 : index + 3] == ">&":
-            current.append(
-                text[index : index + 4] if index + 3 < length else text[index:]
-            )
-            index += 4 if index + 3 < length else (length - index)
-            continue
-        two = text[index : index + 2]
-        if two in ("&&", "||"):
-            parts.append("".join(current))
-            current = []
-            index += 2
-            continue
-        if char == "&":
-            parts.append("".join(current))
-            current = []
-            index += 1
-            continue
-        current.append(char)
-        index += 1
-    parts.append("".join(current))
-    return parts
+    return _split_unquoted(text, andand_only=False)
 
 
 def _split_andand_pairs(text: str) -> List[tuple[str, str]]:
     """Return (left, right) pairs for each unquoted ``&&`` chain."""
-    pairs: List[tuple[str, str]] = []
-    current: List[str] = []
-    quote = ""
-    index = 0
-    length = len(text)
-    while index < length:
-        char = text[index]
-        if quote:
-            current.append(char)
-            if char == quote:
-                quote = ""
-            index += 1
-            continue
-        if char == "^":
-            current.append(char)
-            if index + 1 < length:
-                current.append(text[index + 1])
-                index += 2
-                continue
-            index += 1
-            continue
-        if char in '"`':
-            quote = char
-            current.append(char)
-            index += 1
-            continue
-        if char in "12" and index + 2 < length and text[index + 1 : index + 3] == ">&":
-            current.append(
-                text[index : index + 4] if index + 3 < length else text[index:]
-            )
-            index += 4 if index + 3 < length else (length - index)
-            continue
-        two = text[index : index + 2]
-        if two == "&&":
-            left = "".join(current).strip()
-            rest = text[index + 2 :]
-            right = rest.split("&&")[0].strip() if rest else ""
-            if left:
-                pairs.append((left, right))
-            current = []
-            index += 2
-            continue
-        current.append(char)
-        index += 1
-    return pairs
+    parts = _split_unquoted(text, andand_only=True)
+    stripped_parts = [part.strip() for part in parts]
+    return [
+        (left, right) for left, right in zip(stripped_parts, stripped_parts[1:]) if left
+    ]
 
 
 def _strip_redirections(text: str) -> str:
@@ -385,34 +301,41 @@ def _check_e045_switches(stripped: str, line_num: int) -> List[LintIssue]:
     if _skip_comment_or_echo(stripped):
         return []
     issues: List[LintIssue] = []
-    for raw_segment in _split_amp_commands(_command_body(stripped) or stripped):
-        segment = (
-            _strip_redirections(raw_segment).strip().lstrip("@").lstrip("(").strip()
-        )
-        if not segment:
-            continue
-        tokens = _split_tokens(segment)
-        if not tokens:
-            continue
-        command = tokens[0].lower()
-        issues.extend(
-            _e045_switch_issues(command, _leading_switch_tokens(tokens), line_num)
-        )
-        if command in _NO_ARG_COMMANDS:
-            remainder = [
-                tok
-                for tok in tokens[1:]
-                if not _SWITCH_TOKEN_RE.match(tok) and tok != "/?"
-            ]
-            if remainder:
-                issues.append(
-                    _issue(
-                        line_num,
-                        "E045",
-                        f"{command.upper()} does not take arguments",
-                    )
-                )
+    body = _command_body(stripped) or stripped
+    for raw_segment in _split_amp_commands(body):
+        for raw_stage in _split_pipe_stages(raw_segment):
+            _collect_e045_stage_issues(raw_stage, line_num, issues)
     return issues
+
+
+def _collect_e045_stage_issues(
+    raw_stage: str, line_num: int, issues: List[LintIssue]
+) -> None:
+    """Record E045 findings for one pipe stage."""
+    segment = _strip_redirections(raw_stage).strip().lstrip("@").lstrip("(").strip()
+    if not segment:
+        return
+    tokens = _split_tokens(segment)
+    if not tokens:
+        return
+    command = tokens[0].lower()
+    issues.extend(
+        _e045_switch_issues(command, _leading_switch_tokens(tokens), line_num)
+    )
+    if command not in _NO_ARG_COMMANDS:
+        return
+    remainder = [
+        tok for tok in tokens[1:] if not _SWITCH_TOKEN_RE.match(tok) and tok != "/?"
+    ]
+    if not remainder:
+        return
+    issues.append(
+        _issue(
+            line_num,
+            "E045",
+            f"{command.upper()} does not take arguments",
+        )
+    )
 
 
 def _check_e046_malformed_redir(stripped: str, line_num: int) -> List[LintIssue]:

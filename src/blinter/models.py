@@ -24,6 +24,37 @@ class RuleSeverity(Enum):
     PERFORMANCE = "Performance"
 
 
+SEVERITY_RANK: Dict[RuleSeverity, int] = {
+    RuleSeverity.STYLE: 1,
+    RuleSeverity.PERFORMANCE: 2,
+    RuleSeverity.WARNING: 3,
+    RuleSeverity.SECURITY: 4,
+    RuleSeverity.ERROR: 5,
+}
+
+_FAIL_ON_NAMES: Dict[str, RuleSeverity] = {
+    "error": RuleSeverity.ERROR,
+    "security": RuleSeverity.SECURITY,
+    "warning": RuleSeverity.WARNING,
+    "performance": RuleSeverity.PERFORMANCE,
+    "style": RuleSeverity.STYLE,
+}
+
+
+def parse_fail_on(value: str) -> Optional[RuleSeverity]:
+    """Parse a fail_on threshold. ``none`` disables issue-based failure."""
+    normalized = value.strip().lower()
+    if normalized == "none":
+        return None
+    parsed = _FAIL_ON_NAMES.get(normalized)
+    if parsed is None:
+        raise ValueError(
+            f"Invalid fail_on value: {value}. "
+            "Expected error, security, warning, performance, style, or none."
+        )
+    return parsed
+
+
 class OutputFormat(Enum):
     """CLI output format."""
 
@@ -91,6 +122,8 @@ class BlinterConfig:  # pylint: disable=too-many-instance-attributes
 
     # Severity filtering
     min_severity: Optional[RuleSeverity] = None
+    # Exit non-zero at this severity and above. None never fails on issues.
+    fail_on: Optional[RuleSeverity] = RuleSeverity.SECURITY
 
     def __post_init__(self) -> None:
         """Initialize default values after creation."""
@@ -135,18 +168,13 @@ class BlinterConfig:  # pylint: disable=too-many-instance-attributes
         if self.min_severity == RuleSeverity.ERROR:
             return severity in (RuleSeverity.ERROR, RuleSeverity.SECURITY)
 
-        # Define severity order (higher values = more severe)
-        severity_order = {
-            RuleSeverity.STYLE: 1,
-            RuleSeverity.PERFORMANCE: 2,
-            RuleSeverity.WARNING: 3,
-            RuleSeverity.SECURITY: 4,
-            RuleSeverity.ERROR: 5,
-        }
+        return SEVERITY_RANK.get(severity, 0) >= SEVERITY_RANK.get(self.min_severity, 0)
 
-        return severity_order.get(severity, 0) >= severity_order.get(
-            self.min_severity, 0
-        )
+    def is_fatal_severity(self, severity: RuleSeverity) -> bool:
+        """Return True when this severity should make the CLI exit non-zero."""
+        if self.fail_on is None:
+            return False
+        return SEVERITY_RANK.get(severity, 0) >= SEVERITY_RANK[self.fail_on]
 
 
 @dataclass
@@ -163,6 +191,7 @@ class CliArguments:  # pylint: disable=too-many-instance-attributes  # CLI argum
     config_path: Optional[str] = None
     cli_output_path: Optional[str] = None
     cli_output_format: OutputFormat = OutputFormat.TEXT
+    cli_fail_on: Optional[str] = None
 
 
 @dataclass
@@ -190,3 +219,6 @@ class ProcessingState:
     file_results: Dict[str, List[LintIssue]]
     processed_file_paths: List[Tuple[str, Optional[str]]]
     lines_cache: Dict[Path, List[str]] = field(default_factory=dict)
+    # Scripts whose CALL lists have already been walked. Distinct from
+    # processed_files, which only records that a script was linted.
+    expanded_files: Set[Path] = field(default_factory=set)

@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "Quoted variables beside && or || are not injection (SEC013 negative)",
+  "lines": {},
+  "must_not": [
+    "SEC013"
+  ],
+  "rules": [],
+  "tags": [
+    "integration"
+  ]
+}

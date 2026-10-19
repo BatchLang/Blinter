@@ -14,6 +14,24 @@ PERCENT_TILDE_TOKEN_RE = re.compile(
     re.IGNORECASE,
 )
 _FOR_METAVAR_TILDE_RE = re.compile(r"%%~[A-Za-z]")
+SUBSTRING_OP_RE = re.compile(
+    r"%([a-zA-Z_][a-zA-Z0-9_]*):~([^%]*)%",
+    re.IGNORECASE,
+)
+REPLACEMENT_OP_RE = re.compile(
+    r"%([a-zA-Z_][a-zA-Z0-9_]*):(?!~)([^%]*)%",
+    re.IGNORECASE,
+)
+_PLAIN_PERCENT_VAR_RE = re.compile(r"%[A-Za-z_][A-Za-z0-9_]*%")
+
+
+def strip_percent_expansions(text: str) -> str:
+    """Remove percent expansions so a later literal ``N%`` check ignores them."""
+    without_escaped = text.replace("%%", "")
+    without_tilde = PERCENT_TILDE_TOKEN_RE.sub("", without_escaped)
+    without_substring = SUBSTRING_OP_RE.sub("", without_tilde)
+    without_replacement = REPLACEMENT_OP_RE.sub("", without_substring)
+    return _PLAIN_PERCENT_VAR_RE.sub("", without_replacement)
 
 
 def strip_for_metavar_tilde_tokens(line: str) -> str:

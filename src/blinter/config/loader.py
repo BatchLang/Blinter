@@ -8,12 +8,53 @@ from typing import (
 
 from blinter.constants import MAX_LINE_LENGTH, MAX_SCAN_FILES
 from blinter.logging_config import logger
-from blinter.models import BlinterConfig, RuleSeverity
+from blinter.models import BlinterConfig, RuleSeverity, parse_fail_on
 from blinter.rules.registry import RULES
 
 
+class ConfigError(ValueError):
+    """Raised when a configuration file exists but cannot be used."""
+
+
+def _setting_error(
+    config_file: Path, section: str, key: str, error: BaseException
+) -> ConfigError:
+    """Build a config error that names the file, section, and key."""
+    return ConfigError(f"{config_file} [{section}] {key}: {error}")
+
+
+def _read_bool(
+    section: configparser.SectionProxy,
+    config_file: Path,
+    key: str,
+    fallback: bool,
+) -> bool:
+    """Read a boolean, raising ConfigError that names the key."""
+    try:
+        return section.getboolean(key, fallback=fallback)
+    except ValueError as error:
+        logger.error("Invalid %s value in %s: %s", key, config_file, error)
+        raise _setting_error(config_file, "general", key, error) from error
+
+
+def _read_int(
+    section: configparser.SectionProxy,
+    config_file: Path,
+    key: str,
+    fallback: int,
+) -> int:
+    """Read an integer, raising ConfigError that names the key."""
+    try:
+        return section.getint(key, fallback=fallback)
+    except ValueError as error:
+        logger.error("Invalid %s value in %s: %s", key, config_file, error)
+        raise _setting_error(config_file, "general", key, error) from error
+
+
 def _load_general_settings(
-    config: BlinterConfig, parser: configparser.ConfigParser
+    config: BlinterConfig,
+    parser: configparser.ConfigParser,
+    config_file: Path,
 ) -> None:
     """Load general settings from config parser."""
     if not parser.has_section("general"):
@@ -21,43 +62,51 @@ def _load_general_settings(
 
     general = parser["general"]
 
-    config.recursive = general.getboolean("recursive", fallback=True)
-    config.show_summary = general.getboolean("show_summary", fallback=False)
-    try:
-        max_line_length = general.getint("max_line_length", fallback=100)
-    except ValueError as error:
-        logger.error("Invalid max_line_length value in config: %s", error)
-        raise ValueError("Invalid max_line_length value in config") from error
+    config.recursive = _read_bool(general, config_file, "recursive", True)
+    config.show_summary = _read_bool(general, config_file, "show_summary", False)
+    max_line_length = _read_int(general, config_file, "max_line_length", 100)
     if not 0 < max_line_length <= MAX_LINE_LENGTH:
         logger.error(
-            "Invalid max_line_length %s in config (must be 1-%s)",
+            "Invalid max_line_length %s in %s (must be 1-%s)",
             max_line_length,
+            config_file,
             MAX_LINE_LENGTH,
         )
-        raise ValueError(
+        raise ConfigError(
+            f"{config_file} [general] max_line_length: "
             f"Invalid max_line_length {max_line_length} in config "
             f"(must be 1-{MAX_LINE_LENGTH})"
         )
     config.max_line_length = max_line_length
     try:
-        max_scan_files = general.getint("max_scan_files", fallback=MAX_SCAN_FILES)
+        max_scan_files = _read_int(
+            general, config_file, "max_scan_files", MAX_SCAN_FILES
+        )
+    except ConfigError:
+        logger.warning("Invalid max_scan_files value in %s, using default", config_file)
+    else:
         if max_scan_files > 0:
             config.max_scan_files = max_scan_files
         else:
             logger.warning(
-                "Invalid max_scan_files %s in config (must be positive), using default",
+                "Invalid max_scan_files %s in %s (must be positive), using default",
                 max_scan_files,
+                config_file,
             )
-    except ValueError:
-        logger.warning("Invalid max_scan_files value in config, using default")
-    config.follow_calls = general.getboolean("follow_calls", fallback=False)
+    config.follow_calls = _read_bool(general, config_file, "follow_calls", False)
 
     severity_str = general.get("min_severity", "").strip()
     if severity_str:
-        _set_min_severity(config, severity_str)
+        _set_min_severity(config, severity_str, config_file)
+
+    fail_on_str = general.get("fail_on", "").strip()
+    if fail_on_str:
+        _set_fail_on(config, fail_on_str, config_file)
 
 
-def _set_min_severity(config: BlinterConfig, severity_str: str) -> None:
+def _set_min_severity(
+    config: BlinterConfig, severity_str: str, config_file: Path
+) -> None:
     """Set minimum severity from string value."""
     severity_map = {
         "ERROR": RuleSeverity.ERROR,
@@ -71,7 +120,19 @@ def _set_min_severity(config: BlinterConfig, severity_str: str) -> None:
         config.min_severity = severity_map[severity_upper]
         return
     logger.error("Invalid min_severity value: %s", severity_str)
-    raise ValueError(f"Invalid min_severity value: {severity_str}")
+    raise ConfigError(
+        f"{config_file} [general] min_severity: "
+        f"Invalid min_severity value: {severity_str}"
+    )
+
+
+def _set_fail_on(config: BlinterConfig, fail_on_str: str, config_file: Path) -> None:
+    """Set the exit-code threshold from a config string."""
+    try:
+        config.fail_on = parse_fail_on(fail_on_str)
+    except ValueError as error:
+        logger.error("Invalid fail_on value in %s: %s", config_file, error)
+        raise _setting_error(config_file, "general", "fail_on", error) from error
 
 
 def _validate_rule_codes(rule_codes: set[str], setting_name: str) -> set[str]:
@@ -149,19 +210,20 @@ def load_config(
 
     try:
         parser = configparser.ConfigParser()
-        parser.read(config_file, encoding="utf-8")
+        parser.read(config_file, encoding="utf-8-sig")
 
-        _load_general_settings(config, parser)
+        _load_general_settings(config, parser, config_file)
         _load_rule_settings(config, parser)
 
         logger.info("Configuration loaded from %s", config_file)
 
     except (configparser.Error, OSError) as error:
-        logger.warning(
-            "Error loading configuration from %s: %s. Using defaults.",
+        logger.error(
+            "Error loading configuration from %s: %s",
             config_file,
             error,
         )
+        raise ConfigError(f"{config_file}: {error}") from error
 
     return config
 
@@ -211,8 +273,13 @@ follow_calls = false
 
 # Minimum severity level to report (default: none - show all)
 # Valid values: ERROR, SECURITY, WARNING, PERFORMANCE, STYLE
-# ERROR includes both ERROR and SECURITY severities (both affect CLI exit code)
+# ERROR includes both ERROR and SECURITY severities
 # min_severity = WARNING
+
+# Lowest severity that makes the CLI exit 1 (default: security)
+# Valid values: error, security, warning, performance, style, none
+# security fails on SECURITY and ERROR; none never fails because of issues
+# fail_on = security
 
 [rules]
 # Comma-separated list of specific rules to enable (default: all rules enabled)

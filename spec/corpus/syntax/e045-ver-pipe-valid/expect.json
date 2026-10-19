@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "VER piped to FIND is not an argument (E045 negative)",
+  "lines": {},
+  "must_not": [
+    "E045"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

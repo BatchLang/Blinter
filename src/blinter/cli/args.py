@@ -116,6 +116,29 @@ def _parse_output_arg(arg_index: int) -> Optional[Tuple[int, str]]:
     return arg_index + 1, sys.argv[arg_index + 1]
 
 
+_FAIL_ON_VALUES = frozenset(
+    {"error", "security", "warning", "performance", "style", "none"}
+)
+
+
+def _parse_fail_on_arg(arg_index: int) -> Optional[Tuple[int, str]]:
+    """Parse the value following ``--fail-on``."""
+    if arg_index + 1 >= len(sys.argv):
+        _print_cli_error("Error: --fail-on requires a value.\n")
+        print_help()
+        return None
+    fail_on_value = sys.argv[arg_index + 1].lower()
+    if fail_on_value in _FAIL_ON_VALUES:
+        return arg_index + 1, fail_on_value
+    supported = ", ".join(sorted(_FAIL_ON_VALUES))
+    _print_cli_error(
+        f"Error: Unknown fail-on threshold '{sys.argv[arg_index + 1]}'. "
+        f"Supported values: {supported}.\n"
+    )
+    print_help()
+    return None
+
+
 _FORMAT_VALUES: Dict[str, OutputFormat] = {
     "json": OutputFormat.JSON,
     "sarif": OutputFormat.SARIF,
@@ -174,6 +197,7 @@ class _ArgParseState:  # pylint: disable=too-many-instance-attributes
     config_path: Optional[str] = None
     cli_output_path: Optional[str] = None
     cli_output_format: OutputFormat = OutputFormat.TEXT
+    cli_fail_on: Optional[str] = None
 
 
 def _warn_severity_flag_deprecated() -> _ArgHandlerResult:
@@ -230,6 +254,12 @@ def _apply_value_option(arg: str, index: int, state: _ArgParseState) -> Optional
             sys.exit(1)
         next_index, state.cli_output_format = parsed_format
         return next_index
+    if arg == "--fail-on":
+        parsed_fail_on = _parse_fail_on_arg(index)
+        if parsed_fail_on is None:
+            sys.exit(1)
+        next_index, state.cli_fail_on = parsed_fail_on
+        return next_index
     return None
 
 
@@ -282,6 +312,7 @@ def _parse_regular_arguments() -> Tuple[
     Optional[str],
     Optional[str],
     OutputFormat,
+    Optional[str],
 ]:
     """
     Parse regular command-line arguments using a lookup table.
@@ -289,7 +320,7 @@ def _parse_regular_arguments() -> Tuple[
     Returns:
         Tuple of (target_path, use_config, cli_show_summary, cli_recursive,
         cli_follow_calls, cli_max_line_length, cli_log_level, config_path,
-        cli_output_path, cli_output_format)
+        cli_output_path, cli_output_format, cli_fail_on)
     """
     state = _ArgParseState()
 
@@ -325,6 +356,7 @@ def _parse_regular_arguments() -> Tuple[
         state.config_path,
         state.cli_output_path,
         state.cli_output_format,
+        state.cli_fail_on,
     )
 
 
@@ -345,6 +377,7 @@ def _parse_cli_arguments() -> Optional[CliArguments]:
         config_path,
         cli_output_path,
         cli_output_format,
+        cli_fail_on,
     ) = _parse_regular_arguments()
 
     if not target_path:
@@ -363,4 +396,5 @@ def _parse_cli_arguments() -> Optional[CliArguments]:
         config_path=config_path,
         cli_output_path=cli_output_path,
         cli_output_format=cli_output_format,
+        cli_fail_on=cli_fail_on,
     )

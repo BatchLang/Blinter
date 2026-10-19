@@ -521,7 +521,7 @@ max_line_length = invalid
             config_file_path = config_file.name
 
         try:
-            with pytest.raises(ValueError, match="Invalid max_line_length"):
+            with pytest.raises(ValueError, match=r"\[general\] max_line_length:"):
                 load_config(config_file_path)
         finally:
             try:

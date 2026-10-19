@@ -4,17 +4,29 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ## [Unreleased]
 
+## [1.1.43] - 2026-10-19
+
 ### Added
 
 - MegaLinter plugin descriptor for `.bat` and `.cmd` files (`mega-linter-plugin-blinter/blinter.megalinter-descriptor.yml`)
+- `--fail-on` and the `fail_on` configuration key choose which severity exits 1. The default remains `security`
 
 ### Fixed
 
 - The installer check accepts `blinter --version` output that names the standalone executable or the Python version and package directory
+- `--follow-calls` walks each script's CALL list once, so cycles no longer re-expand until the depth limit
+- E001, E002, E028, E033, E042, E045, and SEC013 no longer flag parenthesized command groups, dynamic `GOTO`/`CALL` parameters, empty `""` arguments, substring and replacement expansions, `PROGRAMFILES(X86)`, piped commands, or quoted variables next to operators
+- A configuration file with a UTF-8 BOM is read, and a file that cannot be parsed or has an invalid boolean or integer names the file and key instead of falling back to defaults
+- Long `IF` lines with many `&&` separators are checked in linear time
 
 ### Changed
 
 - Pinned batch-spec to v0.72.3 (tooling and docs only; grammar and command catalogs unchanged)
+- Package classifiers drop the Windows-only operating system entry and the code-generator topic
+- `uv.lock` is tracked, and CI runs `uv lock --check`
+- The SSOT audit `--check` mode fails when the tracked baseline would change
+- Version lookup uses `pyproject.toml` only for a `src/` checkout named Blinter; otherwise it uses installed package metadata
+- The README install and uninstall one-liners and the MegaLinter pin use v1.1.43
 
 ## [1.1.42] - 2026-10-15
 
@@ -398,6 +410,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 Older 1.0.x releases are available on the [GitHub Releases](https://github.com/BatchLang/Blinter/releases) page.
 
+[1.1.43]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.43
 [1.1.42]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.42
 [1.1.41]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.41
 [1.1.40]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.40

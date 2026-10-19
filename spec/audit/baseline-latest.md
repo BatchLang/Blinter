@@ -4,16 +4,21 @@
 
 _None_
 
-## WARNING (27)
+## WARNING (34)
 
 - **[reference-matrix]** Nested parentheses and block structure: corpus syntax/e001-for-f-in-quoted-valid does not assert any of ['E001']
+- **[reference-matrix]** Nested parentheses and block structure: corpus syntax/e001-operator-group-valid does not assert any of ['E001']
+- **[reference-matrix]** Text after closing parenthesis inside parenthesized blocks: corpus syntax/e042-programfiles-x86-valid does not assert any of ['E042']
+- **[reference-matrix]** GOTO label resolution and unreachable flow: corpus syntax/e002-dynamic-param-valid does not assert any of ['E002', 'W001', 'W019']
 - **[reference-matrix]** IF command format and EXIST/NOT mixing: corpus syntax/e003-if-trailing-assign-valid does not assert any of ['E003', 'E004', 'E036', 'E039', 'W021', 'W056']
 - **[reference-matrix]** Unreachable code after EXIT/GOTO: corpus integration/e008-exit-in-conditional-block-valid does not assert any of ['E008']
+- **[reference-matrix]** Quote and percent expansion syntax: corpus syntax/e028-for-f-empty-find-valid does not assert any of ['E009', 'E011', 'E028']
 - **[reference-matrix]** Percent-tilde (%~) parameter expansion: corpus syntax/e019-set-a-percent-tilde-params-valid does not assert any of ['E017', 'E019', 'E024', 'E025', 'W051']
 - **[reference-matrix]** Percent-tilde (%~) parameter expansion: corpus syntax/e019-for-loop-tilde-z-valid does not assert any of ['E017', 'E019', 'E024', 'E025', 'W051']
 - **[reference-matrix]** Percent-tilde (%~) parameter expansion: corpus syntax/e019-percent-tilde-dp0-adjacent-valid does not assert any of ['E017', 'E019', 'E024', 'E025', 'W051']
 - **[reference-matrix]** Percent-tilde (%~) parameter expansion: corpus syntax/e019-for-metavar-bare-tilde-valid does not assert any of ['E017', 'E019', 'E024', 'E025', 'W051']
 - **[reference-matrix]** Percent-tilde (%~) parameter expansion: corpus syntax/e019-for-metavar-adjacent-literal-valid does not assert any of ['E017', 'E019', 'E024', 'E025', 'W051']
+- **[reference-matrix]** Caret escape, multilevel escaping, and continuation: corpus syntax/e033-expansion-percent-valid does not assert any of ['E030', 'E031', 'E032', 'E033']
 - **[reference-matrix]** SETLOCAL/ENDLOCAL pairing and nesting limit: corpus integration/p006-subroutine-exit-valid does not assert any of ['P005', 'P006', 'P027']
 - **[reference-matrix]** SETLOCAL/ENDLOCAL pairing and nesting limit: corpus integration/p006-main-exit-b-valid does not assert any of ['P005', 'P006', 'P027']
 - **[reference-matrix]** SETLOCAL/ENDLOCAL pairing and nesting limit: corpus integration/p024-conditional-setlocal does not assert any of ['P005', 'P006', 'P027']
@@ -33,6 +38,8 @@ _None_
 - **[reference-matrix]** FOR /F tokenization, delimiters, and CSV: corpus syntax/e038-for-f-tokens-delims-valid does not assert any of ['E037', 'E038', 'W034', 'W035', 'W037', 'W048', 'W063']
 - **[reference-matrix]** FOR /F tokenization, delimiters, and CSV: corpus syntax/for-f-delims-only-valid does not assert any of ['E037', 'E038', 'W034', 'W035', 'W037', 'W048', 'W063']
 - **[reference-matrix]** Security: injection, credentials, and dangerous commands: corpus integration/sec013-installer-redirection-valid does not assert any of ['SEC001', 'SEC002', 'SEC003', 'SEC004', 'SEC005', 'SEC008', 'SEC009', 'SEC010', 'SEC011', 'SEC013', 'SEC014', 'SEC015']
+- **[reference-matrix]** Security: injection, credentials, and dangerous commands: corpus integration/sec013-quoted-operator-valid does not assert any of ['SEC001', 'SEC002', 'SEC003', 'SEC004', 'SEC005', 'SEC008', 'SEC009', 'SEC010', 'SEC011', 'SEC013', 'SEC014', 'SEC015']
+- **[reference-matrix]** cmd.exe ERRORLEVEL 0 tests, IF EXIT typos, double-colon labels inside blocks, ELSE on a new line, invalid internal switches, stream-merge typos, and parse-time percent expansion: corpus syntax/e045-ver-pipe-valid does not assert any of ['E003', 'E036', 'E043', 'E044', 'E045', 'E046', 'E047', 'S016', 'S029', 'S030', 'SEC001', 'SEC014', 'SEC025', 'W017', 'W044', 'W064', 'W065', 'W066', 'W067', 'W068', 'W069', 'W070', 'W071']
 
 ## INFO (3)
 

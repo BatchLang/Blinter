@@ -73,7 +73,7 @@ uvx blinter
 If you prefer a standalone `.exe` over pip or uv, use the one-line installer:
 
 ```cmd
-curl -fL --proto =https https://raw.githubusercontent.com/BatchLang/Blinter/v1.1.42/scripts/install_blinter.cmd -o install_blinter.cmd && (call install_blinter.cmd || cd .) && del install_blinter.cmd
+curl -fL --proto =https https://raw.githubusercontent.com/BatchLang/Blinter/refs/heads/main/scripts/install_blinter.cmd -o install_blinter.cmd && (call install_blinter.cmd || cd .) && del install_blinter.cmd
 ```
 
 This installs the latest `blinter.exe` to `%LOCALAPPDATA%\Programs\Blinter\bin`, adds it to your user `PATH`, and handles updates automatically. Restart your terminal or IDE after installation for `PATH` changes to take effect.
@@ -88,7 +88,7 @@ This installs the latest `blinter.exe` to `%LOCALAPPDATA%\Programs\Blinter\bin`,
 
 **Standalone executable (one-line un-installer):**
 ```cmd
-curl -fL --proto =https https://raw.githubusercontent.com/BatchLang/Blinter/v1.1.42/scripts/uninstall_blinter.cmd -o uninstall_blinter.cmd && (call uninstall_blinter.cmd || cd .) && del uninstall_blinter.cmd
+curl -fL --proto =https https://raw.githubusercontent.com/BatchLang/Blinter/refs/heads/main/scripts/uninstall_blinter.cmd -o uninstall_blinter.cmd && (call uninstall_blinter.cmd || cd .) && del uninstall_blinter.cmd
 ```
 
 **pip installation:**
@@ -190,7 +190,8 @@ pip, uv, and the standalone installer can all put `blinter` on `PATH`. The insta
 - `--summary`: Display summary statistics of issues found
 - `--max-line-length <n>`: Set maximum line length for S011 and S020 rules (default: 100)
 - `--no-recursive`: When processing directories, only analyze files in the specified directory (not subdirectories)
-- `--follow-calls`: Automatically analyze scripts called by CALL statements and merge their variable context. When enabled, variables defined in called scripts (including transitively called scripts within depth and file limits) are recognized as "defined" in the calling script (position-aware: only after the CALL statement). This eliminates false positive undefined variable errors for configuration scripts
+- `--follow-calls`: Automatically analyze scripts called by CALL statements and merge their variable context. When enabled, variables defined in called scripts (including transitively called scripts within depth and file limits) are recognized as "defined" in the calling script (position-aware: only after the CALL statement). This eliminates false positive undefined variable errors for configuration scripts. Each script's CALL list is walked once, including when scripts call each other in a cycle
+- `--fail-on <level>`: Exit 1 when a finding is at or above this severity. Levels, from least to most severe: `style`, `performance`, `warning`, `security`, `error`. `none` never fails because of findings. The default is `security`, so Error and Security findings are fatal. This flag overrides `fail_on` in `blinter.ini`
 - `--config <path>`: Load settings from a custom configuration file instead of `blinter.ini` in the current directory
 - `--no-config`: Don't use configuration file (blinter.ini) even if it exists
 - `--create-config`: Create a default blinter.ini configuration file and exit
@@ -215,6 +216,7 @@ pip, uv, and the standalone installer can all put `blinter` on `PATH`. The insta
 | `[general]` | `max_scan_files` | Maximum batch files to scan in a directory | `1000` |
 | `[general]` | `follow_calls` | Analyze scripts called by CALL statements with shared variable context | `false` |
 | `[general]` | `min_severity` | Minimum severity level to report | None (all) |
+| `[general]` | `fail_on` | Lowest severity that makes the process exit 1 (`style`, `performance`, `warning`, `security`, `error`, or `none`) | `security` |
 | `[rules]` | `enabled_rules` | Comma-separated list of rules to enable exclusively | None (all enabled) |
 | `[rules]` | `disabled_rules` | Comma-separated list of rules to disable | None |
 
@@ -352,6 +354,7 @@ with ThreadPoolExecutor(max_workers=4) as executor:
 | `enabled_rules` | `Set[str]` | empty | If non-empty, only these rule codes run |
 | `disabled_rules` | `Set[str]` | empty | Rule codes to skip |
 | `min_severity` | `RuleSeverity` \| `None` | `None` | Minimum severity to report (via `blinter.ini`; no dedicated CLI flag) |
+| `fail_on` | `RuleSeverity` \| `None` | `RuleSeverity.SECURITY` | Lowest severity that makes the CLI exit 1. `None` (`fail_on = none`) reports findings without failing |
 
 ### Supported File Types
 - `.bat` files (traditional batch files)
@@ -413,11 +416,11 @@ The `blinter` CLI exit codes:
 
 | Code | Meaning |
 |------|---------|
-| **0** | Success: no Error or Security findings, and every discovered primary file was processed |
-| **1** | Lint failure: any **Error** or **Security** finding, CLI/path errors, no processable files, any skipped primary target files, or all discovered files failed to read |
+| **0** | Success: no findings at or above the failure threshold, and every discovered primary file was processed |
+| **1** | Lint failure: any finding at or above the failure threshold, CLI/path errors, no processable files, any skipped primary target files, or all discovered files failed to read |
 | **2** | Unexpected internal error |
 
-Warnings and style issues alone do not fail the run when exit code would otherwise be 0.
+The default threshold is Security, so Error and Security findings are fatal and Warning, Performance, and Style findings are not. `--fail-on` or `fail_on` in `blinter.ini` changes that threshold. `none` never fails because of findings.
 
 **Special thanks go out to [BrainWaveCC](https://github.com/BrainWaveCC) for all the help bug hunting.**
 

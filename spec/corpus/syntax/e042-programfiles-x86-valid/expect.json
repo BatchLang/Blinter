@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "PROGRAMFILES(X86) is a variable name, not a block (E042 negative)",
+  "lines": {},
+  "must_not": [
+    "E042"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}
