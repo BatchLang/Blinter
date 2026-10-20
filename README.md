@@ -54,12 +54,12 @@
 
 **Option 1: Install via pip**
 ```cmd
-pip install blinter
+pip install Blinter
 ```
 
 **Option 2: Install via uv**
 ```cmd
-uv tool install blinter
+uv tool install Blinter
 ```
 
 Run without installing:
@@ -93,12 +93,12 @@ curl -fL --proto =https https://raw.githubusercontent.com/BatchLang/Blinter/refs
 
 **pip installation:**
 ```cmd
-pip uninstall blinter
+pip uninstall Blinter
 ```
 
 **uv installation:**
 ```cmd
-uv tool uninstall blinter
+uv tool uninstall Blinter
 ```
 
 ### Prerequisites
