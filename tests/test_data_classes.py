@@ -8,6 +8,7 @@ from blinter import (
     Rule,
     RuleSeverity,
 )
+from blinter.constants import MAX_LINE_LENGTH
 
 
 class TestRuleValidation:
@@ -267,7 +268,6 @@ class TestBlinterConfigValidation:
 
     def test_max_line_length_over_limit_rejected(self) -> None:
         """max_line_length above MAX_LINE_LENGTH must be rejected."""
-        from blinter.constants import MAX_LINE_LENGTH
 
         with pytest.raises(ValueError, match="max_line_length must be between"):
             BlinterConfig(max_line_length=MAX_LINE_LENGTH + 1)

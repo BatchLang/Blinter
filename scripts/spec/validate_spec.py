@@ -11,11 +11,11 @@ import sys
 import jsonschema
 import yaml
 
-_SCRIPTS_DIR = Path(__file__).resolve().parent
-if str(_SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(_SCRIPTS_DIR))
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
-from _paths import (  # noqa: E402
+from scripts.spec._paths import (  # noqa: E402  # pylint: disable=wrong-import-position
     BATCH_SPEC_DIR,
     BATCH_SPEC_SCHEMA_DIR,
     COMMANDS_LANGUAGE_YAML,
@@ -96,6 +96,7 @@ def _ensure_batch_spec_present() -> None:
 
 
 def main() -> None:
+    """Validate spec YAML files against their JSON schemas."""
     parser = argparse.ArgumentParser(description="Validate spec YAML against schemas")
     parser.parse_args()
     _ensure_batch_spec_present()

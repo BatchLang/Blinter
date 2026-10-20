@@ -59,7 +59,7 @@ py scripts/verify.py --fix
 - Run `py -m pytest` locally; CI runs the suite on Ubuntu, macOS, and Windows across Python 3.11–3.15.
 - Optional corpus regression tests require a local `batch-script-examples/` directory (see `README.md`).
 
-CI also runs static analysis, formatting checks, and `pip-audit` on every push and pull request to `main` (see `.github/workflows/CI.yml`).
+CI runs the same gate with `python scripts/verify.py --skip-pytest` on Ubuntu, and `python scripts/verify.py --windows-only` on Windows. pytest itself runs in a separate OS and Python matrix job (see `.github/workflows/CI.yml`). `--skip-pytest` skips only pytest. `--windows-only` runs the cmd.exe oracle, PSScriptAnalyzer, Pester, and the install-script lint.
 
 ## Rule and Spec Changes
 

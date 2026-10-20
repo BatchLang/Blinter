@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from blinter.models import BlinterConfig
+from blinter.models import BlinterConfig, LintIssue
 from blinter.rules.registry import RULES
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -92,11 +92,9 @@ def discover_spec_corpus_cases() -> list[SpecCorpusCase]:
     return cases
 
 
-def assert_issues_match(issues: list[object], expect: dict[str, Any]) -> None:
+def assert_issues_match(issues: list[LintIssue], expect: dict[str, Any]) -> None:
     """Assert lint issues match expect.json oracle fields."""
-    from blinter.models import LintIssue
-
-    typed_issues = [issue for issue in issues if isinstance(issue, LintIssue)]
+    typed_issues = list(issues)
     codes = {issue.rule.code for issue in typed_issues}
     by_line: dict[int, set[str]] = {}
     for issue in typed_issues:

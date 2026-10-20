@@ -11,18 +11,21 @@ import sys
 from typing import TypedDict, cast
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
-_SCRIPTS_DIR = Path(__file__).resolve().parent
 _CORPUS_DIR = _REPO_ROOT / "batch-script-examples"
 _DEFAULT_REPORT = _REPO_ROOT / "batch-examples-corpus-summary.json"
 _DEFAULT_BASELINE = _REPO_ROOT / "tests" / "fixtures" / "corpus-baseline.json"
 
-if str(_SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(_SCRIPTS_DIR))
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 if str(_REPO_ROOT / "src") not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT / "src"))
 
-from blinter import lint_batch_file  # pylint: disable=wrong-import-position
-from corpus_baseline import check_baseline  # pylint: disable=wrong-import-position
+from blinter import (  # noqa: E402  # pylint: disable=wrong-import-position
+    lint_batch_file,
+)
+from scripts.corpus_baseline import (  # noqa: E402  # pylint: disable=wrong-import-position
+    check_baseline,
+)
 
 
 class CorpusReport(TypedDict):

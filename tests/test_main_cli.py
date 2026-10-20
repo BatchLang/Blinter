@@ -10,7 +10,7 @@ import subprocess
 import sys
 import tempfile
 from types import TracebackType
-from typing import TYPE_CHECKING, Dict, List, Optional, Protocol, Set, TextIO
+from typing import TYPE_CHECKING, List, Optional, Protocol, TextIO
 from unittest.mock import patch
 
 import pytest
@@ -19,6 +19,7 @@ from blinter.cli.args import _parse_cli_arguments, _parse_regular_arguments
 from blinter.cli.main import (
     _apply_cli_config_overrides,
     _configure_cli_logging,
+    _configure_stdio_utf8,
     _process_called_scripts,
     _process_single_called_script,
     main as cli_main,
@@ -31,8 +32,9 @@ from blinter import (
 )
 from blinter.models import BlinterConfig, CliArguments, LintIssue, ProcessingState
 from tests.conftest import get_project_version
+from tests.corpus_support import CORPUS_DIR, CORPUS_SKIP_REASON, corpus_available
 
-# pylint: disable=too-many-lines,redefined-outer-name,reimported
+# pylint: disable=too-many-lines,redefined-outer-name,reimported,too-few-public-methods
 
 
 if TYPE_CHECKING:
@@ -355,10 +357,9 @@ echo %var%
                 side_effect=OSError("Could not read file"),
             ):
                 with patch("sys.argv", ["blinter.py", temp_file]):
-                    with self.capture_stdout() as captured:
+                    with self.capture_stdout():
                         with pytest.raises(SystemExit) as exit_info:
                             main()
-                        output = captured.getvalue()
 
                     assert exit_info.value.code == 1
         finally:
@@ -1480,7 +1481,7 @@ class TestMainFunctionEdgeCases:
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".bat", delete=False
         ) as temp_file:
-            temp_file.write("@echo off\n" "goto :missing_label\n")
+            temp_file.write("@echo off\ngoto :missing_label\n")
             temp_path = temp_file.name
 
         try:
@@ -1848,7 +1849,6 @@ class TestCliLogging:  # pylint: disable=too-few-public-methods
 
     def test_configure_cli_logging_removes_closed_handler(self) -> None:
         """Closed CLI stream handlers are replaced with a fresh stderr handler."""
-        import io
 
         blinter_logger = logging.getLogger("blinter")
         blinter_logger.handlers.clear()
@@ -2394,7 +2394,7 @@ class TestCliSkippedFilesExitCodes:  # pylint: disable=too-few-public-methods
                 file_handle.write("@ECHO OFF\n")
 
             def lint_side_effect(
-                file_path: str, *args: object, **kwargs: object
+                file_path: str, *_args: object, **_kwargs: object
             ) -> list[object]:
                 if file_path.endswith("bad.bat"):
                     raise PermissionError("Access denied")
@@ -2459,7 +2459,6 @@ class TestCliStdioAndModuleEntry:
 
     def test_configure_stdio_utf8_handles_missing_reconfigure(self) -> None:
         """Streams without reconfigure() are skipped without error."""
-        from blinter.cli.main import _configure_stdio_utf8
 
         class _LegacyStream:
             """Stream stub lacking reconfigure()."""
@@ -2472,12 +2471,12 @@ class TestCliStdioAndModuleEntry:
 
     def test_configure_stdio_utf8_handles_oserror(self) -> None:
         """OSError during reconfigure is swallowed."""
-        from blinter.cli.main import _configure_stdio_utf8
 
         class _FailingStream:
             """Stream stub whose reconfigure() raises OSError."""
 
             def reconfigure(self, **_kwargs: object) -> None:
+                """Raise OSError the way a broken stream reconfigure() does."""
                 raise OSError("not supported")
 
         with patch("blinter.cli.main.sys.stdout", _FailingStream()):
@@ -2497,7 +2496,7 @@ class TestCliStdioAndModuleEntry:
                 file_handle.write("@ECHO OFF\n")
 
             def lint_side_effect(
-                file_path: str, *args: object, **kwargs: object
+                file_path: str, *_args: object, **_kwargs: object
             ) -> list[object]:
                 if file_path.endswith("bad.bat"):
                     raise PermissionError("Access denied")
@@ -2525,7 +2524,7 @@ class TestCliStdioAndModuleEntry:
                 file_handle.write("@ECHO OFF\n")
 
             def lint_side_effect(
-                file_path: str, *args: object, **kwargs: object
+                file_path: str, *_args: object, **_kwargs: object
             ) -> list[object]:
                 raise PermissionError("Access denied")
 
@@ -2542,11 +2541,8 @@ class TestCliStdioAndModuleEntry:
 
     def test_python_m_blinter_module_entry(self) -> None:
         """python -m blinter runs the CLI entry point."""
-        import subprocess
-        import sys as sys_module
-
         result = subprocess.run(
-            [sys_module.executable, "-m", "blinter", "--help"],
+            [sys.executable, "-m", "blinter", "--help"],
             capture_output=True,
             text=True,
             check=False,
@@ -2554,9 +2550,6 @@ class TestCliStdioAndModuleEntry:
         )
         assert result.returncode == 0
         assert "Blinter" in result.stdout or "usage" in result.stdout.lower()
-
-
-from tests.corpus_support import CORPUS_DIR, CORPUS_SKIP_REASON, corpus_available
 
 
 @pytest.mark.needs_corpus

@@ -4,18 +4,24 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
 import difflib
+from enum import Enum
+import logging
 import os
 from pathlib import Path
 import platform
+import shutil
 import subprocess
 import sys
+import time
 import tomllib
-from typing import Sequence, cast
+from typing import Sequence, assert_never, cast
 
 # Portable directory names (no platform-specific separators).
-_CHECK_DIRS: tuple[str, ...] = ("src", "tests", "scripts")
-_VERIFY_SCRIPT = Path("scripts") / "verify.py"
+_CHECK_DIRS: tuple[str, ...] = ("src", "scripts", "tests")
+_SECURITY_DIRS: tuple[str, ...] = ("src", "scripts")
+_LOG = logging.getLogger("scripts.verify")
 _SPEC_VALIDATE = Path("scripts") / "spec" / "validate_spec.py"
 _SPEC_VALIDATE_CORPUS = Path("scripts") / "spec" / "validate_corpus.py"
 _SPEC_GENERATE_RULES = Path("scripts") / "spec" / "generate_rules.py"
@@ -26,8 +32,9 @@ _SPEC_AUDIT = Path("scripts") / "spec" / "audit_ssot.py"
 _SPEC_CMD_ORACLE = Path("scripts") / "spec" / "cmd_oracle.py"
 _CORPUS_LINT_SCRIPT = Path("scripts") / "corpus_lint.py"
 _CORPUS_DIR = Path("batch-script-examples")
-_PACKAGE_DIR = Path("src") / "blinter"
 _PYPROJECT = "pyproject.toml"
+_BENCHMARK_SCRIPT = Path("scripts") / "benchmark_lint.py"
+_CORPUS_BASELINE = Path("tests") / "fixtures" / "corpus-baseline.json"
 _PYLINT_OUTPUT = "pylint-output.txt"
 _POWERSHELL_SCRIPT = Path("scripts") / "test_exe_smoke.ps1"
 _POWERSHELL_HELPERS = Path("scripts") / "TestExeSmoke.Helpers.ps1"
@@ -38,9 +45,40 @@ _PESTER_TESTS = (
 )
 _INSTALLER_PS_DIR = Path("scripts") / "installer_ps"
 _BLINTER_SCRIPTS_INI = Path("scripts") / "blinter.ini"
-_INSTALL_SCRIPT = Path("scripts") / "install_blinter.cmd"
-_UNINSTALL_SCRIPT = Path("scripts") / "uninstall_blinter.cmd"
 _INSTALL_SCRIPT_TEST = Path("scripts") / "test_install_scripts.ps1"
+
+
+class StepKind(Enum):
+    """How a verification step is executed."""
+
+    COMMAND = "command"
+    PYPROJECT_FMT = "pyproject_fmt"
+    PYLINT = "pylint"
+    POWERSHELL = "powershell"
+
+
+@dataclass(frozen=True)
+class Step:
+    """One quality-check command."""
+
+    name: str
+    command: tuple[str, ...] = ()
+    windows_only: bool = False
+    kind: StepKind = StepKind.COMMAND
+    fix: bool = False
+
+
+@dataclass(frozen=True)
+class StepRequest:
+    """Inputs that choose which verification steps run."""
+
+    root: Path
+    fix: bool = False
+    skip_pytest: bool = False
+    windows_only: bool = False
+    is_windows: bool = False
+    corpus_present: bool = False
+    uv_executable: str = ""
 
 
 def _repo_root() -> Path:
@@ -52,23 +90,27 @@ def _python_m(module: str, *module_args: str) -> list[str]:
     return [sys.executable, "-m", module, *module_args]
 
 
-def _run_step(name: str, args: Sequence[str], *, cwd: Path | None = None) -> None:
-    """Run a subprocess step; raise SystemExit on non-zero exit code."""
-    print(f"==> {name}")
-    result = subprocess.run(
-        list(args),
-        cwd=cwd if cwd is not None else _repo_root(),
-        check=False,
-    )
-    if result.returncode != 0:
-        raise SystemExit(f"Step failed: {name} (exit code {result.returncode})")
+def _configure_logging() -> None:
+    """Attach one stderr handler when the process has not configured logging."""
+    if _LOG.handlers:
+        return
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter("%(levelname)s %(name)s %(message)s"))
+    _LOG.addHandler(handler)
+    _LOG.setLevel(logging.INFO)
+    _LOG.propagate = False
 
 
-def _run_pylint_package(*, cwd: Path, package_dir: str, report_path: Path) -> None:
-    """Run pylint on the package and write UTF-8 output (avoids Windows UTF-16)."""
-    print("==> pylint (package)")
+def _command_exit(args: Sequence[str], cwd: Path) -> int:
+    """Run a command and return its exit code."""
+    result = subprocess.run(list(args), cwd=cwd, check=False)
+    return result.returncode
+
+
+def _run_pylint(cwd: Path) -> int:
+    """Run pylint on the check directories and write a UTF-8 report."""
     result = subprocess.run(
-        _python_m("pylint", package_dir),
+        _python_m("pylint", *_CHECK_DIRS),
         cwd=cwd,
         check=False,
         capture_output=True,
@@ -76,11 +118,17 @@ def _run_pylint_package(*, cwd: Path, package_dir: str, report_path: Path) -> No
         encoding="utf-8",
         errors="replace",
     )
+    report_path = cwd / _PYLINT_OUTPUT
     report_path.write_text(result.stdout + result.stderr, encoding="utf-8")
-    if result.returncode != 0:
-        raise SystemExit(
-            f"Step failed: pylint (package) (exit code {result.returncode})"
+    if result.stdout:
+        print(result.stdout, end="" if result.stdout.endswith("\n") else "\n")
+    if result.stderr:
+        print(
+            result.stderr,
+            end="" if result.stderr.endswith("\n") else "\n",
+            file=sys.stderr,
         )
+    return result.returncode
 
 
 def _autopep8_args(*, fix: bool) -> list[str]:
@@ -142,7 +190,6 @@ def _run_pyproject_fmt(*, fix: bool, cwd: Path) -> None:
     original = pyproject_path.read_text(encoding="utf-8")
     project_name = _parse_project_name(original)
 
-    print("==> pyproject-fmt")
     if fix:
         subprocess.run(
             _python_m("pyproject_fmt", _PYPROJECT),
@@ -215,9 +262,8 @@ def _windows_powershell_env() -> dict[str, str]:
     return env
 
 
-def _run_powershell_step(name: str, command: str, *, cwd: Path | None = None) -> None:
-    """Run a PowerShell command on Windows."""
-    print(f"==> {name}")
+def _powershell_exit(command: str, cwd: Path) -> int:
+    """Run a PowerShell command and return its exit code."""
     result = subprocess.run(
         [
             _powershell_executable(),
@@ -227,12 +273,11 @@ def _run_powershell_step(name: str, command: str, *, cwd: Path | None = None) ->
             "-Command",
             command,
         ],
-        cwd=cwd if cwd is not None else _repo_root(),
+        cwd=cwd,
         env=_windows_powershell_env(),
         check=False,
     )
-    if result.returncode != 0:
-        raise SystemExit(f"Step failed: {name} (exit code {result.returncode})")
+    return result.returncode
 
 
 def _powershell_path(path: Path) -> str:
@@ -240,16 +285,15 @@ def _powershell_path(path: Path) -> str:
     return str(path.resolve()).replace("'", "''")
 
 
-def _ensure_powershell_modules(root: Path) -> None:
-    """Install PSScriptAnalyzer and Pester when missing."""
-    ensure_modules = (
+def _powershell_module_command() -> str:
+    """Return the command that installs PSScriptAnalyzer and Pester when missing."""
+    return (
         "$ErrorActionPreference = 'Stop'; "
         "foreach ($moduleName in @('PSScriptAnalyzer', 'Pester')) { "
         "if (-not (Get-Module -ListAvailable -Name $moduleName)) { "
         "Install-Module -Name $moduleName -Force -Scope CurrentUser -AllowClobber "
         "-Repository PSGallery } }"
     )
-    _run_powershell_step("PowerShell module prerequisites", ensure_modules, cwd=root)
 
 
 def _psscriptanalyzer_paths(root: Path) -> list[Path]:
@@ -266,161 +310,237 @@ def _psscriptanalyzer_paths(root: Path) -> list[Path]:
     return paths
 
 
-def _run_psscriptanalyzer(root: Path) -> None:
-    """Run PSScriptAnalyzer on smoke and installer PowerShell scripts."""
+def _psscriptanalyzer_command(root: Path) -> str:
+    """Return the PSScriptAnalyzer command for smoke and installer scripts."""
     analyzer_settings = _powershell_path(root / _POWERSHELL_ANALYZER_SETTINGS)
     analyze_paths = [_powershell_path(path) for path in _psscriptanalyzer_paths(root)]
     joined_paths = ", ".join(f"'{path}'" for path in analyze_paths)
-    analyzer_command = (
+    return (
         "$issues = @(); "
         f"foreach ($path in @({joined_paths})) {{ "
         f"$issues += Invoke-ScriptAnalyzer -Path $path -Settings '{analyzer_settings}' "
         "-Severity Warning }; "
         "if ($issues) { $issues | Format-Table -AutoSize; exit 1 }"
     )
-    _run_powershell_step(
-        "PSScriptAnalyzer (PowerShell scripts)", analyzer_command, cwd=root
-    )
 
 
-def _run_pester_tests(root: Path) -> None:
-    """Run all repository Pester test files."""
+def _pester_command(root: Path) -> str:
+    """Return the Pester command for repository PowerShell tests."""
     pester_paths = [_powershell_path(root / test_path) for test_path in _PESTER_TESTS]
     joined_paths = ", ".join(f"'{path}'" for path in pester_paths)
-    pester_command = (
+    return (
         "Import-Module Pester -MinimumVersion 5.0 -ErrorAction Stop; "
         f"Invoke-Pester -Path @({joined_paths}) -CI"
     )
-    _run_powershell_step("Pester (PowerShell tests)", pester_command, cwd=root)
 
 
-def _run_blinter_install_scripts(root: Path) -> None:
-    """Lint install/uninstall batch scripts with the scripts blinter.ini profile."""
-    config_path = root / _BLINTER_SCRIPTS_INI
-    scripts_dir = root / "scripts"
-    _run_step(
-        "blinter (install/uninstall scripts)",
-        [
-            sys.executable,
-            "-m",
-            "blinter",
-            str(scripts_dir),
-            "--no-recursive",
-            "--config",
-            str(config_path),
-        ],
-        cwd=root,
+def _blinter_install_command(root: Path) -> tuple[str, ...]:
+    """Return the blinter command for the install and uninstall scripts."""
+    return (
+        sys.executable,
+        "-m",
+        "blinter",
+        str(root / "scripts"),
+        "--no-recursive",
+        "--config",
+        str(root / _BLINTER_SCRIPTS_INI),
     )
 
 
-def _run_windows_powershell_checks(root: Path) -> None:
-    """Run PSScriptAnalyzer, Pester, and install-script lint checks."""
-    _ensure_powershell_modules(root)
-    _run_psscriptanalyzer(root)
-    _run_pester_tests(root)
-    _run_blinter_install_scripts(root)
+def _script_command(script: Path, *script_args: str) -> tuple[str, ...]:
+    """Return a ``python path/to/script.py`` command."""
+    return (sys.executable, str(script), *script_args)
 
 
-def _run_python_checks(root: Path, *, fix: bool) -> None:
-    """Run Python formatting, linting, security, and pytest checks."""
-    pylint_report = root / _PYLINT_OUTPUT
-    verify_script = str(_VERIFY_SCRIPT)
-    corpus_lint_script = str(_CORPUS_LINT_SCRIPT)
-    package_dir = str(_PACKAGE_DIR)
+def _quality_steps(*, fix: bool, uv_executable: str) -> tuple[Step, ...]:
+    """Return the platform-neutral quality checks, in run order."""
+    return (
+        Step("validate spec schemas", _script_command(_SPEC_VALIDATE)),
+        Step("validate SSOT corpus", _script_command(_SPEC_VALIDATE_CORPUS)),
+        Step(
+            "cmd.exe corpus oracle",
+            _script_command(_SPEC_CMD_ORACLE),
+            windows_only=True,
+        ),
+        Step(
+            "check generated registry.py",
+            _script_command(_SPEC_GENERATE_RULES, "--check"),
+        ),
+        Step(
+            "check generated expansion_data.py",
+            _script_command(_SPEC_GENERATE_EXPANSION, "--check"),
+        ),
+        Step(
+            "check generated patterns.py",
+            _script_command(_SPEC_GENERATE_COMMANDS, "--check"),
+        ),
+        Step(
+            "check generated docs catalog",
+            _script_command(_SPEC_GENERATE_DOCS, "--check"),
+        ),
+        Step(
+            "SSOT audit (strict)",
+            _script_command(_SPEC_AUDIT, "--strict", "--check"),
+        ),
+        Step("uv lock", (uv_executable, "lock", "--check")),
+        Step("autopep8 (trailing whitespace)", tuple(_autopep8_args(fix=fix))),
+        Step("isort", tuple(_isort_args(fix=fix))),
+        Step("pyproject-fmt", kind=StepKind.PYPROJECT_FMT, fix=fix),
+        Step("black", tuple(_python_m("black", "--check", *_CHECK_DIRS))),
+        Step("mypy", tuple(_python_m("mypy"))),
+        Step("pylint", kind=StepKind.PYLINT),
+        Step(
+            "bandit",
+            tuple(
+                _python_m(
+                    "bandit",
+                    "-r",
+                    *_SECURITY_DIRS,
+                    "-c",
+                    _PYPROJECT,
+                    "-ll",
+                    "-q",
+                )
+            ),
+        ),
+        Step(
+            "pip-audit",
+            tuple(
+                _python_m(
+                    "pip_audit",
+                    "-r",
+                    "requirements.txt",
+                    "-r",
+                    "requirements-dev.txt",
+                )
+            ),
+        ),
+        Step(
+            "benchmark baseline",
+            _script_command(_BENCHMARK_SCRIPT, "--runs", "3", "--check-baseline"),
+        ),
+    )
 
-    subprocess_steps_before_pylint: list[tuple[str, list[str]]] = [
-        ("validate spec schemas", [sys.executable, str(_SPEC_VALIDATE)]),
-        ("validate SSOT corpus", [sys.executable, str(_SPEC_VALIDATE_CORPUS)]),
+
+def _windows_steps(root: Path) -> tuple[Step, ...]:
+    """Return cmd.exe, PowerShell, and install-script checks."""
+    return (
+        Step(
+            "cmd.exe corpus oracle",
+            _script_command(_SPEC_CMD_ORACLE),
+            windows_only=True,
+        ),
+        Step(
+            "PowerShell module prerequisites",
+            (_powershell_module_command(),),
+            windows_only=True,
+            kind=StepKind.POWERSHELL,
+        ),
+        Step(
+            "PSScriptAnalyzer (PowerShell scripts)",
+            (_psscriptanalyzer_command(root),),
+            windows_only=True,
+            kind=StepKind.POWERSHELL,
+        ),
+        Step(
+            "Pester (PowerShell tests)",
+            (_pester_command(root),),
+            windows_only=True,
+            kind=StepKind.POWERSHELL,
+        ),
+        Step(
+            "blinter (install/uninstall scripts)",
+            _blinter_install_command(root),
+            windows_only=True,
+        ),
+    )
+
+
+def _corpus_present(root: Path) -> bool:
+    """Return whether the optional corpus and its baseline snapshot exist."""
+    return (root / _CORPUS_DIR).is_dir() and (root / _CORPUS_BASELINE).is_file()
+
+
+def _require_uv() -> str:
+    """Return the uv executable, or exit when it is not on PATH."""
+    uv_executable = shutil.which("uv")
+    if uv_executable is None:
+        raise SystemExit(
+            "uv is required for `uv lock --check` but was not found on PATH"
+        )
+    return uv_executable
+
+
+def select_steps(request: StepRequest) -> tuple[Step, ...]:
+    """Choose verification steps for the requested flags and platform."""
+    if request.windows_only:
+        if not request.is_windows:
+            raise SystemExit("Windows checks require Windows.")
+        return _windows_steps(request.root)
+
+    selected = [
+        step
+        for step in _quality_steps(fix=request.fix, uv_executable=request.uv_executable)
+        if request.is_windows or not step.windows_only
     ]
-
-    if _is_windows():
-        subprocess_steps_before_pylint.append(
-            (
-                "cmd.exe corpus oracle",
-                [sys.executable, str(_SPEC_CMD_ORACLE)],
+    if request.corpus_present:
+        selected.append(
+            Step(
+                "corpus baseline check",
+                _script_command(_CORPUS_LINT_SCRIPT, "--check-baseline"),
             )
         )
+    if not request.skip_pytest:
+        selected.append(Step("pytest", tuple(_python_m("pytest"))))
+    if request.is_windows:
+        selected.extend(
+            step
+            for step in _windows_steps(request.root)
+            if step.name != "cmd.exe corpus oracle"
+        )
+    return tuple(selected)
 
-    subprocess_steps_before_pylint.extend(
-        [
-            (
-                "check generated registry.py",
-                [sys.executable, str(_SPEC_GENERATE_RULES), "--check"],
-            ),
-            (
-                "check generated expansion_data.py",
-                [sys.executable, str(_SPEC_GENERATE_EXPANSION), "--check"],
-            ),
-            (
-                "check generated patterns.py",
-                [sys.executable, str(_SPEC_GENERATE_COMMANDS), "--check"],
-            ),
-            (
-                "check generated docs catalog",
-                [sys.executable, str(_SPEC_GENERATE_DOCS), "--check"],
-            ),
-            (
-                "SSOT audit (strict)",
-                [sys.executable, str(_SPEC_AUDIT), "--strict", "--check"],
-            ),
-        ]
+
+def _execute_step(step: Step, root: Path) -> None:
+    """Run one step and log its command, duration, and exit code."""
+    print(f"==> {step.name}")
+    started = time.perf_counter()
+    exit_code = 0
+    try:
+        match step.kind:
+            case StepKind.PYPROJECT_FMT:
+                _run_pyproject_fmt(fix=step.fix, cwd=root)
+            case StepKind.PYLINT:
+                exit_code = _run_pylint(root)
+            case StepKind.POWERSHELL:
+                exit_code = _powershell_exit(step.command[0], root)
+            case StepKind.COMMAND:
+                exit_code = _command_exit(step.command, root)
+            case _ as unreachable:
+                assert_never(unreachable)
+    except SystemExit:
+        elapsed = time.perf_counter() - started
+        _LOG.error(
+            "step=%s exit=1 seconds=%.2f command=%s",
+            step.name,
+            elapsed,
+            step.command,
+        )
+        raise
+    elapsed = time.perf_counter() - started
+    _LOG.info(
+        "step=%s exit=%s seconds=%.2f command=%s",
+        step.name,
+        exit_code,
+        elapsed,
+        step.command,
     )
-
-    subprocess_steps_before_pylint.extend(
-        [
-            ("autopep8 (trailing whitespace)", _autopep8_args(fix=fix)),
-            ("isort", _isort_args(fix=fix)),
-            ("pyproject-fmt", []),
-            ("black", _python_m("black", "--check", *_CHECK_DIRS)),
-            (
-                "mypy",
-                _python_m(
-                    "mypy",
-                    package_dir,
-                    "tests",
-                    verify_script,
-                    corpus_lint_script,
-                    str(Path("scripts") / "corpus_baseline.py"),
-                    str(Path("scripts") / "generate_corpus_baseline.py"),
-                    str(Path("scripts") / "benchmark_lint.py"),
-                ),
-            ),
-            (
-                "mypy (build_exe)",
-                _python_m("mypy", str(Path("scripts") / "build_exe.py")),
-            ),
-        ]
-    )
-
-    subprocess_steps_after_pylint: list[tuple[str, list[str]]] = [
-        ("pylint (verify)", _python_m("pylint", verify_script)),
-        (
-            "bandit",
-            _python_m("bandit", "-r", package_dir, "-c", _PYPROJECT, "-ll", "-q"),
-        ),
-        (
-            "pip-audit",
-            _python_m(
-                "pip_audit", "-r", "requirements.txt", "-r", "requirements-dev.txt"
-            ),
-        ),
-        ("pytest", _python_m("pytest")),
-    ]
-
-    for name, step_args in subprocess_steps_before_pylint:
-        if name == "pyproject-fmt":
-            _run_pyproject_fmt(fix=fix, cwd=root)
-        else:
-            _run_step(name, step_args, cwd=root)
-
-    _run_pylint_package(cwd=root, package_dir=package_dir, report_path=pylint_report)
-
-    for name, step_args in subprocess_steps_after_pylint:
-        _run_step(name, step_args, cwd=root)
+    if exit_code != 0:
+        raise SystemExit(f"Step failed: {step.name} (exit code {exit_code})")
 
 
-def main() -> None:
-    """Execute formatting, linting, security, and test checks."""
+def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
+    """Parse verify.py command-line arguments."""
     parser = argparse.ArgumentParser(description="Run Blinter quality checks.")
     parser.add_argument(
         "--fix",
@@ -428,43 +548,43 @@ def main() -> None:
         help="Apply autopep8, isort, and pyproject-fmt fixes before running checks",
     )
     parser.add_argument(
-        "--powershell-only",
+        "--skip-pytest",
+        action="store_true",
+        help="Skip pytest. CI runs the suite in a separate matrix job.",
+    )
+    parser.add_argument(
+        "--windows-only",
         action="store_true",
         help=(
-            "Run only Windows PowerShell checks (PSScriptAnalyzer, Pester, "
-            "and blinter install/uninstall lint)"
+            "Run only Windows checks: cmd.exe oracle, PSScriptAnalyzer, Pester, "
+            "and blinter install/uninstall lint"
         ),
     )
-    args = parser.parse_args()
+    return parser.parse_args(argv)
+
+
+def main(argv: Sequence[str] | None = None) -> None:
+    """Execute formatting, linting, security, and test checks."""
+    _configure_logging()
+    args = _parse_args(argv)
     fix = cast(bool, args.fix)
-    powershell_only = cast(bool, args.powershell_only)
-
+    skip_pytest = cast(bool, args.skip_pytest)
+    windows_only = cast(bool, args.windows_only)
     root = _repo_root()
-    corpus_lint_script = str(_CORPUS_LINT_SCRIPT)
-
-    if powershell_only:
-        if not _is_windows():
-            raise SystemExit("PowerShell checks require Windows.")
-        _run_windows_powershell_checks(root)
-        print("All PowerShell verification steps passed.")
-        return
-
-    _run_python_checks(root, fix=fix)
-
-    if _is_windows():
-        _run_windows_powershell_checks(root)
-    else:
-        print("Skipping PowerShell checks (Windows only).")
-
-    corpus_dir = root / _CORPUS_DIR
-    baseline_path = root / "tests" / "fixtures" / "corpus-baseline.json"
-    if corpus_dir.is_dir() and baseline_path.is_file():
-        _run_step(
-            "corpus baseline check",
-            [sys.executable, corpus_lint_script, "--check-baseline"],
-            cwd=root,
+    uv_executable = "" if windows_only else _require_uv()
+    steps = select_steps(
+        StepRequest(
+            root=root,
+            fix=fix,
+            skip_pytest=skip_pytest,
+            windows_only=windows_only,
+            is_windows=_is_windows(),
+            corpus_present=_corpus_present(root),
+            uv_executable=uv_executable,
         )
-
+    )
+    for step in steps:
+        _execute_step(step, root)
     print("All verification steps passed.")
 
 

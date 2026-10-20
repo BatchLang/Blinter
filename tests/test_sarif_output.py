@@ -308,7 +308,7 @@ class TestSarifOutputCli:
             Path(bad_bat).write_text("@echo off\n", encoding="utf-8")
 
             def lint_side_effect(
-                file_path: str, *args: object, **kwargs: object
+                file_path: str, *_args: object, **_kwargs: object
             ) -> list[object]:
                 if file_path.endswith("bad.bat"):
                     raise PermissionError("Access denied")

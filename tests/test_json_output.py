@@ -18,6 +18,7 @@ from blinter.models import BlinterConfig, LintIssue, ProcessingResults, RuleSeve
 from blinter.output.formatters import (
     compute_most_common_rule,
     compute_severity_counts,
+    print_help,
 )
 from blinter.output.json_formatter import build_report, print_report, write_report
 from blinter.rules.registry import RULES
@@ -324,7 +325,7 @@ class TestJsonOutputCli:
             Path(bad_bat).write_text("@echo off\n", encoding="utf-8")
 
             def lint_side_effect(
-                file_path: str, *args: object, **kwargs: object
+                file_path: str, *_args: object, **_kwargs: object
             ) -> list[object]:
                 if file_path.endswith("bad.bat"):
                     raise PermissionError("Access denied")
@@ -406,7 +407,6 @@ class TestJsonFormatterHelpers:
 
     def test_help_documents_json_flags(self) -> None:
         """Help text should document JSON output options."""
-        from blinter.output.formatters import print_help
 
         old_stdout = sys.stdout
         sys.stdout = captured = io.StringIO()

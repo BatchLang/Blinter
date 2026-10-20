@@ -1,5 +1,12 @@
 [MAIN]
 jobs = 0
+# Text template spliced into src/blinter/patterns.py; not an importable module.
+# ignore-paths is matched from the start of the absolute path.
+ignore-paths = .*patterns_static_fragment.py
+
+[BASIC]
+# Pytest tests are named for the behavior they check.
+no-docstring-rgx = ^(_|test)
 
 [MESSAGES CONTROL]
 # disable replaces pylint's list rather than appending; keep 4.0 defaults plus

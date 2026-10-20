@@ -1,6 +1,7 @@
 """Tests for the main batch file linting functionality."""
 
 import os
+from pathlib import Path
 import re
 import tempfile
 
@@ -923,12 +924,11 @@ echo Done
 
     def test_all_rules_are_emittable(self) -> None:
         """Every registered rule must be referenced by checker code."""
-        from pathlib import Path
 
         src_root = Path(__file__).resolve().parent.parent / "src" / "blinter"
         referenced: set[str] = set()
 
-        for pattern, rule_code in DANGEROUS_COMMAND_PATTERNS:
+        for _pattern, rule_code in DANGEROUS_COMMAND_PATTERNS:
             referenced.add(rule_code)
 
         patterns_file = src_root / "patterns.py"
@@ -2115,7 +2115,7 @@ GOTO :EOF
         temp_file = self.create_temp_batch_file("")
         try:
             issues = lint_batch_file(temp_file)
-            assert issues == []
+            assert not issues
         finally:
             os.unlink(temp_file)
 

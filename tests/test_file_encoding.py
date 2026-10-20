@@ -9,8 +9,14 @@ import warnings
 
 import pytest
 
+from blinter.checkers.line_endings import _check_line_ending_rules
 from blinter.constants import MAX_FILE_SIZE_BYTES, MAX_LINE_LENGTH
-from blinter.io.encoding import _validate_and_read_file
+from blinter.io.encoding import (
+    _charset_norm_match_encoding,
+    _detect_line_endings,
+    _detect_line_endings_from_lines,
+    _validate_and_read_file,
+)
 from blinter import (
     lint_batch_file,
     read_file_with_encoding,
@@ -220,7 +226,7 @@ class TestFileEncodingDetection:
         """Test handling of encoding lookup errors."""
         mock_file.return_value = mock_open(read_data=b"test content\n").return_value
 
-        def mock_decode_bytes(raw_data: bytes, encoding: str) -> Optional[List[str]]:
+        def mock_decode_bytes(_raw_data: bytes, encoding: str) -> Optional[List[str]]:
             if encoding == "utf-8":
                 return None
             if encoding == "cp1252":
@@ -690,7 +696,7 @@ class TestAdditionalFileEncodingScenarios:
     def test_encoding_lookup_error_fallback(self) -> None:
         """Test handling when encoding lookup fails."""
 
-        def mock_decode_bytes(raw_data: bytes, encoding: str) -> Optional[List[str]]:
+        def mock_decode_bytes(_raw_data: bytes, encoding: str) -> Optional[List[str]]:
             if encoding == "utf-8":
                 return None
             if encoding == "cp1252":
@@ -712,7 +718,7 @@ class TestAdditionalFileEncodingScenarios:
     def test_encoding_value_error_fallback(self) -> None:
         """Test handling when encoding value is invalid."""
 
-        def mock_decode_bytes(raw_data: bytes, encoding: str) -> Optional[List[str]]:
+        def mock_decode_bytes(_raw_data: bytes, encoding: str) -> Optional[List[str]]:
             if encoding == "utf-8":
                 return None
             if encoding == "cp1252":
@@ -800,11 +806,10 @@ class TestLineEndingStandaloneDetection:
 
     def test_detect_line_endings_crlf_file(self, tmp_path: Path) -> None:
         """CRLF files report CRLF as the dominant line ending."""
-        from blinter.io.encoding import _detect_line_endings
 
         bat_file = tmp_path / "crlf.bat"
         bat_file.write_bytes(b"@echo off\r\nexit /b 0\r\n")
-        ending_type, has_mixed, crlf_count, lf_only, cr_only = _detect_line_endings(
+        ending_type, has_mixed, crlf_count, lf_only, _cr_only = _detect_line_endings(
             str(bat_file)
         )
         assert ending_type == "CRLF"
@@ -826,7 +831,6 @@ class TestLineEndingStandaloneDetection:
 
     def test_detect_line_endings_from_lines_lf_content(self) -> None:
         """In-memory line lists derive LF endings without re-reading disk."""
-        from blinter.io.encoding import _detect_line_endings_from_lines
 
         ending_type, has_mixed, crlf_count, lf_only, cr_only = (
             _detect_line_endings_from_lines(["@echo off", "exit /b 0"])
@@ -839,7 +843,6 @@ class TestLineEndingStandaloneDetection:
 
     def test_check_line_ending_rules_without_ending_info(self) -> None:
         """Line-ending rules work when ending_info is omitted but lines are provided."""
-        from blinter.checkers.line_endings import _check_line_ending_rules
 
         lines = ["@echo off", "exit /b 0"]
         issues = _check_line_ending_rules(lines, "memory.bat", ending_info=None)
@@ -848,10 +851,9 @@ class TestLineEndingStandaloneDetection:
 
     def test_check_line_ending_rules_empty_lines(self) -> None:
         """Empty line lists produce no line-ending issues."""
-        from blinter.checkers.line_endings import _check_line_ending_rules
 
         issues = _check_line_ending_rules([], "empty.bat", ending_info=None)
-        assert issues == []
+        assert not issues
 
     @pytest.mark.parametrize(
         ("encoding", "coherence", "expected"),
@@ -865,7 +867,6 @@ class TestLineEndingStandaloneDetection:
         self, encoding: object, coherence: float, expected: str | None
     ) -> None:
         """Encoding detection rejects low-coherence or invalid matches."""
-        from blinter.io.encoding import _charset_norm_match_encoding
 
         match = MagicMock()
         match.encoding = encoding

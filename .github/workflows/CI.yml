@@ -35,24 +35,7 @@ jobs:
         run: uv pip install -e ".[dev]"
 
       - name: Run quality checks
-        run: |
-          python scripts/spec/validate_spec.py
-          python scripts/spec/validate_corpus.py
-          python scripts/spec/generate_rules.py --check
-          python scripts/spec/generate_expansion.py --check
-          python scripts/spec/generate_commands.py --check
-          python scripts/spec/generate_docs.py --check
-          python scripts/spec/audit_ssot.py --strict --check
-          uv lock --check
-          python -m black --check src tests scripts
-          python -m isort --check-only src tests scripts
-          python -m mypy src/blinter tests scripts/verify.py scripts/corpus_lint.py scripts/corpus_baseline.py scripts/generate_corpus_baseline.py scripts/benchmark_lint.py
-          python -m mypy scripts/build_exe.py scripts/ci_release.py scripts/extract_release_notes.py
-          python -m pylint src/blinter
-          python -m pylint scripts/ci_release.py scripts/extract_release_notes.py
-          python -m bandit -r src/blinter -c pyproject.toml -ll -q
-          python -m pip_audit -r requirements.txt -r requirements-dev.txt
-          python scripts/benchmark_lint.py --runs 3 --check-baseline
+        run: python scripts/verify.py --skip-pytest
 
   quality-windows:
     name: PowerShell, installer, and uninstaller
@@ -73,11 +56,8 @@ jobs:
       - name: Install dependencies
         run: uv pip install -e ".[dev]"
 
-      - name: Run cmd.exe corpus oracle
-        run: python scripts/spec/cmd_oracle.py
-
-      - name: Run PowerShell verification checks
-        run: python scripts/verify.py --powershell-only
+      - name: Run Windows verification checks
+        run: python scripts/verify.py --windows-only
 
       - name: Run installer and uninstaller
         timeout-minutes: 15

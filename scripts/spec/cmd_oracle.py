@@ -9,11 +9,12 @@ corpus cases are listed in spec/corpus/meta/oracle-skip.yaml.
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
 import json
 from pathlib import Path
+import platform
 import re
 import subprocess
-import sys
 from typing import Literal
 
 import yaml
@@ -101,98 +102,129 @@ def _call_unsafe_reason(text: str, case_dir: Path) -> str | None:
     return None
 
 
-def _content_unsafe_reason(text: str, case_dir: Path) -> str | None:
-    """Return a reason when fixture content must not be executed."""
-    lowered = text.lower()
+def _regex_reason(pattern: str, reason: str) -> Callable[[str, Path], str | None]:
+    """Return a check that matches one case-insensitive pattern."""
 
-    if re.search(r"\bstart\b", text, re.IGNORECASE):
-        return "start command may spawn child processes/windows"
+    def check(text: str, _case_dir: Path) -> str | None:
+        if re.search(pattern, text, re.IGNORECASE):
+            return reason
+        return None
 
-    if re.search(r"%~f0|%0\b", text, re.IGNORECASE):
-        return "self-referential script path"
+    return check
 
-    if re.search(r"\bchoice\b", text, re.IGNORECASE):
-        return "interactive choice"
 
-    if re.search(r"\bpause\b", text, re.IGNORECASE):
-        return "interactive pause"
+def _ping_unsafe(text: str, _case_dir: Path) -> str | None:
+    """Skip unbounded or long ping delays."""
+    if not re.search(r"\bping\b", text, re.IGNORECASE):
+        return None
+    count_match = re.search(r"ping\s+[^\n]*-n\s+(\d+)", text, re.IGNORECASE)
+    if count_match is None:
+        return "unbounded ping"
+    if int(count_match.group(1)) > 3:
+        return f"long ping delay (-n {count_match.group(1)})"
+    return None
 
-    if re.search(r"\bping\b", text, re.IGNORECASE):
-        count_match = re.search(r"ping\s+[^\n]*-n\s+(\d+)", text, re.IGNORECASE)
-        if count_match:
-            if int(count_match.group(1)) <= 3:
-                pass
-            else:
-                return f"long ping delay (-n {count_match.group(1)})"
-        else:
-            return "unbounded ping"
 
-    if re.search(r"\brobocopy\b", text, re.IGNORECASE):
-        return "robocopy may perform long file copy operations"
-
+def _timeout_unsafe(text: str, _case_dir: Path) -> str | None:
+    """Skip timeout commands longer than a smoke-test budget."""
     timeout_match = re.search(r"timeout\s+/t\s+(\d+)", text, re.IGNORECASE)
     if timeout_match and int(timeout_match.group(1)) > 2:
         return f"long timeout ({timeout_match.group(1)}s)"
+    return None
 
-    call_reason = _call_unsafe_reason(text, case_dir)
-    if call_reason:
-        return call_reason
 
-    if re.search(r"\bpowershell\b", text, re.IGNORECASE):
-        return "powershell"
+def _net_unsafe(text: str, _case_dir: Path) -> str | None:
+    """Skip net commands that change users or drive mappings."""
+    if not re.search(r"\bnet\b", text, re.IGNORECASE):
+        return None
+    if re.search(r"\bnet\s+user\b", text, re.IGNORECASE) and re.search(
+        r"/add", text, re.IGNORECASE
+    ):
+        return "net user /add"
+    if re.search(r"\bnet\s+use\b", text, re.IGNORECASE):
+        return "net use"
+    return None
 
-    if re.search(r"\bcmd\s+/c\b", text, re.IGNORECASE):
-        return "nested cmd"
 
-    if re.search(r"\bnet\b", text, re.IGNORECASE):
-        if re.search(r"\bnet\s+user\b", text, re.IGNORECASE) and re.search(
-            r"/add", text, re.IGNORECASE
-        ):
-            return "net user /add"
-        if re.search(r"\bnet\s+use\b", text, re.IGNORECASE):
-            return "net use"
+def _del_unsafe(text: str, _case_dir: Path) -> str | None:
+    """Skip wildcard and recursive deletions."""
+    if not re.search(r"\bdel\b", text, re.IGNORECASE):
+        return None
+    if re.search(r"\bdel\s+[^\n]*[*?]", text, re.IGNORECASE):
+        return "del with wildcards"
+    if re.search(r"\bdel\s+/[qs]", text, re.IGNORECASE):
+        return "del with /q or /s"
+    return None
 
-    if re.search(r"\btaskkill\b", text, re.IGNORECASE):
-        return "taskkill"
 
-    if re.search(r"\bdel\b", text, re.IGNORECASE):
-        if re.search(r"\bdel\s+[^\n]*[*?]", text, re.IGNORECASE):
-            return "del with wildcards"
-        if re.search(r"\bdel\s+/[qs]", text, re.IGNORECASE):
-            return "del with /q or /s"
+def _reg_unsafe(text: str, _case_dir: Path) -> str | None:
+    """Skip registry deletions."""
+    if re.search(r"\breg\b", text, re.IGNORECASE) and re.search(
+        r"\breg\s+delete\b", text, re.IGNORECASE
+    ):
+        return "reg delete"
+    return None
 
-    if re.search(r"\brmdir\b", text, re.IGNORECASE):
-        return "rmdir"
 
-    if re.search(r"\breg\b", text, re.IGNORECASE):
-        if re.search(r"\breg\s+delete\b", text, re.IGNORECASE):
-            return "reg delete"
+def _wmic_unsafe(text: str, _case_dir: Path) -> str | None:
+    """Skip interactive or mutating WMIC. Read-only get/list queries may run.
 
-    if re.search(r"\bwmic\b", text, re.IGNORECASE):
-        # WMIC still ships on Windows 10 (deprecated since 21H1, not removed).
-        # Missing binaries (Windows 11 24H2+ without the FoD) fail fast; the
-        # oracle accepts any exit code. Skip only the interactive shell and
-        # mutating verbs — not read-only `get`/`list` queries.
-        if re.search(r"^\s*wmic\s*$", text, re.IGNORECASE | re.MULTILINE):
-            return "interactive wmic prompt"
-        if re.search(
-            r"\bwmic\b[^\n]*\b(?:delete|call|create)\b",
-            text,
-            re.IGNORECASE,
-        ):
-            return "mutating wmic"
+    WMIC still ships on Windows 10 (deprecated since 21H1, not removed).
+    Missing binaries fail fast, and the oracle accepts any exit code.
+    """
+    if not re.search(r"\bwmic\b", text, re.IGNORECASE):
+        return None
+    if re.search(r"^\s*wmic\s*$", text, re.IGNORECASE | re.MULTILINE):
+        return "interactive wmic prompt"
+    if re.search(
+        r"\bwmic\b[^\n]*\b(?:delete|call|create)\b",
+        text,
+        re.IGNORECASE,
+    ):
+        return "mutating wmic"
+    return None
 
-    if re.search(r"\bshutdown\b", text, re.IGNORECASE):
-        return "shutdown"
 
+def _goto_loop_unsafe(text: str, _case_dir: Path) -> str | None:
+    """Skip fixtures that jump backward to a loop label."""
     if re.search(r":\s*(loop|retry)\b", text, re.IGNORECASE) and re.search(
         r"goto\s+(loop|retry)", text, re.IGNORECASE
     ):
         return "backward goto loop"
-
+    lowered = text.lower()
     if ":retry_loop" in lowered and "goto retry_loop" in lowered:
         return "infinite retry loop"
+    return None
 
+
+_UNSAFE_CHECKS: tuple[Callable[[str, Path], str | None], ...] = (
+    _regex_reason(r"\bstart\b", "start command may spawn child processes/windows"),
+    _regex_reason(r"%~f0|%0\b", "self-referential script path"),
+    _regex_reason(r"\bchoice\b", "interactive choice"),
+    _regex_reason(r"\bpause\b", "interactive pause"),
+    _ping_unsafe,
+    _regex_reason(r"\brobocopy\b", "robocopy may perform long file copy operations"),
+    _timeout_unsafe,
+    _call_unsafe_reason,
+    _regex_reason(r"\bpowershell\b", "powershell"),
+    _regex_reason(r"\bcmd\s+/c\b", "nested cmd"),
+    _net_unsafe,
+    _regex_reason(r"\btaskkill\b", "taskkill"),
+    _del_unsafe,
+    _regex_reason(r"\brmdir\b", "rmdir"),
+    _reg_unsafe,
+    _wmic_unsafe,
+    _regex_reason(r"\bshutdown\b", "shutdown"),
+    _goto_loop_unsafe,
+)
+
+
+def _content_unsafe_reason(text: str, case_dir: Path) -> str | None:
+    """Return a reason when fixture content must not be executed."""
+    for check in _UNSAFE_CHECKS:
+        reason = check(text, case_dir)
+        if reason:
+            return reason
     return None
 
 
@@ -224,44 +256,60 @@ def _case_timeout_s(input_path: Path, default_timeout_s: float) -> float:
     return default_timeout_s
 
 
-def _subprocess_kwargs() -> dict[str, object]:
-    """Avoid flashing a console window for each cmd.exe invocation on Windows."""
-    if sys.platform != "win32":
-        return {}
+def _hidden_window_args() -> tuple[int, object]:
+    """Return creation flags and startup info that hide the cmd.exe console.
+
+    ``platform.system`` is used instead of ``sys.platform`` so mypy still
+    type-checks the Windows branch on Linux, where ``STARTUPINFO`` is absent.
+    """
+    if platform.system() != "Windows":
+        return 0, None
     create_no_window = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-    if create_no_window:
-        return {"creationflags": create_no_window}
-    startupinfo = subprocess.STARTUPINFO()
-    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-    startupinfo.wShowWindow = subprocess.SW_HIDE
-    return {"startupinfo": startupinfo}
+    if isinstance(create_no_window, int) and create_no_window:
+        return create_no_window, None
+    startup_type = getattr(subprocess, "STARTUPINFO", None)
+    if not callable(startup_type):
+        return 0, None
+    startupinfo = startup_type()
+    show_flag = getattr(subprocess, "STARTF_USESHOWWINDOW", 0)
+    hide_flag = getattr(subprocess, "SW_HIDE", 0)
+    current_flags = getattr(startupinfo, "dwFlags", 0)
+    if isinstance(show_flag, int) and isinstance(current_flags, int):
+        startupinfo.dwFlags = current_flags | show_flag
+    if isinstance(hide_flag, int):
+        startupinfo.wShowWindow = hide_flag
+    return 0, startupinfo
 
 
 def _kill_process_tree(pid: int) -> None:
+    creationflags, startupinfo = _hidden_window_args()
     subprocess.run(
         ["taskkill", "/F", "/T", "/PID", str(pid)],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         check=False,
-        **_subprocess_kwargs(),
+        creationflags=creationflags,
+        startupinfo=startupinfo,
     )
 
 
 def _run_case(input_path: Path, timeout_s: float) -> int | Literal["TIMEOUT"]:
-    kwargs = _subprocess_kwargs()
-    proc = subprocess.Popen(
+    """Run one fixture with cmd.exe and return its exit code or TIMEOUT."""
+    creationflags, startupinfo = _hidden_window_args()
+    with subprocess.Popen(
         ["cmd", "/c", input_path.name],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         cwd=str(input_path.parent),
-        **kwargs,
-    )
-    try:
-        return proc.wait(timeout=timeout_s)
-    except subprocess.TimeoutExpired:
-        _kill_process_tree(proc.pid)
-        proc.kill()
-        return "TIMEOUT"
+        creationflags=creationflags,
+        startupinfo=startupinfo,
+    ) as proc:
+        try:
+            return proc.wait(timeout=timeout_s)
+        except subprocess.TimeoutExpired:
+            _kill_process_tree(proc.pid)
+            proc.kill()
+            return "TIMEOUT"
 
 
 def classify_corpus_cases() -> tuple[list[Path], list[tuple[str, str]]]:
@@ -280,6 +328,7 @@ def classify_corpus_cases() -> tuple[list[Path], list[tuple[str, str]]]:
 
 
 def main() -> None:
+    """Classify corpus fixtures and execute the ones that are safe to run."""
     parser = argparse.ArgumentParser(description="cmd.exe oracle for corpus fixtures")
     parser.add_argument(
         "--limit",
@@ -299,7 +348,7 @@ def main() -> None:
         help="List runnable and skipped cases without executing cmd.exe",
     )
     args = parser.parse_args()
-    if sys.platform != "win32":
+    if platform.system() != "Windows":
         print("cmd.exe oracle is Windows-only; skipping")
         return
 

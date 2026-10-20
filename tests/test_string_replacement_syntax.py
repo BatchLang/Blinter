@@ -395,7 +395,7 @@ class TestE009LegitimateQuoteContexts:
         assert not [i for i in issues if i.rule.code == "E009"]
 
     def test_echo_ansi_color_art(self, tmp_path: Path) -> None:
-        content = "@echo off\n" 'echo %lyel% foo %lred% bar %lyel%,=".%def%\n'
+        content = '@echo off\necho %lyel% foo %lred% bar %lyel%,=".%def%\n'
         test_file = tmp_path / "art.cmd"
         test_file.write_text(content, encoding="utf-8")
         issues = lint_batch_file(str(test_file))

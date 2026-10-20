@@ -6,17 +6,21 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 import sys
-from typing import Any
 
 import black
-import yaml
 
 _SCRIPTS_DIR = Path(__file__).resolve().parent
-if str(_SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(_SCRIPTS_DIR))
+_REPO_ROOT = _SCRIPTS_DIR.parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
-from _commands_data import builtin_commands_union, merged_commands_data  # noqa: E402
-from _paths import PATTERNS_PY  # noqa: E402
+from scripts.spec._commands_data import (  # noqa: E402  # pylint: disable=wrong-import-position
+    builtin_commands_union,
+    merged_commands_data,
+)
+from scripts.spec._paths import (  # noqa: E402  # pylint: disable=wrong-import-position
+    PATTERNS_PY,
+)
 
 _STATIC_FRAGMENT = _SCRIPTS_DIR / "patterns_static_fragment.py"
 
@@ -72,49 +76,126 @@ def _format_dangerous_patterns(patterns: list[dict[str, str]]) -> str:
     return "\n".join(lines)
 
 
+def _require_str_list(value: object, key: str) -> list[str]:
+    """Return a YAML list of strings or raise ValueError."""
+    if not isinstance(value, list):
+        raise ValueError(f"{key} must be a list of strings")
+    items: list[str] = []
+    for item in value:
+        if not isinstance(item, str):
+            raise ValueError(f"{key} must be a list of strings")
+        items.append(item)
+    return items
+
+
+def _require_str_dict(value: object, key: str) -> dict[str, str]:
+    """Return a YAML string-to-string mapping or raise ValueError."""
+    if not isinstance(value, dict):
+        raise ValueError(f"{key} must be a mapping of strings")
+    mapping: dict[str, str] = {}
+    for item_key, item_value in value.items():
+        if not isinstance(item_key, str) or not isinstance(item_value, str):
+            raise ValueError(f"{key} must be a mapping of strings")
+        mapping[item_key] = item_value
+    return mapping
+
+
+def _require_pattern_list(value: object, key: str) -> list[dict[str, str]]:
+    """Return dangerous-command pattern rows or raise ValueError."""
+    if not isinstance(value, list):
+        raise ValueError(f"{key} must be a list of mappings")
+    patterns: list[dict[str, str]] = []
+    for entry in value:
+        if not isinstance(entry, dict):
+            raise ValueError(f"{key} entries must be mappings")
+        pattern = entry.get("pattern")
+        rule_code = entry.get("rule_code")
+        if not isinstance(pattern, str) or not isinstance(rule_code, str):
+            raise ValueError(f"{key} entries need string pattern and rule_code")
+        patterns.append({"pattern": pattern, "rule_code": rule_code})
+    return patterns
+
+
 def generate_patterns_text() -> str:
+    """Return generated patterns.py source."""
     data = merged_commands_data()
-    sections = [_HEADER]
-    sections.append(
-        _format_list("DANGEROUS_COMMAND_NAMES", data["dangerous_command_names"])
+    dangerous_names = _require_str_list(
+        data["dangerous_command_names"], "dangerous_command_names"
     )
+    architecture_patterns = _require_str_list(
+        data["architecture_specific_patterns"], "architecture_specific_patterns"
+    )
+    sections = [_HEADER]
+    sections.append(_format_list("DANGEROUS_COMMAND_NAMES", dangerous_names))
     sections.append("")
     sections.append('_DANGEROUS_CMDS_REGEX: str = "|".join(DANGEROUS_COMMAND_NAMES)')
     sections.append("")
-    sections.append(_format_dangerous_patterns(data["dangerous_command_patterns"]))
-    sections.append("")
     sections.append(
-        _format_set("COMMAND_CASING_KEYWORDS", data["command_casing_keywords"])
+        _format_dangerous_patterns(
+            _require_pattern_list(
+                data["dangerous_command_patterns"], "dangerous_command_patterns"
+            )
+        )
     )
     sections.append("")
     sections.append(
-        _format_set("OLDER_WINDOWS_COMMANDS", data["older_windows_commands"])
+        _format_set(
+            "COMMAND_CASING_KEYWORDS",
+            _require_str_list(
+                data["command_casing_keywords"], "command_casing_keywords"
+            ),
+        )
+    )
+    sections.append("")
+    sections.append(
+        _format_set(
+            "OLDER_WINDOWS_COMMANDS",
+            _require_str_list(data["older_windows_commands"], "older_windows_commands"),
+        )
     )
     sections.append("")
     sections.append(
         "ARCHITECTURE_SPECIFIC_PATTERNS: List[str] = [\n"
-        + "\n".join(f'    r"{v}",' for v in data["architecture_specific_patterns"])
+        + "\n".join(f'    r"{v}",' for v in architecture_patterns)
         + "\n]"
     )
     sections.append("")
     sections.append(
         _format_set(
             "UNICODE_PROBLEMATIC_COMMANDS",
-            data["unicode_problematic_commands"],
+            _require_str_list(
+                data["unicode_problematic_commands"], "unicode_problematic_commands"
+            ),
         )
     )
     sections.append("")
     sections.append(
-        _format_dict_str_str("DEPRECATED_COMMANDS", data["deprecated_commands"])
+        _format_dict_str_str(
+            "DEPRECATED_COMMANDS",
+            _require_str_dict(data["deprecated_commands"], "deprecated_commands"),
+        )
     )
-    sections.append("")
-    sections.append(_format_dict_str_str("REMOVED_COMMANDS", data["removed_commands"]))
     sections.append("")
     sections.append(
-        _format_dict_str_str("COMMON_COMMAND_TYPOS", data["common_command_typos"])
+        _format_dict_str_str(
+            "REMOVED_COMMANDS",
+            _require_str_dict(data["removed_commands"], "removed_commands"),
+        )
     )
     sections.append("")
-    sections.append(_format_list("SENSITIVE_KEYWORDS", data["sensitive_keywords"]))
+    sections.append(
+        _format_dict_str_str(
+            "COMMON_COMMAND_TYPOS",
+            _require_str_dict(data["common_command_typos"], "common_command_typos"),
+        )
+    )
+    sections.append("")
+    sections.append(
+        _format_list(
+            "SENSITIVE_KEYWORDS",
+            _require_str_list(data["sensitive_keywords"], "sensitive_keywords"),
+        )
+    )
     sections.append("")
     sections.append(
         "CREDENTIAL_PATTERNS = [\n"
@@ -137,10 +218,12 @@ def generate_patterns_text() -> str:
 
 
 def write_patterns() -> None:
+    """Write generated patterns.py."""
     PATTERNS_PY.write_text(generate_patterns_text(), encoding="utf-8", newline="\n")
 
 
 def main() -> None:
+    """Generate patterns.py, or check that it is already current."""
     parser = argparse.ArgumentParser(
         description="Generate patterns.py from commands.yaml"
     )

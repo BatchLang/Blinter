@@ -63,6 +63,7 @@ def _assert_noise_limits(rule_counts: Counter[str], overlap_lines: int) -> None:
 
 @pytest.fixture(scope="module")
 def corpus_baseline() -> dict[str, Any]:
+    """Load the committed corpus baseline when the local corpus is present."""
     if not corpus_baseline_available():
         pytest.skip(CORPUS_BASELINE_SKIP_REASON)
     return _load_baseline()
@@ -105,7 +106,7 @@ class TestBatchScriptExamplesCorpus:
     not corpus_available() or not corpus_baseline_available(),
     reason=CORPUS_BASELINE_SKIP_REASON,
 )
-class TestCorpusBaselineSnapshot:
+class TestCorpusBaselineSnapshot:  # pylint: disable=redefined-outer-name
     """Compare live corpus lint results to a local baseline snapshot."""
 
     @pytest.mark.slow
@@ -231,7 +232,7 @@ class TestNamingRuleRegression:
     """S022 global naming and S017 per-line case checks."""
 
     def test_global_mixed_naming_emits_single_s022(self, tmp_path: Path) -> None:
-        content = "@echo off\n" "set MY_VAR=1\n" "set other_var=2\n" "set Another=3\n"
+        content = "@echo off\nset MY_VAR=1\nset other_var=2\nset Another=3\n"
         batch_file = tmp_path / "mixed.cmd"
         batch_file.write_text(content, encoding="utf-8")
         issues = lint_batch_file(str(batch_file))
@@ -241,7 +242,7 @@ class TestNamingRuleRegression:
         assert len(s006) == 0
 
     def test_per_line_case_mismatch_emits_s017(self, tmp_path: Path) -> None:
-        content = "@echo off\n" "set MYVAR=1\n" "set myvar=2\n"
+        content = "@echo off\nset MYVAR=1\nset myvar=2\n"
         batch_file = tmp_path / "case.cmd"
         batch_file.write_text(content, encoding="utf-8")
         issues = lint_batch_file(str(batch_file))
@@ -249,7 +250,7 @@ class TestNamingRuleRegression:
         assert len(s017) >= 1
 
     def test_disabled_s022_suppresses_global_naming(self, tmp_path: Path) -> None:
-        content = "@echo off\n" "set MY_VAR=1\n" "set other_var=2\n" "set Another=3\n"
+        content = "@echo off\nset MY_VAR=1\nset other_var=2\nset Another=3\n"
         batch_file = tmp_path / "mixed.cmd"
         batch_file.write_text(content, encoding="utf-8")
         config = BlinterConfig(disabled_rules={"S022"})

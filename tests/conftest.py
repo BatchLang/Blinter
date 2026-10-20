@@ -20,7 +20,7 @@ from tests.corpus_support import (
 )
 
 try:
-    import coverage.misc
+    import coverage.misc  # pylint: disable=import-outside-toplevel
 
     COVERAGE_AVAILABLE = True
 except ImportError:
@@ -102,7 +102,7 @@ def _write_batch_files_with_crlf(monkeypatch: pytest.MonkeyPatch) -> None:
             kwargs = {**kwargs, "newline": "\r\n"}
         return original_write_text(self, data, *args, **kwargs)
 
-    def open_crlf(
+    def open_crlf(  # pylint: disable=keyword-arg-before-vararg
         file: str | os.PathLike[str] | int,
         mode: str = "r",
         *args: Any,

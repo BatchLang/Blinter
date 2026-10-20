@@ -10,11 +10,15 @@ import sys
 
 import yaml
 
-_SCRIPTS_DIR = Path(__file__).resolve().parent
-if str(_SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(_SCRIPTS_DIR))
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
-from _paths import REPO_ROOT, REQUIREMENTS_MD, RULES_YAML  # noqa: E402
+from scripts.spec._paths import (  # noqa: E402  # pylint: disable=wrong-import-position
+    REPO_ROOT,
+    REQUIREMENTS_MD,
+    RULES_YAML,
+)
 
 _README_MD = REPO_ROOT / "README.md"
 
@@ -94,6 +98,7 @@ def _apply_rule_count_prose(text: str, rule_count: int) -> str:
 
 
 def generate_docs_text() -> str:
+    """Return requirements doc text with a regenerated rule catalog."""
     data = yaml.safe_load(RULES_YAML.read_text(encoding="utf-8"))
     rules = data["rules"]
     catalog = _build_catalog(rules)
@@ -125,6 +130,7 @@ def generate_readme_text() -> str:
 
 
 def main() -> None:
+    """Regenerate docs, or check that they are already current."""
     parser = argparse.ArgumentParser(
         description="Generate Requirements.md rule catalog"
     )

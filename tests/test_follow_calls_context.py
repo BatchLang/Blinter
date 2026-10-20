@@ -6,10 +6,12 @@ scripts are properly recognized as "defined" in the calling script, eliminating
 false positive E006 (undefined variable) errors.
 """
 
+import logging
 import os
 from pathlib import Path
+import sys
 import tempfile
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -18,10 +20,12 @@ from blinter import (
     find_batch_files,
     lint_batch_file,
 )
+from blinter.cli.main import main
 from blinter.engine.dependencies import (
     _build_call_dependency_graph,
     _collect_called_vars,
     _collect_vars_from_dependencies,
+    _collect_vars_from_script,
     _extract_called_scripts,
     _is_within_scan_root,
     _read_batch_lines,
@@ -29,6 +33,9 @@ from blinter.engine.dependencies import (
     _try_add_dependency,
 )
 from blinter.io.discovery import is_path_under_root
+
+# One behavior suite: follow-calls variable context across CLI and engine paths.
+# pylint: disable=too-many-lines
 
 
 class TestFollowCallsVariableContext:
@@ -109,9 +116,6 @@ class TestFollowCallsVariableContext:
 
     def test_cli_variable_used_before_call_triggers_error(self) -> None:
         """CLI --follow-calls keeps position-aware undefined-variable checking."""
-        import sys
-
-        from blinter.cli.main import main
 
         with tempfile.TemporaryDirectory() as tmpdir:
             helper_script = os.path.join(tmpdir, "helper.bat")
@@ -866,7 +870,6 @@ class TestCallDependencyGraph:  # pylint: disable=too-few-public-methods
         self, caplog: pytest.LogCaptureFixture
     ) -> None:
         """Cyclic CALL graphs include both directions of the cycle."""
-        import logging
 
         with tempfile.TemporaryDirectory() as tmpdir:
             script_a = Path(tmpdir) / "a.bat"
@@ -1052,7 +1055,6 @@ class TestFollowCallsLimits:
         self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
     ) -> None:
         """CALL graph traversal logs a warning when MAX_FOLLOW_CALL_FILES is hit."""
-        import logging
 
         monkeypatch.setattr(
             "blinter.engine.dependencies.MAX_FOLLOW_CALL_FILES",
@@ -1176,7 +1178,6 @@ class TestDependenciesInternals:
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
         """Unreadable CALL targets log warnings when follow-calls reads them."""
-        import logging
 
         helper = tmp_path / "helper.bat"
         helper.write_text("@ECHO OFF\nSET HELPER_VAR=1\n", encoding="utf-8")
@@ -1187,17 +1188,13 @@ class TestDependenciesInternals:
         with caplog.at_level(logging.WARNING, logger="blinter"):
             called_vars = _collect_called_vars(main_script, scan_root=str(tmp_path))
 
-        assert called_vars == {}
+        assert not called_vars
         assert any("Could not read" in record.message for record in caplog.records)
 
     def test_collect_vars_from_script_logs_debug_on_resolve_failure(
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
         """Path resolution failures during follow-calls are logged at DEBUG."""
-        import logging
-        from unittest.mock import MagicMock
-
-        from blinter.engine.dependencies import _collect_vars_from_script
 
         main_script = tmp_path / "main.bat"
         main_script.write_text('CALL "helper.bat"\n', encoding="utf-8")
@@ -1241,7 +1238,7 @@ class TestDependenciesInternals:
         script = tmp_path / "loop.bat"
         script.write_text(f'@ECHO OFF\nCALL "{script}"\n', encoding="utf-8")
         called = _extract_called_scripts(script, scan_root=str(tmp_path))
-        assert called == []
+        assert not called
 
     def test_read_batch_lines_returns_none_on_validate_error(
         self, tmp_path: Path

@@ -8,11 +8,11 @@ from pathlib import Path
 import sys
 from typing import cast
 
-_SCRIPTS_DIR = Path(__file__).resolve().parent
-if str(_SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(_SCRIPTS_DIR))
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
-from corpus_baseline import (  # pylint: disable=wrong-import-position
+from scripts.corpus_baseline import (  # noqa: E402  # pylint: disable=wrong-import-position
     _DEFAULT_BASELINE,
     _DEFAULT_CORPUS_DIR,
     build_corpus_baseline,

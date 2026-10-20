@@ -19,6 +19,7 @@ from blinter import (
 from blinter.checkers.security import _check_security_issues
 from blinter.checkers.syntax import _check_syntax_errors
 from blinter.checkers.warnings import _check_warning_issues
+from blinter.constants import ABSOLUTE_MAX_LINE_LENGTH, MAX_LINE_LENGTH
 from blinter.io.discovery import is_path_under_root
 from blinter.io.encoding import _detect_line_endings
 from tests.conftest import patch_valid_encoding_path
@@ -125,7 +126,6 @@ class TestRealWorldErrorHandling:
 
     def test_long_line_is_an_error_and_rest_of_file_is_linted(self) -> None:
         """A line over MAX_LINE_LENGTH is E048; later lines are still checked."""
-        from blinter.constants import MAX_LINE_LENGTH
 
         content = (
             "@ECHO OFF\n" + ("A" * (MAX_LINE_LENGTH + 1)) + "\necho hi\nEXIT /B 0\n"
@@ -146,7 +146,6 @@ class TestRealWorldErrorHandling:
 
     def test_rejects_line_over_absolute_maximum(self) -> None:
         """A line over the absolute cap still rejects the whole file."""
-        from blinter.constants import ABSOLUTE_MAX_LINE_LENGTH
 
         content = "@ECHO OFF\n" + ("A" * (ABSOLUTE_MAX_LINE_LENGTH + 1)) + "\n"
         with tempfile.NamedTemporaryFile(
@@ -472,9 +471,6 @@ class TestAdditionalErrorHandling:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Symlink resolution errors fail closed to outside root."""
-        from pathlib import Path
-
-        from blinter.io.discovery import is_path_under_root
 
         root = Path("C:/scan_root")
         candidate = Path("C:/scan_root/link.bat")

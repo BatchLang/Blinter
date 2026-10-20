@@ -4,6 +4,10 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ## [Unreleased]
 
+### Changed
+
+- `scripts/verify.py` is the quality gate for local runs and CI. mypy and pylint check `src`, `scripts`, and `tests` from their config instead of a hand-maintained file list. bandit checks `src` and `scripts`. `--windows-only` replaces `--powershell-only` and includes the cmd.exe corpus oracle. `--skip-pytest` leaves the test suite to CI's matrix job.
+
 ## [1.1.43] - 2026-10-19
 
 ### Added

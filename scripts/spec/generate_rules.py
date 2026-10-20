@@ -6,16 +6,18 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 import sys
-from typing import Any
 
 import black
 import yaml
 
-_SCRIPTS_DIR = Path(__file__).resolve().parent
-if str(_SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(_SCRIPTS_DIR))
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
-from _paths import REGISTRY_PY, RULES_YAML  # noqa: E402
+from scripts.spec._paths import (  # noqa: E402  # pylint: disable=wrong-import-position
+    REGISTRY_PY,
+    RULES_YAML,
+)
 
 _HEADER = '''\
 """Rule definitions and the RULES lookup table."""
@@ -43,7 +45,7 @@ def _escape(value: str) -> str:
     return value.replace("\\", "\\\\").replace('"', '\\"')
 
 
-def _format_rule(rule: dict[str, Any]) -> str:
+def _format_rule(rule: dict[str, object]) -> str:
     code = str(rule["code"])
     name = _escape(str(rule["name"]))
     severity = str(rule["severity"])
@@ -61,14 +63,24 @@ def _format_rule(rule: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _load_rules() -> list[dict[str, Any]]:
+def _load_rules() -> list[dict[str, object]]:
     data = yaml.safe_load(RULES_YAML.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
         raise ValueError("rules.yaml must be a mapping")
     rules = data.get("rules")
     if not isinstance(rules, list):
         raise ValueError("rules.yaml must contain a rules list")
-    return sorted(rules, key=lambda item: str(item["code"]))
+    typed_rules: list[dict[str, object]] = []
+    for item in rules:
+        if not isinstance(item, dict):
+            raise ValueError("each rule must be a mapping")
+        rule: dict[str, object] = {}
+        for key, value in item.items():
+            if not isinstance(key, str):
+                raise ValueError("rule keys must be strings")
+            rule[key] = value
+        typed_rules.append(rule)
+    return sorted(typed_rules, key=lambda item: str(item["code"]))
 
 
 def _format_generated_source(source: str) -> str:
@@ -110,6 +122,7 @@ def write_registry() -> None:
 
 
 def main() -> None:
+    """Generate registry.py, or check that it is already current."""
     parser = argparse.ArgumentParser(description="Generate registry.py from rules.yaml")
     parser.add_argument(
         "--check",

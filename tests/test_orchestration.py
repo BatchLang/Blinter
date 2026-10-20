@@ -10,6 +10,9 @@ from blinter.checkers.orchestration import (
 from blinter.models import BlinterConfig, LintIssue, Rule, RuleSeverity
 from blinter.rules.registry import RULES
 
+# Single-method classes group one orchestration behavior each.
+# pylint: disable=too-few-public-methods
+
 
 def _issue(code: str, line: int = 1) -> LintIssue:
     return LintIssue(

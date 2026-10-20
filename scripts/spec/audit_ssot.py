@@ -5,24 +5,26 @@ from __future__ import annotations
 
 import argparse
 import ast
+from dataclasses import dataclass
 import json
 from pathlib import Path
 import re
 import sys
-from typing import Any
 
 import yaml
 
-_SCRIPTS_DIR = Path(__file__).resolve().parent
-if str(_SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(_SCRIPTS_DIR))
+_REPO_ROOT_BOOT = Path(__file__).resolve().parent.parent.parent
+if str(_REPO_ROOT_BOOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT_BOOT))
 
-from _commands_data import builtin_commands_union, merged_commands_data  # noqa: E402
-from _paths import (  # noqa: E402
+from scripts.spec._commands_data import (  # noqa: E402  # pylint: disable=wrong-import-position
+    builtin_commands_union,
+    merged_commands_data,
+)
+from scripts.spec._paths import (  # noqa: E402  # pylint: disable=wrong-import-position
     AUDIT_DIR,
     BATCH_SPEC_DIR,
     CHECKERS_DIR,
-    COMMANDS_LANGUAGE_YAML,
     COMMANDS_LINTER_YAML,
     CORPUS_DIR,
     EXPANSION_DATA_PY,
@@ -30,7 +32,6 @@ from _paths import (  # noqa: E402
     PARSING_DIR,
     PATTERNS_PY,
     REFERENCE_MATRIX_YAML,
-    REPO_ROOT,
     REQUIREMENTS_MD,
     RULES_HELPERS_PY,
     RULES_YAML,
@@ -122,25 +123,36 @@ _MATRIX_CORPUS_RULE_ALLOWLIST: frozenset[str] = frozenset(
 )
 
 
+@dataclass(frozen=True)
 class AuditFinding:
-    def __init__(self, level: str, category: str, message: str) -> None:
-        self.level = level
-        self.category = category
-        self.message = message
+    """One SSOT audit result."""
+
+    level: str
+    category: str
+    message: str
 
 
-def _load_yaml(path: Path) -> dict[str, Any]:
+def _load_yaml(path: Path) -> dict[str, object]:
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
         raise ValueError(f"{path} must be a mapping")
-    return data
+    mapping: dict[str, object] = {}
+    for key, value in data.items():
+        if not isinstance(key, str):
+            raise ValueError(f"{path} keys must be strings")
+        mapping[key] = value
+    return mapping
 
 
 def _audit_rules(findings: list[AuditFinding]) -> set[str]:
     data = _load_yaml(RULES_YAML)
     rules = data.get("rules", [])
+    if not isinstance(rules, list):
+        raise ValueError("rules.yaml rules must be a list")
     codes: list[str] = []
     for rule in rules:
+        if not isinstance(rule, dict):
+            raise ValueError("each rule must be a mapping")
         code = str(rule["code"])
         codes.append(code)
         checker = str(rule.get("checker", "regex"))
@@ -175,7 +187,7 @@ def _audit_rules(findings: list[AuditFinding]) -> set[str]:
     return set(codes)
 
 
-def _merged_commands_data() -> dict[str, Any]:
+def _merged_commands_data() -> dict[str, object]:
     return merged_commands_data()
 
 
@@ -195,18 +207,26 @@ def _audit_commands(findings: list[AuditFinding], valid_rules: set[str]) -> None
     except (FileNotFoundError, ValueError) as error:
         findings.append(AuditFinding("error", "commands", str(error)))
         return
-    for entry in data.get("dangerous_command_patterns", []):
-        rule_code = str(entry.get("rule_code", ""))
-        if rule_code and rule_code not in valid_rules:
-            findings.append(
-                AuditFinding(
-                    "error",
-                    "commands",
-                    f"dangerous_command_patterns references unknown rule {rule_code}",
+    patterns = data.get("dangerous_command_patterns", [])
+    if isinstance(patterns, list):
+        for entry in patterns:
+            if not isinstance(entry, dict):
+                continue
+            rule_code = str(entry.get("rule_code", ""))
+            if rule_code and rule_code not in valid_rules:
+                findings.append(
+                    AuditFinding(
+                        "error",
+                        "commands",
+                        f"dangerous_command_patterns references unknown rule {rule_code}",
+                    )
                 )
-            )
-    builtins = set(data.get("builtin_commands", []))
-    deprecated = set(data.get("deprecated_commands", {}).keys())
+    builtin_commands = data.get("builtin_commands", [])
+    builtins = set(builtin_commands) if isinstance(builtin_commands, list) else set()
+    deprecated_commands = data.get("deprecated_commands", {})
+    deprecated = (
+        set(deprecated_commands) if isinstance(deprecated_commands, dict) else set()
+    )
     overlap = builtins & deprecated
     for name in sorted(overlap):
         findings.append(
@@ -218,11 +238,11 @@ def _audit_commands(findings: list[AuditFinding], valid_rules: set[str]) -> None
         )
 
 
-def _read_patterns_constants() -> dict[str, Any]:
+def _read_patterns_constants() -> dict[str, object]:
     if not PATTERNS_PY.is_file():
         return {}
     module = ast.parse(PATTERNS_PY.read_text(encoding="utf-8"))
-    constants: dict[str, Any] = {}
+    constants: dict[str, object] = {}
     for node in module.body:
         name: str | None = None
         value_node = None
@@ -263,8 +283,12 @@ def _audit_commands_patterns_drift(findings: list[AuditFinding]) -> None:
         py_val = patterns.get(py_key)
         if yaml_val is None or py_val is None:
             continue
-        yaml_norm = sorted(yaml_val) if kind in {"list", "set"} else yaml_val
-        py_norm = sorted(py_val) if kind in {"list", "set"} else py_val
+        if kind not in {"list", "set"}:
+            continue
+        if not isinstance(yaml_val, (list, set)) or not isinstance(py_val, (list, set)):
+            continue
+        yaml_norm = sorted(str(item) for item in yaml_val)
+        py_norm = sorted(str(item) for item in py_val)
         if yaml_norm != py_norm:
             findings.append(
                 AuditFinding(
@@ -273,8 +297,13 @@ def _audit_commands_patterns_drift(findings: list[AuditFinding]) -> None:
                     f"commands YAML {yaml_key} != patterns.py {py_key}",
                 )
             )
-    builtin_yaml = sorted(builtin_commands_union(data))
-    builtin_py = sorted(patterns.get("BUILTIN_COMMANDS", []))
+    builtin_yaml = builtin_commands_union(data)
+    builtin_py_value = patterns.get("BUILTIN_COMMANDS", [])
+    builtin_py = (
+        sorted(str(item) for item in builtin_py_value)
+        if isinstance(builtin_py_value, (list, set, frozenset))
+        else []
+    )
     if builtin_yaml != builtin_py:
         findings.append(
             AuditFinding(
@@ -320,7 +349,12 @@ def _audit_expansion_drift(findings: list[AuditFinding]) -> None:
         return
     data = _load_yaml(EXPANSION_YAML)
     yaml_mods = str(data.get("valid_modifier_chars", ""))
-    yaml_modifier_keys = "".join(sorted(data.get("valid_modifiers", {}).keys()))
+    valid_modifiers = data.get("valid_modifiers", {})
+    yaml_modifier_keys = (
+        "".join(sorted(str(key) for key in valid_modifiers))
+        if isinstance(valid_modifiers, dict)
+        else ""
+    )
     generated = _read_expansion_data_constants()
     if generated.get("valid_modifier_chars") != yaml_mods:
         findings.append(
@@ -396,69 +430,89 @@ def _audit_full_rule_coverage(
         )
 
 
-def _audit_reference_matrix(
-    findings: list[AuditFinding], valid_rules: set[str]
-) -> None:
-    """Validate reference-matrix.yaml corpus paths and rule references."""
+def _matrix_entries() -> list[object] | None:
+    """Return reference-matrix entries, or None when the file is missing."""
     if not REFERENCE_MATRIX_YAML.is_file():
-        findings.append(
-            AuditFinding(
-                "error",
-                "reference-matrix",
-                "reference-matrix.yaml missing",
-            )
-        )
-        return
+        return None
     data = _load_yaml(REFERENCE_MATRIX_YAML)
     entries = data.get("entries", [])
     if not isinstance(entries, list):
-        findings.append(
-            AuditFinding(
-                "error",
-                "reference-matrix",
-                "entries must be a list",
-            )
-        )
-        return
+        raise ValueError("reference-matrix entries must be a list")
+    return list(entries)
+
+
+def _audit_matrix_paths_and_rules(
+    findings: list[AuditFinding], entries: list[object], valid_rules: set[str]
+) -> None:
+    """Check each matrix row's corpus path and rule codes."""
     for index, entry in enumerate(entries):
         if not isinstance(entry, dict):
             continue
         construct = str(entry.get("construct", f"entry[{index}]"))
-        for case_id in entry.get("corpus", []):
-            case_path = CORPUS_DIR / str(case_id)
-            if not case_path.is_dir():
-                findings.append(
-                    AuditFinding(
-                        "error",
-                        "reference-matrix",
-                        f"{construct}: corpus path not found: {case_id}",
-                    )
-                )
-                continue
-            if not any(case_path.glob("input.*")):
-                findings.append(
-                    AuditFinding(
-                        "error",
-                        "reference-matrix",
-                        f"{construct}: corpus case has no input.cmd: {case_id}",
-                    )
-                )
-        for rule_ref in entry.get("rules", []):
-            code = str(rule_ref).strip()
-            if code and code not in valid_rules:
-                findings.append(
-                    AuditFinding(
-                        "error",
-                        "reference-matrix",
-                        f"{construct}: unknown rule reference {code}",
-                    )
-                )
+        corpus = entry.get("corpus", [])
+        if isinstance(corpus, list):
+            _audit_matrix_corpus_paths(findings, construct, corpus)
+        rules = entry.get("rules", [])
+        if isinstance(rules, list):
+            _audit_matrix_rule_refs(findings, construct, rules, valid_rules)
 
+
+def _audit_matrix_corpus_paths(
+    findings: list[AuditFinding], construct: str, corpus: list[object]
+) -> None:
+    """Report matrix corpus paths that are missing or have no input script."""
+    for case_id in corpus:
+        case_path = CORPUS_DIR / str(case_id)
+        if not case_path.is_dir():
+            findings.append(
+                AuditFinding(
+                    "error",
+                    "reference-matrix",
+                    f"{construct}: corpus path not found: {case_id}",
+                )
+            )
+            continue
+        if not any(case_path.glob("input.*")):
+            findings.append(
+                AuditFinding(
+                    "error",
+                    "reference-matrix",
+                    f"{construct}: corpus case has no input.cmd: {case_id}",
+                )
+            )
+
+
+def _audit_matrix_rule_refs(
+    findings: list[AuditFinding],
+    construct: str,
+    rules: list[object],
+    valid_rules: set[str],
+) -> None:
+    """Report matrix rule codes that are not in rules.yaml."""
+    for rule_ref in rules:
+        code = str(rule_ref).strip()
+        if code and code not in valid_rules:
+            findings.append(
+                AuditFinding(
+                    "error",
+                    "reference-matrix",
+                    f"{construct}: unknown rule reference {code}",
+                )
+            )
+
+
+def _audit_matrix_rule_coverage(
+    findings: list[AuditFinding], entries: list[object], valid_rules: set[str]
+) -> None:
+    """Require the matrix rule lists to cover rules.yaml exactly."""
     mapped_rules: set[str] = set()
     for entry in entries:
         if not isinstance(entry, dict):
             continue
-        for rule_ref in entry.get("rules", []):
+        rules = entry.get("rules", [])
+        if not isinstance(rules, list):
+            continue
+        for rule_ref in rules:
             code = str(rule_ref).strip()
             if code:
                 mapped_rules.add(code)
@@ -482,12 +536,25 @@ def _audit_reference_matrix(
             )
         )
 
+
+def _audit_matrix_artifact_rules(
+    findings: list[AuditFinding], entries: list[object], valid_rules: set[str]
+) -> None:
+    """Warn when an artifact line names a rule the entry does not list."""
     for index, entry in enumerate(entries):
         if not isinstance(entry, dict):
             continue
         construct = str(entry.get("construct", f"entry[{index}]"))
-        explicit = {str(rule_ref).strip() for rule_ref in entry.get("rules", [])}
-        for artifact_line in entry.get("ssot_artifacts", []):
+        rules = entry.get("rules", [])
+        explicit = (
+            {str(rule_ref).strip() for rule_ref in rules}
+            if isinstance(rules, list)
+            else set()
+        )
+        artifacts = entry.get("ssot_artifacts", [])
+        if not isinstance(artifacts, list):
+            continue
+        for artifact_line in artifacts:
             for match in _SSOT_ARTIFACT_RULE_RE.findall(str(artifact_line)):
                 if match in valid_rules and match not in explicit:
                     findings.append(
@@ -498,11 +565,33 @@ def _audit_reference_matrix(
                         )
                     )
 
+
+def _audit_reference_matrix(
+    findings: list[AuditFinding], valid_rules: set[str]
+) -> None:
+    """Validate reference-matrix.yaml corpus paths and rule references."""
+    try:
+        entries = _matrix_entries()
+    except ValueError as error:
+        findings.append(AuditFinding("error", "reference-matrix", str(error)))
+        return
+    if entries is None:
+        findings.append(
+            AuditFinding(
+                "error",
+                "reference-matrix",
+                "reference-matrix.yaml missing",
+            )
+        )
+        return
+    _audit_matrix_paths_and_rules(findings, entries, valid_rules)
+    _audit_matrix_rule_coverage(findings, entries, valid_rules)
+    _audit_matrix_artifact_rules(findings, entries, valid_rules)
     _audit_matrix_corpus_coverage(findings, entries)
     _audit_matrix_corpus_rule_alignment(findings, entries)
 
 
-def _all_matrix_corpus_ids(entries: list[Any]) -> set[str]:
+def _all_matrix_corpus_ids(entries: list[object]) -> set[str]:
     corpus_ids: set[str] = set()
     for entry in entries:
         if not isinstance(entry, dict):
@@ -513,7 +602,7 @@ def _all_matrix_corpus_ids(entries: list[Any]) -> set[str]:
 
 
 def _audit_matrix_corpus_coverage(
-    findings: list[AuditFinding], entries: list[Any]
+    findings: list[AuditFinding], entries: list[object]
 ) -> None:
     """Every corpus case should appear in at least one reference-matrix entry."""
     mapped = _all_matrix_corpus_ids(entries)
@@ -530,7 +619,7 @@ def _audit_matrix_corpus_coverage(
 
 
 def _audit_matrix_corpus_rule_alignment(
-    findings: list[AuditFinding], entries: list[Any]
+    findings: list[AuditFinding], entries: list[object]
 ) -> None:
     """Warn when a matrix corpus case does not assert any of the entry's rules."""
     for index, entry in enumerate(entries):
@@ -555,7 +644,7 @@ def _audit_matrix_corpus_rule_alignment(
                 asserted = set(expect.get("rules", []))
                 for codes in expect.get("lines", {}).values():
                     asserted.update(codes)
-            if not (asserted & entry_rules):
+            if not asserted.intersection(entry_rules):
                 findings.append(
                     AuditFinding(
                         "warning",
@@ -592,50 +681,6 @@ def _audit_docs_rule_count(findings: list[AuditFinding], valid_rules: set[str]) 
                 "error",
                 "docs",
                 f"Requirements.md documents {documented} rules but rules.yaml has {expected}",
-            )
-        )
-
-
-def _grammar_nodes_from_yaml() -> set[str]:
-    data = _load_yaml(RULES_YAML)
-    codes: set[str] = set()
-    for rule in data.get("rules", []):
-        if isinstance(rule, dict) and rule.get("grammar_nodes"):
-            codes.add(str(rule["code"]))
-    return codes
-
-
-def _grammar_codes_from_generated() -> set[str]:
-    if not GRAMMAR_RULES_PY.is_file():
-        return set()
-    text = GRAMMAR_RULES_PY.read_text(encoding="utf-8")
-    if "GRAMMAR_BACKED_RULE_CODES" not in text:
-        return set()
-    return set(re.findall(r'"([A-Z]+\d+)"', text))
-
-
-def _audit_grammar_nodes_drift(findings: list[AuditFinding]) -> None:
-    yaml_codes = _grammar_nodes_from_yaml()
-    generated = _grammar_codes_from_generated()
-    if not GRAMMAR_RULES_PY.is_file():
-        findings.append(
-            AuditFinding(
-                "error",
-                "grammar",
-                "grammar_rules.py missing — run generate_grammar_rules.py",
-            )
-        )
-        return
-    if yaml_codes != generated:
-        missing = sorted(yaml_codes - generated)
-        extra = sorted(generated - yaml_codes)
-        findings.append(
-            AuditFinding(
-                "error",
-                "drift",
-                "grammar_nodes in rules.yaml != grammar_rules.py "
-                f"(missing in generated: {missing or 'none'}; "
-                f"extra in generated: {extra or 'none'})",
             )
         )
 
@@ -772,81 +817,8 @@ def _audit_corpus(findings: list[AuditFinding], valid_rules: set[str]) -> None:
         )
 
 
-def _audit_legacy_mode_removed(findings: list[AuditFinding]) -> None:
-    """Fail if legacy dual-parser toggles remain in production or test code."""
-    roots = [
-        REPO_ROOT / "src",
-        REPO_ROOT / "tests",
-    ]
-    for root in roots:
-        if not root.is_dir():
-            continue
-        for path in root.rglob("*.py"):
-            text = path.read_text(encoding="utf-8")
-            if _LEGACY_FORBIDDEN_RE.search(text):
-                findings.append(
-                    AuditFinding(
-                        "error",
-                        "legacy",
-                        f"Legacy parser toggle found in {path.relative_to(REPO_ROOT)}",
-                    )
-                )
-
-
-def _audit_visitor_coverage(
-    findings: list[AuditFinding], valid_rules: set[str]
-) -> None:
-    """AST rules should be referenced from visitor modules (not orphaned)."""
-    visitor_roots = [VISITORS_DIR, RULE_IMPL_DIR]
-    referenced: set[str] = set()
-    for root in visitor_roots:
-        if not root.is_dir():
-            continue
-        for path in root.rglob("*.py"):
-            if path.name.startswith("_"):
-                continue
-            text = path.read_text(encoding="utf-8")
-            referenced.update(_RULES_IN_CODE_RE.findall(text))
-    orphans = sorted(valid_rules - referenced)
-    if len(orphans) > 5:
-        findings.append(
-            AuditFinding(
-                "warning",
-                "visitors",
-                f"Rules without visitor code reference ({len(orphans)}): "
-                f"{', '.join(orphans[:15])} ...",
-            )
-        )
-
-
-def _grammar_coverage_notes(findings: list[AuditFinding]) -> None:
-    parser_g4 = (
-        Path(__file__).resolve().parents[2] / "spec" / "grammar" / "BatchParser.g4"
-    )
-    if not parser_g4.is_file():
-        return
-    text = parser_g4.read_text(encoding="utf-8")
-    required_snippets = [
-        ("DEFINED", "IF DEFINED"),
-        ("ifErrorlevelStmt", "IF ERRORLEVEL numeric"),
-        ("ifBlockStmt", "IF/ELSE blocks"),
-        ("LPAREN forList RPAREN", "FOR IN (...)"),
-        ("exitStmt", "EXIT /B"),
-        ("shiftStmt", "SHIFT"),
-        ("EOF_KW", "GOTO :EOF"),
-    ]
-    for snippet, label in required_snippets:
-        if snippet not in text:
-            findings.append(
-                AuditFinding(
-                    "warning",
-                    "grammar",
-                    f"Grammar may be missing construct: {label} ({snippet})",
-                )
-            )
-
-
 def run_audit() -> list[AuditFinding]:
+    """Run every SSOT consistency check and return the findings."""
     findings: list[AuditFinding] = []
     valid_rules = _audit_rules(findings)
     _audit_commands(findings, valid_rules)
@@ -894,6 +866,7 @@ def _sync_baseline(report: str, out: Path, *, check: bool) -> bool:
 
 
 def main() -> None:
+    """Audit SSOT files and optionally compare the report to the baseline."""
     parser = argparse.ArgumentParser(description="Audit Blinter SSOT consistency")
     parser.add_argument(
         "--strict",

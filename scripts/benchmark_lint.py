@@ -18,22 +18,23 @@ _BASELINE_PATH = _REPO_ROOT / "spec" / "benchmark" / "synthetic-baseline.json"
 if str(_REPO_ROOT / "src") not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT / "src"))
 
-from blinter import lint_batch_file  # noqa: E402
+from blinter import (  # noqa: E402  # pylint: disable=wrong-import-position
+    lint_batch_file,
+)
 
 _LABEL_HEAVY_COUNT = 2000
 
 
 def _write_temp_batch(lines: list[str]) -> Path:
     """Write lines to a temporary .bat file and return its path."""
-    temp_file = tempfile.NamedTemporaryFile(
+    with tempfile.NamedTemporaryFile(
         mode="w",
         suffix=".bat",
         delete=False,
         encoding="utf-8",
-    )
-    temp_file.write("\n".join(lines))
-    temp_file.close()
-    return Path(temp_file.name)
+    ) as temp_file:
+        temp_file.write("\n".join(lines))
+        return Path(temp_file.name)
 
 
 def _generate_label_heavy_file(label_count: int = _LABEL_HEAVY_COUNT) -> Path:
@@ -163,6 +164,7 @@ def _print_profile(file_path: Path, top_n: int) -> None:
 
 
 def main() -> int:
+    """Benchmark lint performance and optionally compare it to the baseline."""
     parser = argparse.ArgumentParser(description="Benchmark Blinter lint performance.")
     parser.add_argument(
         "file",

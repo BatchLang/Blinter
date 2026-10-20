@@ -125,7 +125,7 @@ When `follow_calls` is enabled, Blinter resolves `CALL` targets to read variable
 
 Clone with `git clone --recurse-submodules` or run `git submodule update --init --recursive` after checkout.
 
-Generators live under [`scripts/spec/`](../scripts/spec/). `scripts/verify.py` runs schema validation, generator `--check`, strict SSOT audit, cmd.exe oracle (Windows), linting, and tests.
+Generators live under [`scripts/spec/`](../scripts/spec/). `scripts/verify.py` is the quality gate for local runs and CI: schema validation, generator `--check`, strict SSOT audit, lockfile check, formatting, mypy, pylint, bandit, pip-audit, the benchmark baseline, pytest, the cmd.exe oracle (Windows), and PowerShell checks (Windows). CI's quality job runs `python scripts/verify.py --skip-pytest` because pytest has its own matrix job. The Windows job runs `python scripts/verify.py --windows-only`.
 
 `patterns.py` `BUILTIN_COMMANDS` is generated as the union of batch-spec `builtin_commands` and
 `common_external_tools` so stock Windows utilities and common dev tools both suppress E012/E014.

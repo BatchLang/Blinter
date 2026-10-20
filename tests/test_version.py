@@ -55,6 +55,7 @@ from scripts.extract_release_notes import (
     main as extract_release_notes_main,
     write_github_release_notes,
 )
+from tests.conftest import get_project_version
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _BUILD_VERSION_PATH = _REPO_ROOT / "src" / "blinter" / "_build_version.py"
@@ -85,7 +86,7 @@ class TestVersion:
         mocker.patch("blinter._version._BAKED_VERSION", None)
 
     def test_get_version_uses_installed_metadata_without_pyproject(
-        self, mocker: MockerFixture, tmp_path: Path
+        self, mocker: MockerFixture
     ) -> None:
         """Test installed metadata is used when pyproject.toml is not present."""
         mocker.patch("blinter._version._source_checkout_pyproject", return_value=None)
@@ -112,7 +113,6 @@ class TestVersion:
 
     def test_get_version_reads_pyproject_in_source_tree(self) -> None:
         """Test source checkouts resolve version from pyproject.toml."""
-        from tests.conftest import get_project_version
 
         assert get_version() == get_project_version()
 
@@ -146,7 +146,6 @@ class TestVersion:
 
     def test_empty_baked_version_uses_pyproject(self, mocker: MockerFixture) -> None:
         """An empty generated version falls through to pyproject.toml."""
-        from tests.conftest import get_project_version
 
         mocker.patch("blinter._version._BAKED_VERSION", "")
         assert get_version() == get_project_version()
@@ -199,7 +198,6 @@ def _assert_build_version_present_for_nuitka(
 ) -> int:
     """Nuitka must be able to compile the generated module."""
     del command
-    from tests.conftest import get_project_version
 
     project_version = get_project_version()
     generated = repo_root / PACKAGE_DIR / "_build_version.py"
@@ -219,7 +217,6 @@ class TestBuildExe:
 
     def test_read_project_version_matches_pyproject(self) -> None:
         """Script should read the same version as test helpers."""
-        from tests.conftest import get_project_version
 
         repo_root = Path(__file__).resolve().parent.parent
         assert (
@@ -254,7 +251,6 @@ class TestBuildExe:
 
     def test_build_command_includes_windows_metadata(self) -> None:
         """Nuitka command must embed icon, version, and the blinter package."""
-        from tests.conftest import get_project_version
 
         project_version = get_project_version()
         command = build_nuitka_command(

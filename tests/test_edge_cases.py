@@ -1,5 +1,6 @@
 """Tests for edge cases and specialized scenarios."""
 
+import importlib
 import os
 from pathlib import Path
 import sys
@@ -14,6 +15,7 @@ from blinter import (
     LintIssue,
     find_batch_files,
     lint_batch_file,
+    logging_config,
     main,
     read_file_with_encoding,
 )
@@ -28,8 +30,13 @@ from blinter.checkers.advanced import (
     _check_line_length,
     _check_magic_numbers,
 )
-from blinter.checkers.advanced.style_security_perf import _line_is_inside_for_block
+from blinter.checkers.advanced.style_security_perf import (
+    _check_advanced_security,
+    _check_for_block_performance,
+    _line_is_inside_for_block,
+)
 from blinter.checkers.advanced.vars_syntax import (
+    _check_advanced_process_mgmt,
     _check_for_f_suboptions,
     _check_for_f_token_overflow,
     _check_percent_tilde_syntax,
@@ -48,6 +55,8 @@ from blinter.checkers.globals import (
     _check_redundant_operations,
     _check_unreachable_code,
 )
+from blinter.checkers.globals.exit_flow import _check_missing_exit_statement
+from blinter.checkers.line_endings import _check_line_ending_rules
 from blinter.checkers.performance import _check_performance_issues
 from blinter.checkers.security import _check_security_issues
 from blinter.checkers.style import _check_style_issues
@@ -59,12 +68,18 @@ from blinter.io.encoding import (
     _has_multibyte_chars,
     _validate_and_read_file,
 )
-from blinter.parsing.context import _is_command_in_safe_context
+from blinter.parsing.context import (
+    _command_segments,
+    _is_command_in_safe_context,
+    _is_endlocal_command,
+    _is_setlocal_command,
+)
 from blinter.parsing.embedded import _detect_embedded_script_blocks
 from blinter.parsing.structure import (
     _analyze_script_structure,
     _collect_labels,
     _collect_set_variables,
+    _parse_suppression_comments,
 )
 from tests.conftest import patch_valid_encoding_path
 
@@ -1575,7 +1590,7 @@ class TestTextAfterCloseParenE042:
         """Inner (parens) with nothing after the close is valid inside a block."""
         batch_file = tmp_path / "nothing-after.cmd"
         batch_file.write_text(
-            "@echo off\n" "for %%D in (C) do (\n" "    echo text (parens)\n" ")\n",
+            "@echo off\nfor %%D in (C) do (\n    echo text (parens)\n)\n",
             encoding="utf-8",
         )
         issues = lint_batch_file(str(batch_file))
@@ -1599,7 +1614,7 @@ class TestTextAfterCloseParenE042:
         """Outside a block, parentheses in ECHO text are literal."""
         batch_file = tmp_path / "toplevel.cmd"
         batch_file.write_text(
-            "@echo off\n" "echo --- text (parens) ---\n",
+            "@echo off\necho --- text (parens) ---\n",
             encoding="utf-8",
         )
         issues = lint_batch_file(str(batch_file))
@@ -1609,7 +1624,7 @@ class TestTextAfterCloseParenE042:
         """Same-line FOR DO ( body still treats inner ) as a group closer."""
         batch_file = tmp_path / "same-line.cmd"
         batch_file.write_text(
-            "@echo off\n" "for %%D in (C) do (echo --- text (parens) ---)\n",
+            "@echo off\nfor %%D in (C) do (echo --- text (parens) ---)\n",
             encoding="utf-8",
         )
         issues = lint_batch_file(str(batch_file))
@@ -1645,7 +1660,7 @@ class TestTextAfterCloseParenE042:
         """A second group immediately after ) is unexpected at parse time."""
         batch_file = tmp_path / "echo-a-b.cmd"
         batch_file.write_text(
-            "@echo off\n" "for %%D in (C) do (\n" "    echo (a) (b)\n" ")\n",
+            "@echo off\nfor %%D in (C) do (\n    echo (a) (b)\n)\n",
             encoding="utf-8",
         )
         issues = lint_batch_file(str(batch_file))
@@ -1655,7 +1670,7 @@ class TestTextAfterCloseParenE042:
         """Same-line IF ( body still treats inner ) as a group closer."""
         batch_file = tmp_path / "same-line-if.cmd"
         batch_file.write_text(
-            "@echo off\n" "if 1==1 (echo --- text (parens) ---)\n",
+            "@echo off\nif 1==1 (echo --- text (parens) ---)\n",
             encoding="utf-8",
         )
         issues = lint_batch_file(str(batch_file))
@@ -1665,7 +1680,7 @@ class TestTextAfterCloseParenE042:
         """Command groups that start with ( use the same grouping rules."""
         batch_file = tmp_path / "bare-group.cmd"
         batch_file.write_text(
-            "@echo off\n" "(\n" "    echo --- text (parens) ---\n" ")\n",
+            "@echo off\n(\n    echo --- text (parens) ---\n)\n",
             encoding="utf-8",
         )
         issues = lint_batch_file(str(batch_file))
@@ -1675,7 +1690,7 @@ class TestTextAfterCloseParenE042:
         """A same-line ( group body still treats inner ) as a group closer."""
         batch_file = tmp_path / "same-line-group.cmd"
         batch_file.write_text(
-            "@echo off\n" "(echo --- text (parens) ---)\n",
+            "@echo off\n(echo --- text (parens) ---)\n",
             encoding="utf-8",
         )
         issues = lint_batch_file(str(batch_file))
@@ -3876,7 +3891,6 @@ class TestEmbeddedScriptDetection:  # pylint: disable=too-few-public-methods
 
     def test_detect_embedded_powershell_block(self) -> None:
         """PowerShell syntax after a label is skipped during linting."""
-        from blinter.parsing.embedded import _detect_embedded_script_blocks
 
         lines = [
             "@echo off",
@@ -3958,7 +3972,6 @@ class TestEmbeddedScriptDetection:  # pylint: disable=too-few-public-methods
 
     def test_detect_embedded_vbscript_block(self) -> None:
         """VBScript syntax after a label is skipped during linting."""
-        from blinter.parsing.embedded import _detect_embedded_script_blocks
 
         lines = [
             "@echo off",
@@ -3973,7 +3986,6 @@ class TestEmbeddedScriptDetection:  # pylint: disable=too-few-public-methods
 
     def test_detect_embedded_csharp_block(self) -> None:
         """C# using/namespace/class/foreach lines after a label are skipped."""
-        from blinter.parsing.embedded import _detect_embedded_script_blocks
 
         lines = [
             "@echo off",
@@ -4000,7 +4012,6 @@ class TestEmbeddedScriptDetection:  # pylint: disable=too-few-public-methods
 
     def test_csharp_block_ends_on_batch_resume(self) -> None:
         """Batch commands after an embedded C# block are linted again."""
-        from blinter.parsing.embedded import _detect_embedded_script_blocks
 
         lines = [
             "@echo off",
@@ -4019,7 +4030,6 @@ class TestEmbeddedScriptDetection:  # pylint: disable=too-few-public-methods
 
     def test_hex_literal_in_batch_is_not_treated_as_csharp(self) -> None:
         """Batch hex values must not open a C# skip block."""
-        from blinter.parsing.embedded import _detect_embedded_script_blocks
 
         lines = [
             "@echo off",
@@ -4031,7 +4041,6 @@ class TestEmbeddedScriptDetection:  # pylint: disable=too-few-public-methods
 
     def test_lone_brace_in_batch_is_not_treated_as_csharp(self) -> None:
         """A stray opening brace in batch must not open a C# skip block."""
-        from blinter.parsing.embedded import _detect_embedded_script_blocks
 
         lines = [
             "@echo off",
@@ -4066,7 +4075,6 @@ class TestEmbeddedScriptDetection:  # pylint: disable=too-few-public-methods
 
     def test_echo_to_temp_vbscript_is_not_skipped(self) -> None:
         """Echo-generated VBScript payloads remain batch lines."""
-        from blinter.parsing.embedded import _detect_embedded_script_blocks
 
         lines = [
             "@echo off",
@@ -4081,7 +4089,6 @@ class TestEmbeddedScriptDetection:  # pylint: disable=too-few-public-methods
 
     def test_echo_wscript_payload_is_not_skipped(self) -> None:
         """Unanchored WScript in an echo line must not open a skip block."""
-        from blinter.parsing.embedded import _detect_embedded_script_blocks
 
         lines = [
             "@echo off",
@@ -4093,7 +4100,6 @@ class TestEmbeddedScriptDetection:  # pylint: disable=too-few-public-methods
 
     def test_infile_vbscript_msgbox_and_option_explicit_skipped(self) -> None:
         """MsgBox and Option Explicit after a label are skipped; exit resumes."""
-        from blinter.parsing.embedded import _detect_embedded_script_blocks
 
         lines = [
             "@echo off",
@@ -4109,7 +4115,6 @@ class TestEmbeddedScriptDetection:  # pylint: disable=too-few-public-methods
 
     def test_jscript_polyglot_skips_header_and_body_not_batch_interior(self) -> None:
         """JScript /* */ wraps batch; only header and post-*/ body are skipped."""
-        from blinter.parsing.embedded import _detect_embedded_script_blocks
 
         lines = [
             "@if (1==1) @end /*",
@@ -4131,7 +4136,6 @@ class TestEmbeddedScriptDetection:  # pylint: disable=too-few-public-methods
 
     def test_jscript_var_after_label_is_skipped(self) -> None:
         """JScript var declarations after a label are skipped."""
-        from blinter.parsing.embedded import _detect_embedded_script_blocks
 
         lines = [
             "@echo off",
@@ -4147,7 +4151,6 @@ class TestEmbeddedScriptDetection:  # pylint: disable=too-few-public-methods
 
     def test_wscript_echo_after_label_keeps_jscript_if_for(self) -> None:
         """WScript.Echo after a label must not lock VBScript over JScript if/for."""
-        from blinter.parsing.embedded import _detect_embedded_script_blocks
 
         lines = [
             "@echo off",
@@ -4169,7 +4172,6 @@ class TestEmbeddedScriptDetection:  # pylint: disable=too-few-public-methods
 
     def test_jscript_if_and_for_in_body_are_skipped(self) -> None:
         """JScript if/for after var must not close the skip block."""
-        from blinter.parsing.embedded import _detect_embedded_script_blocks
 
         lines = [
             "@echo off",
@@ -4191,7 +4193,6 @@ class TestEmbeddedScriptDetection:  # pylint: disable=too-few-public-methods
 
     def test_jscript_block_ends_on_batch_if(self) -> None:
         """Real batch if after JScript still ends the skip block."""
-        from blinter.parsing.embedded import _detect_embedded_script_blocks
 
         lines = [
             "@echo off",
@@ -4207,7 +4208,6 @@ class TestEmbeddedScriptDetection:  # pylint: disable=too-few-public-methods
 
     def test_csharp_for_immediately_after_starter_is_skipped(self) -> None:
         """C# for after using must stay in the skip block."""
-        from blinter.parsing.embedded import _detect_embedded_script_blocks
 
         lines = [
             "@echo off",
@@ -4315,7 +4315,6 @@ class TestSuppressionCommentParsing:
 
     def test_parse_suppression_ignore_next_line_specific_code(self) -> None:
         """REM LINT:IGNORE with code suppresses that rule on the next line."""
-        from blinter.parsing.structure import _parse_suppression_comments
 
         lines = [
             "REM LINT:IGNORE E009\n",
@@ -4327,7 +4326,6 @@ class TestSuppressionCommentParsing:
 
     def test_parse_suppression_ignore_next_line_all_rules(self) -> None:
         """REM LINT:IGNORE without code suppresses all rules on the next line."""
-        from blinter.parsing.structure import _parse_suppression_comments
 
         lines = [
             "REM LINT:IGNORE\n",
@@ -4339,7 +4337,6 @@ class TestSuppressionCommentParsing:
 
     def test_parse_suppression_ignore_line_same_line(self) -> None:
         """REM LINT:IGNORE-LINE on a REM line suppresses that line."""
-        from blinter.parsing.structure import _parse_suppression_comments
 
         lines = [
             "REM LINT:IGNORE-LINE S007\n",
@@ -4411,9 +4408,6 @@ class TestLoggingConfig:
 
     def test_logger_has_null_handler_and_no_duplicates(self) -> None:
         """Logger uses NullHandler and does not accumulate handlers."""
-        import importlib
-
-        import blinter.logging_config as logging_config
 
         importlib.reload(logging_config)
         handler_count = len(logging_config.logger.handlers)
@@ -4430,9 +4424,6 @@ class TestAdvancedSecurityPerformanceRules:
 
     def test_sec014_flags_unescaped_user_input(self) -> None:
         """SEC014 triggers for unescaped %1 with special characters."""
-        from blinter.checkers.advanced.style_security_perf import (
-            _check_advanced_security,
-        )
 
         lines = ["@echo off\n", "echo %1 & dir\n"]
         issues = _check_advanced_security(lines[1], 2, lines, {})
@@ -4441,9 +4432,6 @@ class TestAdvancedSecurityPerformanceRules:
 
     def test_sec014_flags_unquoted_arg_without_specials(self) -> None:
         """SEC014 triggers for unquoted %1 even when the source has no &|><."""
-        from blinter.checkers.advanced.style_security_perf import (
-            _check_advanced_security,
-        )
 
         lines = ["@echo off\n", "echo %1\n"]
         issues = _check_advanced_security(lines[1], 2, lines, {})
@@ -4452,9 +4440,6 @@ class TestAdvancedSecurityPerformanceRules:
 
     def test_sec014_ignores_quoted_arg(self) -> None:
         """SEC014 does not flag quoted %~1."""
-        from blinter.checkers.advanced.style_security_perf import (
-            _check_advanced_security,
-        )
 
         lines = ["@echo off\n", 'echo "%~1"\n']
         issues = _check_advanced_security(lines[1], 2, lines, {})
@@ -4463,9 +4448,6 @@ class TestAdvancedSecurityPerformanceRules:
 
     def test_sec025_flags_unquoted_cd(self) -> None:
         """SEC025 triggers for unquoted %CD%."""
-        from blinter.checkers.advanced.style_security_perf import (
-            _check_advanced_security,
-        )
 
         issues = _check_advanced_security("echo %CD%\n", 1, ["@echo off\n"], {})
         codes = {issue.rule.code for issue in issues}
@@ -4473,7 +4455,6 @@ class TestAdvancedSecurityPerformanceRules:
 
     def test_sec001_quoted_setp_use_is_safe(self) -> None:
         """SEC001 does not flag SET /P variables that are only used quoted."""
-        from blinter.checkers.security import _check_security_issues
 
         lines = [
             "@echo off\n",
@@ -4486,9 +4467,6 @@ class TestAdvancedSecurityPerformanceRules:
 
     def test_sec014_flags_unescaped_percent5(self) -> None:
         """SEC014 triggers for unescaped %5 with special characters."""
-        from blinter.checkers.advanced.style_security_perf import (
-            _check_advanced_security,
-        )
 
         lines = ["@echo off\n", "echo %5 & dir\n"]
         issues = _check_advanced_security(lines[1], 2, lines, {})
@@ -4497,9 +4475,6 @@ class TestAdvancedSecurityPerformanceRules:
 
     def test_sec017_flags_predictable_temp_file(self) -> None:
         """SEC017 triggers for temp files without randomness."""
-        from blinter.checkers.advanced.style_security_perf import (
-            _check_advanced_security,
-        )
 
         issues = _check_advanced_security(
             "set outfile=c:\\temp\\data.tmp\n", 1, ["@echo off\n"], {}
@@ -4509,9 +4484,6 @@ class TestAdvancedSecurityPerformanceRules:
 
     def test_sec018_flags_insecure_redirection(self) -> None:
         """SEC018 triggers for redirection to insecure temp paths."""
-        from blinter.checkers.advanced.style_security_perf import (
-            _check_advanced_security,
-        )
 
         issues = _check_advanced_security(
             "dir > c:\\temp\\output.txt\n", 1, ["@echo off\n"], {}
@@ -4521,9 +4493,6 @@ class TestAdvancedSecurityPerformanceRules:
 
     def test_sec011_flags_path_traversal(self) -> None:
         """SEC011 triggers when path operations contain .."""
-        from blinter.checkers.advanced.style_security_perf import (
-            _check_enhanced_security_rules,
-        )
 
         issues = _check_enhanced_security_rules(["@echo off\n", "cd ..\\windows\n"])
         codes = {issue.rule.code for issue in issues}
@@ -4531,9 +4500,6 @@ class TestAdvancedSecurityPerformanceRules:
 
     def test_sec011_ignores_safe_paths(self) -> None:
         """SEC011 does not flag normal absolute paths."""
-        from blinter.checkers.advanced.style_security_perf import (
-            _check_enhanced_security_rules,
-        )
 
         issues = _check_enhanced_security_rules(
             ["@echo off\n", "cd C:\\Windows\\System32\n"]
@@ -4543,9 +4509,6 @@ class TestAdvancedSecurityPerformanceRules:
 
     def test_sec011_ignores_substring_command_matches(self) -> None:
         """SEC011 does not flag 'cd' inside unrelated words like abcd."""
-        from blinter.checkers.advanced.style_security_perf import (
-            _check_enhanced_security_rules,
-        )
 
         issues = _check_enhanced_security_rules(
             ["@echo off\n", "set abcd=..\\windows\n"]
@@ -4555,9 +4518,6 @@ class TestAdvancedSecurityPerformanceRules:
 
     def test_sec014_flags_delayed_expansion_user_input(self) -> None:
         """SEC014 triggers for unescaped !1! with special characters."""
-        from blinter.checkers.advanced.style_security_perf import (
-            _check_advanced_security,
-        )
 
         lines = ["@echo off\n", "echo !1! & dir\n"]
         issues = _check_advanced_security(lines[1], 2, lines, {})
@@ -4566,9 +4526,6 @@ class TestAdvancedSecurityPerformanceRules:
 
     def test_sec012_ignores_non_temp_paths(self) -> None:
         """SEC012 does not flag arbitrary words containing 'temp'."""
-        from blinter.checkers.advanced.style_security_perf import (
-            _check_enhanced_security_rules,
-        )
 
         issues = _check_enhanced_security_rules(
             ["@echo off\n", "set attempt=value.tmp\n"]
@@ -4578,9 +4535,6 @@ class TestAdvancedSecurityPerformanceRules:
 
     def test_sec012_flags_unsafe_temp_file(self) -> None:
         """SEC012 triggers for predictable temp file paths."""
-        from blinter.checkers.advanced.style_security_perf import (
-            _check_enhanced_security_rules,
-        )
 
         issues = _check_enhanced_security_rules(
             ["@echo off\n", "set outfile=c:\\temp\\out.tmp\n"]
@@ -4590,9 +4544,6 @@ class TestAdvancedSecurityPerformanceRules:
 
     def test_sec012_ignores_random_temp_file(self) -> None:
         """SEC012 does not flag temp files using %random%."""
-        from blinter.checkers.advanced.style_security_perf import (
-            _check_enhanced_security_rules,
-        )
 
         issues = _check_enhanced_security_rules(
             ["@echo off\n", "set outfile=%temp%\\%random%.tmp\n"]
@@ -4602,7 +4553,6 @@ class TestAdvancedSecurityPerformanceRules:
 
     def test_sec015_flags_unfiltered_taskkill(self) -> None:
         """SEC015 triggers for TASKKILL /F without /FI filters."""
-        from blinter.checkers.advanced.vars_syntax import _check_advanced_process_mgmt
 
         issues = _check_advanced_process_mgmt(["taskkill /f /im notepad.exe"], 1)
         codes = {issue.rule.code for issue in issues}
@@ -4610,7 +4560,6 @@ class TestAdvancedSecurityPerformanceRules:
 
     def test_sec015_ignores_filtered_taskkill(self) -> None:
         """SEC015 does not flag TASKKILL /F when /FI filters are present."""
-        from blinter.checkers.advanced.vars_syntax import _check_advanced_process_mgmt
 
         issues = _check_advanced_process_mgmt(
             ['taskkill /f /fi "imagename eq notepad.exe" /im notepad.exe'], 1
@@ -4620,7 +4569,6 @@ class TestAdvancedSecurityPerformanceRules:
 
     def test_w043_ignores_taskkill_after_tasklist(self) -> None:
         """TASKKILL after TASKLIST in the same block should not trigger W043."""
-        from blinter.checkers.advanced.vars_syntax import _check_advanced_process_mgmt
 
         lines = [
             'tasklist /FI "IMAGENAME eq notepad.exe" 2>nul | find /I notepad.exe >nul',
@@ -4632,9 +4580,6 @@ class TestAdvancedSecurityPerformanceRules:
 
     def test_for_loop_performance_rules(self) -> None:
         """P019 and P022 trigger inside FOR blocks."""
-        from blinter.checkers.advanced.style_security_perf import (
-            _check_for_block_performance,
-        )
 
         lines = [
             "@echo off\n",
@@ -4683,7 +4628,6 @@ class TestEmbeddedScriptEdgeCases:
 
     def test_powershell_heredoc_block_skipped(self) -> None:
         """PowerShell <# ... #> heredoc lines are skipped."""
-        from blinter.parsing.embedded import _detect_embedded_script_blocks
 
         lines = [
             "@echo off",
@@ -4699,7 +4643,6 @@ class TestEmbeddedScriptEdgeCases:
 
     def test_label_resets_embedded_block_state(self) -> None:
         """Batch labels after embedded blocks resume batch linting."""
-        from blinter.parsing.embedded import _detect_embedded_script_blocks
 
         lines = [
             "@echo off",
@@ -4714,7 +4657,6 @@ class TestEmbeddedScriptEdgeCases:
 
     def test_vbscript_block_ends_on_batch_line(self) -> None:
         """VBScript blocks end when batch syntax resumes."""
-        from blinter.parsing.embedded import _detect_embedded_script_blocks
 
         lines = [
             "@echo off",
@@ -4733,7 +4675,6 @@ class TestLineEndingCheckerRules:  # pylint: disable=too-few-public-methods
 
     def test_check_line_ending_rules_e018_w018_w019(self) -> None:
         """LF files with multibyte chars and GOTO labels trigger line-ending rules."""
-        from blinter.checkers.line_endings import _check_line_ending_rules
 
         lines = ["@echo off\n", "goto :target\n", "echo café\n"]
         ending_info = ("LF", False, 0, 3, 0)
@@ -4749,7 +4690,6 @@ class TestExitFlowW001Goto:  # pylint: disable=too-few-public-methods
 
     def test_goto_main_without_exit_triggers_w001(self) -> None:
         """GOTO :main where the label falls through to EOF should warn."""
-        from blinter.checkers.globals.exit_flow import _check_missing_exit_statement
 
         lines = [
             "@echo off\n",
@@ -4763,7 +4703,6 @@ class TestExitFlowW001Goto:  # pylint: disable=too-few-public-methods
 
     def test_goto_main_with_exit_does_not_trigger_w001(self) -> None:
         """GOTO :main where the label exits should not warn."""
-        from blinter.checkers.globals.exit_flow import _check_missing_exit_statement
 
         lines = [
             "@echo off\n",
@@ -4777,7 +4716,6 @@ class TestExitFlowW001Goto:  # pylint: disable=too-few-public-methods
 
     def test_goto_eof_does_not_trigger_w001(self) -> None:
         """GOTO :EOF should not produce a missing-exit warning."""
-        from blinter.checkers.globals.exit_flow import _check_missing_exit_statement
 
         lines = ["@echo off\n", "echo done\n", "GOTO :EOF\n"]
         issues = _check_missing_exit_statement(lines)
@@ -4870,7 +4808,6 @@ class TestResidualFalsePositives:
 
     def test_setlocal_after_an_if_predicate_is_counted(self) -> None:
         """#40: ``if defined FLAG setlocal`` runs a SETLOCAL."""
-        from blinter.parsing.context import _is_endlocal_command, _is_setlocal_command
 
         assert _is_setlocal_command("if defined FLAG setlocal")
         assert _is_setlocal_command("echo step & setlocal")
@@ -4898,7 +4835,6 @@ class TestResidualFalsePositives:
 
     def test_quoted_if_operand_holding_a_space(self) -> None:
         """#40: a quoted operand is one token, so the predicate ends where it does."""
-        from blinter.parsing.context import _is_setlocal_command
 
         assert _is_setlocal_command(r'if exist "C:\Program Files\a.txt" setlocal')
         assert _is_setlocal_command(
@@ -4907,8 +4843,7 @@ class TestResidualFalsePositives:
 
     def test_escaped_separator_and_pipe_do_not_start_a_command(self) -> None:
         """#40: a caret escapes ``&``, and a pipe runs its right side elsewhere."""
-        from blinter.parsing.context import _command_segments, _is_setlocal_command
 
-        assert _command_segments("echo a ^& setlocal") == []
+        assert not _command_segments("echo a ^& setlocal")
         assert not _is_setlocal_command("echo a ^& setlocal")
         assert _command_segments('dir | find "x"') == ['dir | find "x"']

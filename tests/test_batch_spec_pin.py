@@ -66,6 +66,7 @@ def test_generators_check(generator: str) -> None:
         cwd=_REPO_ROOT,
         capture_output=True,
         text=True,
+        check=False,
     )
     assert (
         result.returncode == 0

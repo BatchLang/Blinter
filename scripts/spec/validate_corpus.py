@@ -13,13 +13,15 @@ import jsonschema
 import yaml
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 if str(_REPO_ROOT / "src") not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT / "src"))
-if str(_REPO_ROOT / "tests") not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT / "tests"))
 
-from blinter import lint_batch_file  # noqa: E402
-from spec_corpus_support import (  # noqa: E402
+from blinter import (  # noqa: E402  # pylint: disable=wrong-import-position
+    lint_batch_file,
+)
+from tests.spec_corpus_support import (  # noqa: E402  # pylint: disable=wrong-import-position
     CORPUS_DIR,
     assert_issues_match,
     discover_spec_corpus_cases,
@@ -37,29 +39,35 @@ _VALID_RULES = {entry["code"] for entry in _RULES_YAML["rules"]}
 _CORPUS_INDEX = _REPO_ROOT / "spec" / "corpus" / "meta" / "corpus-index.yaml"
 
 
+def _as_list(value: object) -> list[object]:
+    """Return a YAML sequence, or an empty list when the value is absent."""
+    if isinstance(value, list):
+        return list(value)
+    return []
+
+
 def _validate_rule_refs(expect: dict[str, object], expect_path: Path) -> None:
-    for rule in expect.get("rules", []):
+    for rule in _as_list(expect.get("rules", [])):
         if rule not in _VALID_RULES:
             raise ValueError(f"Unknown rule {rule} in {expect_path}")
     lines = expect.get("lines", {})
     if isinstance(lines, dict):
         for codes in lines.values():
-            for rule in codes:
+            for rule in _as_list(codes):
                 if rule not in _VALID_RULES:
                     raise ValueError(f"Unknown rule {rule} in {expect_path}")
-    for rule in expect.get("must_not", []):
+    for rule in _as_list(expect.get("must_not", [])):
         if rule not in _VALID_RULES:
             raise ValueError(f"Unknown must_not rule {rule} in {expect_path}")
     config = expect.get("config", {})
     if isinstance(config, dict):
         for key in ("disabled_rules", "enabled_rules"):
             values = config.get(key)
-            if values:
-                for rule in values:
-                    if rule not in _VALID_RULES:
-                        raise ValueError(
-                            f"Unknown config.{key} rule {rule} in {expect_path}"
-                        )
+            for rule in _as_list(values):
+                if rule not in _VALID_RULES:
+                    raise ValueError(
+                        f"Unknown config.{key} rule {rule} in {expect_path}"
+                    )
 
 
 def _validate_case_naming(expect: dict[str, object], expect_path: Path) -> None:
@@ -70,7 +78,7 @@ def _validate_case_naming(expect: dict[str, object], expect_path: Path) -> None:
     if not match:
         return
     expected_rule = f"E{match.group(1)}"
-    asserted: set[str] = set(expect.get("rules", []))
+    asserted: set[str] = {str(rule) for rule in _as_list(expect.get("rules", []))}
     lines = expect.get("lines", {})
     if isinstance(lines, dict):
         for codes in lines.values():
@@ -95,18 +103,31 @@ def _validate_corpus_index_tags(expect: dict[str, object], expect_path: Path) ->
         for values in tags_section.values():
             if isinstance(values, list):
                 allowed_tags.update(str(v) for v in values)
-    for tag in expect.get("tags", []):
+    for tag in _as_list(expect.get("tags", [])):
         if allowed_tags and tag not in allowed_tags:
             raise ValueError(f"Unknown corpus tag {tag!r} in {expect_path}")
-    max_total = index.get("aggregate_limits", {}).get("max_total_issues_per_case")
-    if max_total is not None and expect.get("total") is not None:
-        if int(expect["total"]) > int(max_total):
-            raise ValueError(
-                f"total {expect['total']} exceeds corpus max {max_total} in {expect_path}"
-            )
+    aggregate_limits = index.get("aggregate_limits", {})
+    max_total = (
+        aggregate_limits.get("max_total_issues_per_case")
+        if isinstance(aggregate_limits, dict)
+        else None
+    )
+    total = expect.get("total")
+    exceeds_max = (
+        isinstance(max_total, int)
+        and not isinstance(max_total, bool)
+        and isinstance(total, int)
+        and not isinstance(total, bool)
+        and total > max_total
+    )
+    if exceeds_max:
+        raise ValueError(
+            f"total {expect['total']} exceeds corpus max {max_total} in {expect_path}"
+        )
 
 
 def main() -> None:
+    """Validate corpus expect.json files and live lint results."""
     parser = argparse.ArgumentParser(description="Validate SSOT corpus fixtures")
     parser.add_argument(
         "--lint-only",
