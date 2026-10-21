@@ -2,7 +2,7 @@
 
 All notable changes to Blinter are documented in this file. Release tags follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.1.44] - 2026-10-21
 
 ### Added
 
@@ -17,6 +17,8 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ### Changed
 
+- Pinned batch-spec to v0.72.4. A CR that is not part of CRLF is not a line break, and a caret plus CRLF stays one escaped ending
+- The MegaLinter install pin is 1.1.44
 - `scripts/verify.py` is the quality gate for local runs and CI. mypy and pylint check `src`, `scripts`, and `tests` from their config instead of a hand-maintained file list. bandit checks `src` and `scripts`. `--windows-only` replaces `--powershell-only` and includes the cmd.exe corpus oracle. `--skip-pytest` leaves the test suite to CI's matrix job. On Python 3.15, pylint runs in one process because parallel jobs crash while pickling the linter.
 
 ## [1.1.43] - 2026-10-19
@@ -425,6 +427,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 Older 1.0.x releases are available on the [GitHub Releases](https://github.com/BatchLang/Blinter/releases) page.
 
+[1.1.44]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.44
 [1.1.43]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.43
 [1.1.42]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.42
 [1.1.41]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.41

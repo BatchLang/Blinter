@@ -12,7 +12,7 @@ git clone --recurse-submodules https://github.com/BatchLang/Blinter.git
 git submodule update --init --recursive
 ```
 
-The pinned release is recorded in [`batch-spec.lock`](batch-spec.lock) (currently `v0.72.3`).
+The pinned release is recorded in [`batch-spec.lock`](batch-spec.lock) (currently `v0.72.4`).
 
 ## Layout
 
