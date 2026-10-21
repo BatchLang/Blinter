@@ -38,14 +38,18 @@ classifiers = [
   "Environment :: Console",
   "Intended Audience :: Developers",
   "Operating System :: OS Independent",
+  "Programming Language :: Python",
   "Programming Language :: Python :: 3 :: Only",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
   "Programming Language :: Python :: 3.15",
+  "Topic :: Software Development :: Debuggers",
   "Topic :: Software Development :: Quality Assurance",
+  "Topic :: Software Development :: Testing",
   "Topic :: System :: Systems Administration",
+  "Typing :: Typed",
 ]
 dependencies = [ "charset-normalizer>=3.5.2,<4" ]
 optional-dependencies.dev = [
