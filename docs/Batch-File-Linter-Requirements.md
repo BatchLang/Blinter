@@ -1277,6 +1277,14 @@ Scripts may suppress findings on a line using documentation comments:
 - `REM LINT:IGNORE E001,W001` — suppress specific rule codes on that line
 - `REM LINT:IGNORE-LINE` — alternate form for line-level suppression
 
+The directive and its rule codes match case-insensitively in ASCII only. A look-alike letter such as `ı` (U+0131) or `ſ` (U+017F) does not form a directive or a rule code. A directive that names codes, none of which are ASCII rule codes, suppresses nothing.
+
+### Baseline file
+
+`--baseline <path>` reads a JSON list of accepted findings. Each object has `code`, `file`, and `text`. `file` is a POSIX path relative to the baseline file's directory. `text` is the trimmed source line. Matching is a multiset: two identical lines need two entries. A finding the baseline does not hold is reported and exits 1 only when its severity is at or above `fail_on`. An entry whose file was scanned and that no longer matches a finding is stale and always exits 1. Entries for files that were not scanned are left unchanged.
+
+`--update-baseline` rewrites the file from the current findings, keeps entries for files outside the scan, and exits 0 unless a file could not be processed. It requires `--baseline`.
+
 ### blinter.ini Keys (general section)
 
 - `recursive` — search subdirectories (default: `true`)

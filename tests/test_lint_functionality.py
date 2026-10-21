@@ -1886,6 +1886,60 @@ copy x C:\\temp\\foo.tmp dest
         finally:
             os.unlink(temp_file)
 
+    def test_sec012_ignores_rem_and_colon_comments(self) -> None:
+        """SEC012 does not treat a comment that mentions a temp path as file creation."""
+        content = """@echo off
+REM Under %TEMP%, cmd.exe cannot run this.
+:: Under %TEMP%, cmd.exe cannot run this.
+copy payload %TEMP%\\payload.cmd
+exit /b 0
+"""
+        temp_file = self.create_temp_batch_file(content)
+        try:
+            issues = lint_batch_file(temp_file)
+            sec012_lines = [
+                issue.line_number for issue in issues if issue.rule.code == "SEC012"
+            ]
+            assert sec012_lines == [4]
+        finally:
+            os.unlink(temp_file)
+
+    def test_sec013_for_set_is_not_a_command(self) -> None:
+        """A %VAR% that opens a FOR set is a value, not a command."""
+        content = """@echo off
+for /l %%I in (%START%,-1,1) do echo %%I
+for %%x in (%LIST%) do echo %%x
+for /l %%I in (1,1,%END%) do echo %%I
+if "%X%"=="1" (%CMD%)
+exit /b 0
+"""
+        temp_file = self.create_temp_batch_file(content)
+        try:
+            issues = lint_batch_file(temp_file)
+            sec013_lines = [
+                issue.line_number for issue in issues if issue.rule.code == "SEC013"
+            ]
+            assert sec013_lines == [5]
+        finally:
+            os.unlink(temp_file)
+
+    def test_sec013_parenthesized_command_still_flagged(self) -> None:
+        """(%CMD%) and do (%CMD%) are still command injection."""
+        content = """@echo off
+(%CMD%)
+for %%x in (1) do (%RUN%)
+exit /b 0
+"""
+        temp_file = self.create_temp_batch_file(content)
+        try:
+            issues = lint_batch_file(temp_file)
+            sec013_lines = sorted(
+                issue.line_number for issue in issues if issue.rule.code == "SEC013"
+            )
+            assert sec013_lines == [2, 3]
+        finally:
+            os.unlink(temp_file)
+
     def test_p015_inefficient_delays(self) -> None:
         """Test P015: Inefficient delay implementation."""
         content = """@ECHO OFF

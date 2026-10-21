@@ -4,9 +4,20 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ## [Unreleased]
 
+### Added
+
+- `--baseline` and `--update-baseline` record accepted findings and fail on a new finding or on a recorded one that no longer matches (#50)
+
+### Fixed
+
+- SEC012 no longer flags `REM` and `::` comments that mention a temporary path (#46)
+- SEC013 no longer treats the first variable in a `FOR` set as a command (#47)
+- `LINT:IGNORE` matches case-insensitively in ASCII only, so look-alike letters such as `ı` and `ſ` do not suppress rules (#48)
+- Lines split only at LF, and a lone CR is dropped, matching cmd.exe (#49)
+
 ### Changed
 
-- `scripts/verify.py` is the quality gate for local runs and CI. mypy and pylint check `src`, `scripts`, and `tests` from their config instead of a hand-maintained file list. bandit checks `src` and `scripts`. `--windows-only` replaces `--powershell-only` and includes the cmd.exe corpus oracle. `--skip-pytest` leaves the test suite to CI's matrix job.
+- `scripts/verify.py` is the quality gate for local runs and CI. mypy and pylint check `src`, `scripts`, and `tests` from their config instead of a hand-maintained file list. bandit checks `src` and `scripts`. `--windows-only` replaces `--powershell-only` and includes the cmd.exe corpus oracle. `--skip-pytest` leaves the test suite to CI's matrix job. On Python 3.15, pylint runs in one process because parallel jobs crash while pickling the linter.
 
 ## [1.1.43] - 2026-10-19
 

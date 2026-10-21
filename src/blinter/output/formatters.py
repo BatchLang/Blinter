@@ -8,6 +8,7 @@ from typing import (
     DefaultDict,
     Dict,
     List,
+    Sequence,
     Set,
     Tuple,
     Union,
@@ -39,6 +40,15 @@ def print_version() -> None:
     print(f"v{__version__} {version_origin()}")
 
 
+def print_stale_baseline_entries(entries: Sequence[Tuple[str, str, str]]) -> None:
+    """Print baseline entries that no longer match a finding."""
+    if not entries:
+        return
+    print("\nStale baseline entries:")
+    for code, relative_file, text in entries:
+        print(f"  {code} {relative_file}: {text}")
+
+
 def print_help() -> None:
     """Print help information for the blinter command."""
     help_text = f"""
@@ -61,6 +71,12 @@ Options:
   --no-recursive      When processing directories, don't search subdirectories (default: recursive).
   --fail-on <level>   Exit 1 when an issue is at or above this severity.
                      Levels: error, security (default), warning, performance, style, none.
+  --baseline <path>   Accept findings recorded in this JSON file. A new finding
+                     still follows --fail-on. A recorded finding that no longer
+                     matches exits 1.
+  --update-baseline   Rewrite the --baseline file from the current findings.
+                     Requires --baseline. Entries for files that were not scanned
+                     are kept.
   --follow-calls      Scan scripts called by CALL statements from each seed file.
                      Variable context may be collected transitively; each seed file
                      lints its direct CALL targets only.
@@ -104,6 +120,13 @@ Examples:
 
   blinter myscript.bat --follow-calls
       Analyze script and any scripts it calls (e.g., configuration scripts).
+
+  blinter scripts --baseline blinter-baseline.json
+      Fail on findings the baseline does not hold, and on baseline entries
+      that no longer match.
+
+  blinter scripts --baseline blinter-baseline.json --update-baseline
+      Rewrite the baseline from the findings in this run.
 
   blinter myscript.bat --max-line-length 120
       Analyze with custom maximum line length of 120 characters.

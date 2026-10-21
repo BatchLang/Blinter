@@ -107,10 +107,23 @@ def _command_exit(args: Sequence[str], cwd: Path) -> int:
     return result.returncode
 
 
+def _pylint_command() -> list[str]:
+    """Return the pylint command.
+
+    Parallel jobs pickle the linter. On Python 3.15, dill cannot pickle code
+    objects (``co_lnotab`` was removed), so the pool crashes before any file
+    is checked. One process avoids that.
+    """
+    command = _python_m("pylint", *_CHECK_DIRS)
+    if sys.version_info >= (3, 15):
+        command.extend(["-j", "1"])
+    return command
+
+
 def _run_pylint(cwd: Path) -> int:
     """Run pylint on the check directories and write a UTF-8 report."""
     result = subprocess.run(
-        _python_m("pylint", *_CHECK_DIRS),
+        _pylint_command(),
         cwd=cwd,
         check=False,
         capture_output=True,

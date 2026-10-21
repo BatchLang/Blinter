@@ -272,7 +272,9 @@ def _try_decode_bytes(raw_data: bytes, encoding: str) -> Optional[List[str]]:
     try:
         logger.debug("Attempting to decode file with encoding: %s", encoding)
         text = raw_data.decode(encoding, errors="strict")
-        text = text.replace("\r\n", "\n").replace("\r", "\n")
+        # cmd.exe reads a line up to LF and drops every CR, including a CR that
+        # is not part of CRLF. Splitting on a lone CR would invent lines cmd never runs.
+        text = text.replace("\r", "")
         lines = StringIO(text).readlines()
         logger.debug(
             "Successfully decoded %d lines using %s encoding", len(lines), encoding

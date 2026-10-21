@@ -66,6 +66,8 @@ def _has_path_traversal_risk(stripped: str) -> bool:
 
 def _has_unsafe_temp_creation(stripped: str) -> bool:
     """Return True when temp file creation lacks a randomness component."""
+    if _is_comment_line(stripped):
+        return False
     lower = stripped.lower()
     if "%random%" in lower:
         return False
@@ -815,12 +817,21 @@ def _unquoted_percent_var_spans(stripped: str) -> List[Tuple[int, int]]:
     return spans
 
 
+_FOR_IN_SET_PREFIX = re.compile(r"\bfor\b.*\bin\s*\($", re.IGNORECASE)
+
+
 def _percent_var_is_command(stripped: str, start: int) -> bool:
-    """Return True when ``%VAR%`` is the command token, not an argument."""
+    """Return True when ``%VAR%`` is the command token, not an argument.
+
+    The ``(`` that opens a ``FOR ... in (...)`` set introduces values, not a
+    command, so a variable in that set is not command injection.
+    """
     prefix = stripped[:start].strip()
     if not prefix or prefix == "@":
         return True
-    return prefix.rstrip().endswith(("&", "|", "("))
+    if prefix.endswith("(") and _FOR_IN_SET_PREFIX.search(prefix):
+        return False
+    return prefix.endswith(("&", "|", "("))
 
 
 def _percent_var_touches_operator(stripped: str, start: int, end: int) -> bool:

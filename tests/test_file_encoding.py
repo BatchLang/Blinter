@@ -829,6 +829,33 @@ class TestLineEndingStandaloneDetection:
         assert crlf_count + lf_only >= 1
         assert isinstance(has_mixed, bool)
 
+    def test_lone_cr_stays_on_the_same_line(self, tmp_path: Path) -> None:
+        """A CR that is not followed by LF does not start a line."""
+        script = tmp_path / "lone-cr.bat"
+        script.write_bytes(b"@echo off\r\necho hello\r:: & echo world\r\necho done\r\n")
+        lines, _encoding = read_file_with_encoding(str(script))
+        assert [line.rstrip("\n") for line in lines] == [
+            "@echo off",
+            "echo hello:: & echo world",
+            "echo done",
+        ]
+        issues = lint_batch_file(str(script))
+        missing_exit = [issue for issue in issues if issue.rule.code == "W001"]
+        assert [issue.line_number for issue in missing_exit] == [3]
+        assert not [issue for issue in issues if issue.rule.code == "S016"]
+        assert any(issue.rule.code == "S005" for issue in issues)
+
+    def test_cr_only_file_is_one_line(self, tmp_path: Path) -> None:
+        """CR-only bytes stay one line, and raw-byte stats still see the CRs."""
+        script = tmp_path / "cr-only.bat"
+        script.write_bytes(b"@echo off\recho done\r")
+        lines, _encoding, ending_info, _overlong = _validate_and_read_file(str(script))
+        assert [line.rstrip("\n") for line in lines] == ["@echo offecho done"]
+        dominant_type, has_mixed, _crlf, _lf_only, cr_only = ending_info
+        assert dominant_type == "CR"
+        assert has_mixed is False
+        assert cr_only == 2
+
     def test_detect_line_endings_from_lines_lf_content(self) -> None:
         """In-memory line lists derive LF endings without re-reading disk."""
 

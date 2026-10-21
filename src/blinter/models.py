@@ -192,6 +192,8 @@ class CliArguments:  # pylint: disable=too-many-instance-attributes  # CLI argum
     cli_output_path: Optional[str] = None
     cli_output_format: OutputFormat = OutputFormat.TEXT
     cli_fail_on: Optional[str] = None
+    cli_baseline_path: Optional[str] = None
+    cli_update_baseline: bool = False
 
 
 @dataclass
@@ -208,6 +210,7 @@ class ProcessingResults:
     skipped_files: List[Tuple[str, str]] = field(
         default_factory=list
     )  # (file_path, reason)
+    lines_cache: Dict[Path, List[str]] = field(default_factory=dict)
 
 
 @dataclass

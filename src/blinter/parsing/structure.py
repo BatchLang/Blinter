@@ -13,6 +13,7 @@ from typing import (
 )
 
 from blinter.constants import BUILTIN_VARS
+from blinter.logging_config import logger
 from blinter.models import LintIssue
 from blinter.parsing.context import _is_endlocal_command, _is_setlocal_command
 from blinter.patterns import (
@@ -24,6 +25,13 @@ _LABEL_TARGET_PATTERN = re.compile(
     r"\b(?:call|goto)\s+(:[^\s]+)",
     re.IGNORECASE,
 )
+# ASCII-only case folding: str.upper() maps ı to I and ſ to S, so a look-alike
+# directive would suppress rules that neither a reader nor a search would see.
+_SUPPRESSION_DIRECTIVE = re.compile(
+    r"^(?:rem\s|::)\s*lint:ignore(-line)?(?=\s|$)(.*)$",
+    re.IGNORECASE | re.ASCII,
+)
+_SUPPRESSION_CODE = re.compile(r"^[A-Za-z]+[0-9]+$", re.ASCII)
 
 
 def _collect_labels(lines: List[str]) -> Tuple[Dict[str, int], List[LintIssue]]:
@@ -262,9 +270,62 @@ def _collect_empty_assigned_variables(lines: List[str]) -> Set[str]:
     return empty_vars
 
 
+def _suppression_codes(rest: str, line_number: int) -> Set[str]:
+    """Return ASCII rule codes from a directive, skipping malformed tokens."""
+    codes: Set[str] = set()
+    for raw_code in rest.split(","):
+        code = raw_code.strip()
+        if not code:
+            continue
+        if _SUPPRESSION_CODE.fullmatch(code) is None:
+            logger.debug(
+                "Ignoring non-ASCII or malformed suppression code %r on line %d",
+                code,
+                line_number,
+            )
+            continue
+        codes.add(code.upper())
+    return codes
+
+
+def _record_suppression(
+    suppressions: Dict[int, Set[str]],
+    line_number: int,
+    same_line: bool,
+    rest: str,
+) -> None:
+    """Record one directive. A code list with no ASCII codes suppresses nothing."""
+    target = line_number if same_line else line_number + 1
+    if not rest:
+        logger.debug(
+            "Suppressing all rules on line %d from the directive on line %d",
+            target,
+            line_number,
+        )
+        suppressions[target] = set()
+        return
+    codes = _suppression_codes(rest, line_number)
+    if not codes:
+        logger.debug(
+            "Directive on line %d listed no ASCII rule codes; suppressing nothing",
+            line_number,
+        )
+        return
+    logger.debug(
+        "Suppressing %s on line %d from the directive on line %d",
+        ",".join(sorted(codes)),
+        target,
+        line_number,
+    )
+    suppressions.setdefault(target, set()).update(codes)
+
+
 def _parse_suppression_comments(lines: List[str]) -> Dict[int, Set[str]]:
     """
     Parse inline suppression comments from batch file lines.
+
+    The directive and its rule codes match case-insensitively in ASCII only.
+    ``lınt:ıgnore`` and ``ſEC008`` are not directives or codes.
 
     Supports formats:
     - REM LINT:IGNORE <code> - Suppress code on the next line
@@ -285,39 +346,18 @@ def _parse_suppression_comments(lines: List[str]) -> Dict[int, Set[str]]:
     """
     suppressions: Dict[int, Set[str]] = {}
 
-    for i, line in enumerate(lines, start=1):
-        stripped = line.strip().upper()
-
-        # Check for IGNORE comment (affects next line)
-        if stripped.startswith("REM ") or stripped.startswith("::"):
-            # Remove REM or :: prefix
-            comment_text = (
-                stripped[3:].strip()
-                if stripped.startswith("REM")
-                else stripped[2:].strip()
-            )
-
-            # Check for LINT:IGNORE-LINE (same line suppression)
-            if comment_text.startswith("LINT:IGNORE-LINE"):
-                rest = comment_text[16:].strip()
-                if rest:
-                    # Specific rules to suppress
-                    codes = {code.strip() for code in rest.split(",") if code.strip()}
-                    suppressions.setdefault(i, set()).update(codes)
-                else:
-                    # Suppress all rules on this line
-                    suppressions[i] = set()
-
-            # Check for LINT:IGNORE (next line suppression)
-            elif comment_text.startswith("LINT:IGNORE"):
-                rest = comment_text[11:].strip()
-                if rest:
-                    # Specific rules to suppress on next line
-                    codes = {code.strip() for code in rest.split(",") if code.strip()}
-                    suppressions.setdefault(i + 1, set()).update(codes)
-                else:
-                    # Suppress all rules on next line
-                    suppressions[i + 1] = set()
+    for line_number, line in enumerate(lines, start=1):
+        match = _SUPPRESSION_DIRECTIVE.match(line.strip())
+        if match is None:
+            continue
+        rest_raw = match.group(2)
+        rest = rest_raw.strip() if isinstance(rest_raw, str) else ""
+        _record_suppression(
+            suppressions,
+            line_number,
+            match.group(1) is not None,
+            rest,
+        )
 
     return suppressions
 

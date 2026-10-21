@@ -8,6 +8,7 @@ import tempfile
 from typing import Dict, List, Optional, Set
 from unittest.mock import MagicMock, mock_open, patch
 
+from hypothesis import given, settings, strategies as st
 import pytest
 
 from blinter import (
@@ -4344,6 +4345,102 @@ class TestSuppressionCommentParsing:
         suppressions = _parse_suppression_comments(lines)
         assert 1 in suppressions
         assert "S007" in suppressions[1]
+
+    def test_parse_suppression_ignore_line_is_case_insensitive(self) -> None:
+        """LINT:IGNORE-LINE matches ASCII case-insensitively."""
+        suppressions = _parse_suppression_comments(["rem lint:ignore-line sec008\n"])
+        assert suppressions[1] == {"SEC008"}
+
+    def test_lookalike_ignore_line_does_not_suppress(self) -> None:
+        """A dotless-i look-alike of LINT:IGNORE-LINE is not a directive."""
+        suppressions = _parse_suppression_comments(
+            ["rem l\u0131nt:\u0131gnore-line sec008\n"]
+        )
+        assert not suppressions
+
+    def test_invalid_codes_do_not_suppress_everything(self) -> None:
+        """A directive whose codes are all invalid suppresses nothing."""
+        suppressions = _parse_suppression_comments(
+            ["REM LINT:IGNORE NOT_A_CODE\n", "set PASSWORD=hunter2\n"]
+        )
+        assert suppressions.get(2) != set()
+        assert "SEC008" not in suppressions.get(2, set())
+
+    def test_mixed_valid_and_lookalike_codes_keep_only_ascii(self) -> None:
+        """An ASCII code is kept when a look-alike code beside it is ignored."""
+        suppressions = _parse_suppression_comments(
+            ["REM LINT:IGNORE SEC008, \u017fEC009\n", "set PASSWORD=hunter2\n"]
+        )
+        assert suppressions[2] == {"SEC008"}
+
+    @pytest.mark.parametrize(
+        ("directive", "suppressed"),
+        [
+            (None, False),
+            ("REM LINT:IGNORE SEC008", True),
+            ("rem lint:ignore sec008", True),
+            ("REM  LINT:IGNORE  SEC008", True),
+            ("::LINT:IGNORE SEC008", True),
+            ("rem l\u0131nt:\u0131gnore sec008", False),
+            ("REM LINT:IGNORE \u017fEC008", False),
+            ("rem l\u00efnt:\u00efgnore sec008", False),
+        ],
+    )
+    def test_sec008_suppression_matches_ascii_only(
+        self,
+        tmp_path: Path,
+        directive: Optional[str],
+        suppressed: bool,
+    ) -> None:
+        """SEC008 is suppressed only by an ASCII LINT:IGNORE directive and code."""
+        lines = ["@echo off"]
+        if directive is not None:
+            lines.append(directive)
+        lines.extend(["set PASSWORD=hunter2", "exit /b 0"])
+        script = tmp_path / "creds.cmd"
+        script.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        password_line = 2 if directive is None else 3
+        issues = lint_batch_file(str(script))
+        reported = [
+            issue
+            for issue in issues
+            if issue.rule.code == "SEC008" and issue.line_number == password_line
+        ]
+        assert bool(reported) is not suppressed
+
+
+_ASCII_DIRECTIVE = "REM LINT:IGNORE SEC008"
+_ASCII_LETTER_INDEXES = [
+    index
+    for index, char in enumerate(_ASCII_DIRECTIVE)
+    if char.isascii() and char.isalpha()
+]
+
+
+class TestSuppressionAsciiProperty:
+    """Property checks for ASCII-only suppression directives."""
+
+    @given(
+        index=st.sampled_from(_ASCII_LETTER_INDEXES),
+        replacement=st.characters(
+            categories=("Lu", "Ll", "Lt"),
+            min_codepoint=128,
+        ),
+    )
+    @settings(max_examples=50, deadline=None)
+    def test_non_ascii_letter_never_suppresses_sec008(
+        self, index: int, replacement: str
+    ) -> None:
+        """Replacing any ASCII letter in the directive stops SEC008 suppression."""
+        mutated = _ASCII_DIRECTIVE[:index] + replacement + _ASCII_DIRECTIVE[index + 1 :]
+        suppressions = _parse_suppression_comments(
+            [mutated + "\n", "set PASSWORD=hunter2\n"]
+        )
+        suppressed = suppressions.get(2)
+        suppresses_sec008 = suppressed is not None and (
+            len(suppressed) == 0 or "SEC008" in suppressed
+        )
+        assert not suppresses_sec008
 
 
 class TestFindBatchFilesDiscovery:

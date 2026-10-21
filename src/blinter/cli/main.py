@@ -8,11 +8,18 @@ from typing import (
     List,
     NoReturn,
     Optional,
+    Sequence,
     Tuple,
     assert_never,
 )
 
 from blinter._version import __version__
+from blinter.baseline import (
+    BaselineEntry,
+    apply_baseline,
+    load_baseline,
+    update_baseline,
+)
 from blinter.cli.args import _parse_cli_arguments
 from blinter.config.loader import load_config
 from blinter.constants import MAX_FOLLOW_CALL_DEPTH, MAX_FOLLOW_CALL_FILES
@@ -24,6 +31,7 @@ from blinter.logging_config import logger
 from blinter.models import (
     BlinterConfig,
     CliArguments,
+    LintIssue,
     OutputFormat,
     ProcessingResults,
     ProcessingState,
@@ -32,9 +40,15 @@ from blinter.models import (
 from blinter.output.formatters import (
     print_detailed,
     print_severity_info,
+    print_stale_baseline_entries,
     print_summary,
 )
-from blinter.output.json_formatter import build_report, print_report, write_report
+from blinter.output.json_formatter import (
+    BaselineReportInfo,
+    build_report,
+    print_report,
+    write_report,
+)
 from blinter.output.sarif_formatter import (
     build_sarif_report,
     print_sarif_report,
@@ -311,6 +325,7 @@ def _process_batch_files(
                 0,
                 [],
                 skipped_files,
+                lines_cache=state.lines_cache,
             )
         _print_skipped_files_summary(skipped_files)
         print("Error: No batch files could be processed.", file=sys.stderr)
@@ -326,6 +341,7 @@ def _process_batch_files(
         files_with_errors,
         state.processed_file_paths,
         skipped_files,
+        lines_cache=state.lines_cache,
     )
 
 
@@ -366,6 +382,7 @@ def _display_results(
     results: ProcessingResults,
     target_path: str,
     config: BlinterConfig,
+    stale_entries: Sequence[BaselineEntry] = (),
 ) -> None:
     """Display lint results to the user."""
     is_directory = Path(target_path).is_dir()
@@ -410,6 +427,10 @@ def _display_results(
     if is_directory and len(results.file_results) > 1:
         print("\n COMBINED RESULTS:")
         print("===================")
+
+    print_stale_baseline_entries(
+        [(entry.code, entry.file, entry.text) for entry in stale_entries]
+    )
 
     if config.show_summary:
         print_summary(results.all_issues)
@@ -556,10 +577,19 @@ def _exit_with_results(
     config: BlinterConfig,
     *,
     suppress_stdout: bool = False,
+    stale_count: int = 0,
 ) -> None:
     """Exit with appropriate code based on results."""
     fatal_count = _count_fatal_issues_for_exit(results, config)
     _handle_skipped_files_exit(results, suppress_stdout=suppress_stdout)
+    if stale_count > 0 and fatal_count == 0:
+        if not suppress_stdout:
+            noun = "entry" if stale_count == 1 else "entries"
+            print(
+                f"\nWARNING  {stale_count} baseline {noun} "
+                "no longer match a finding."
+            )
+        sys.exit(1)
 
     if Path(target_path).is_dir():
         _exit_directory_results(
@@ -598,7 +628,12 @@ def _write_structured_report(write: Callable[[], None], label: str) -> None:
 
 
 def _emit_json_report(
-    results: ProcessingResults, cli_args: CliArguments, config: BlinterConfig
+    results: ProcessingResults,
+    cli_args: CliArguments,
+    config: BlinterConfig,
+    *,
+    baselined_issues: int = 0,
+    stale_entries: Sequence[BaselineEntry] = (),
 ) -> None:
     """Build and write or print a JSON lint report."""
     fatal_count = _count_fatal_issues_for_exit(results, config)
@@ -607,6 +642,13 @@ def _emit_json_report(
         cli_args.target_path,
         __version__,
         fatal_count,
+        BaselineReportInfo(
+            baselined_issues=baselined_issues,
+            stale_baseline_entries=[
+                {"code": entry.code, "file": entry.file, "text": entry.text}
+                for entry in stale_entries
+            ],
+        ),
     )
     output_path = cli_args.cli_output_path
     if output_path is not None:
@@ -640,17 +682,29 @@ def _emit_sarif_report(results: ProcessingResults, cli_args: CliArguments) -> No
 
 
 def _emit_structured_report(
-    results: ProcessingResults, cli_args: CliArguments, config: BlinterConfig
+    results: ProcessingResults,
+    cli_args: CliArguments,
+    config: BlinterConfig,
+    *,
+    baselined_issues: int = 0,
+    stale_entries: Sequence[BaselineEntry] = (),
 ) -> None:
     """Emit JSON or SARIF based on the selected format.
 
     ``--output`` without ``--format`` keeps the historical JSON report.
+    SARIF lists findings only. Stale baseline entries are in the JSON report.
     """
     match cli_args.cli_output_format:
         case OutputFormat.SARIF:
             _emit_sarif_report(results, cli_args)
         case OutputFormat.JSON | OutputFormat.TEXT:
-            _emit_json_report(results, cli_args, config)
+            _emit_json_report(
+                results,
+                cli_args,
+                config,
+                baselined_issues=baselined_issues,
+                stale_entries=stale_entries,
+            )
         case _ as unreachable:
             assert_never(unreachable)
 
@@ -672,6 +726,107 @@ def _apply_cli_config_overrides(
         config.fail_on = parse_fail_on(cli_args.cli_fail_on)
 
     config.scan_root = str(_target_scan_root(cli_args.target_path))
+
+
+def _results_keeping(
+    results: ProcessingResults,
+    kept: Sequence[LintIssue],
+    config: BlinterConfig,
+) -> ProcessingResults:
+    """Return results whose issue lists contain only findings the baseline kept."""
+    kept_ids = {id(issue) for issue in kept}
+    file_results = {
+        file_path: [issue for issue in issues if id(issue) in kept_ids]
+        for file_path, issues in results.file_results.items()
+    }
+    files_with_errors = sum(
+        1
+        for issues in file_results.values()
+        if any(config.is_fatal_severity(issue.rule.severity) for issue in issues)
+    )
+    return ProcessingResults(
+        all_issues=list(kept),
+        file_results=file_results,
+        total_files_processed=results.total_files_processed,
+        files_with_errors=files_with_errors,
+        processed_file_paths=results.processed_file_paths,
+        skipped_files=results.skipped_files,
+        lines_cache=results.lines_cache,
+    )
+
+
+def _load_baseline_or_exit(path: Path) -> List[BaselineEntry]:
+    """Load a baseline file or exit with a message that names the file."""
+    try:
+        return load_baseline(path)
+    except FileNotFoundError:
+        _cli_error(f"Error: Baseline file not found: {path}")
+    except ValueError as error:
+        _cli_error(f"Error: {error}")
+    except OSError as error:
+        _cli_error(f"Error: Cannot read baseline file '{path}': {error}")
+
+
+def _baseline_entry_noun(count: int) -> str:
+    """Return 'entry' or 'entries' for a baseline count."""
+    return "entry" if count == 1 else "entries"
+
+
+def _update_baseline_and_exit(
+    results: ProcessingResults,
+    cli_args: CliArguments,
+    config: BlinterConfig,
+    path: Path,
+    *,
+    suppress_human: bool,
+) -> NoReturn:
+    """Rewrite the baseline from this run and exit."""
+    try:
+        count = update_baseline(path, results)
+    except ValueError as error:
+        _cli_error(f"Error: {error}")
+    except OSError as error:
+        _cli_error(f"Error: Could not write baseline file '{path}': {error}")
+    if _should_emit_structured(cli_args):
+        _emit_structured_report(results, cli_args, config)
+    if not suppress_human:
+        print(f"Updated baseline {path} ({count} {_baseline_entry_noun(count)}).")
+    _handle_skipped_files_exit(results, suppress_stdout=suppress_human)
+    sys.exit(0)
+
+
+def _apply_baseline_or_exit(
+    results: ProcessingResults,
+    cli_args: CliArguments,
+    config: BlinterConfig,
+    *,
+    suppress_human: bool,
+) -> Tuple[ProcessingResults, List[BaselineEntry], int]:
+    """Filter findings through the baseline.
+
+    ``--update-baseline`` rewrites the file and does not return.
+    """
+    baseline_path = cli_args.cli_baseline_path
+    if baseline_path is None:
+        return results, [], 0
+    path = Path(baseline_path)
+    if cli_args.cli_update_baseline:
+        _update_baseline_and_exit(
+            results,
+            cli_args,
+            config,
+            path,
+            suppress_human=suppress_human,
+        )
+    entries = _load_baseline_or_exit(path)
+    diff = apply_baseline(
+        results,
+        entries,
+        path.resolve().parent,
+        results.lines_cache,
+    )
+    filtered = _results_keeping(results, diff.kept, config)
+    return filtered, list(diff.stale), len(diff.matched)
 
 
 def _configure_stdio_utf8() -> None:
@@ -755,14 +910,33 @@ def _run_cli() -> None:
     if results is None:
         sys.exit(1)
 
+    results, stale_entries, baselined_issues = _apply_baseline_or_exit(
+        results,
+        cli_args,
+        config,
+        suppress_human=suppress_human,
+    )
+
     if _should_emit_structured(cli_args):
-        _emit_structured_report(results, cli_args, config)
+        _emit_structured_report(
+            results,
+            cli_args,
+            config,
+            baselined_issues=baselined_issues,
+            stale_entries=stale_entries,
+        )
 
     if not suppress_human:
-        _display_results(results, cli_args.target_path, config)
+        _display_results(
+            results,
+            cli_args.target_path,
+            config,
+            stale_entries,
+        )
     _exit_with_results(
         results,
         cli_args.target_path,
         config,
         suppress_stdout=suppress_human,
+        stale_count=len(stale_entries),
     )

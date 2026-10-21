@@ -116,6 +116,15 @@ def _parse_output_arg(arg_index: int) -> Optional[Tuple[int, str]]:
     return arg_index + 1, sys.argv[arg_index + 1]
 
 
+def _parse_baseline_arg(arg_index: int) -> Optional[Tuple[int, str]]:
+    """Parse the value following ``--baseline``."""
+    if arg_index + 1 >= len(sys.argv) or sys.argv[arg_index + 1].startswith("--"):
+        _print_cli_error("Error: --baseline requires a path.\n")
+        print_help()
+        return None
+    return arg_index + 1, sys.argv[arg_index + 1]
+
+
 _FAIL_ON_VALUES = frozenset(
     {"error", "security", "warning", "performance", "style", "none"}
 )
@@ -198,6 +207,8 @@ class _ArgParseState:  # pylint: disable=too-many-instance-attributes
     cli_output_path: Optional[str] = None
     cli_output_format: OutputFormat = OutputFormat.TEXT
     cli_fail_on: Optional[str] = None
+    cli_baseline_path: Optional[str] = None
+    cli_update_baseline: bool = False
 
 
 def _warn_severity_flag_deprecated() -> _ArgHandlerResult:
@@ -228,6 +239,38 @@ def _resolve_cli_log_level(verbose: bool, quiet: bool) -> Optional[int]:
     return None
 
 
+_PATH_OPTION_PARSERS: Dict[str, Callable[[int], Optional[Tuple[int, str]]]] = {
+    "--config": _parse_config_arg,
+    "--output": _parse_output_arg,
+    "--baseline": _parse_baseline_arg,
+}
+
+
+def _store_path_option(state: _ArgParseState, arg: str, value: str) -> None:
+    """Store a parsed path option on the argument state."""
+    if arg == "--config":
+        state.config_path = value
+        return
+    if arg == "--output":
+        state.cli_output_path = value
+        return
+    if arg == "--baseline":
+        state.cli_baseline_path = value
+        return
+    raise ValueError(f"Unknown path option '{arg}'")
+
+
+def _apply_path_option(arg: str, index: int, state: _ArgParseState) -> int:
+    """Parse and store ``--config``, ``--output``, or ``--baseline``."""
+    parser = _PATH_OPTION_PARSERS[arg]
+    parsed = parser(index)
+    if parsed is None:
+        sys.exit(1)
+    next_index, value = parsed
+    _store_path_option(state, arg, value)
+    return next_index
+
+
 def _apply_value_option(arg: str, index: int, state: _ArgParseState) -> Optional[int]:
     """Apply a value-taking ``--`` option; return next index or None."""
     if arg == "--max-line-length":
@@ -236,18 +279,8 @@ def _apply_value_option(arg: str, index: int, state: _ArgParseState) -> Optional
             sys.exit(1)
         next_index, state.cli_max_line_length = parsed_length
         return next_index
-    if arg == "--config":
-        parsed_config = _parse_config_arg(index)
-        if parsed_config is None:
-            sys.exit(1)
-        next_index, state.config_path = parsed_config
-        return next_index
-    if arg == "--output":
-        parsed_output = _parse_output_arg(index)
-        if parsed_output is None:
-            sys.exit(1)
-        next_index, state.cli_output_path = parsed_output
-        return next_index
+    if arg in _PATH_OPTION_PARSERS:
+        return _apply_path_option(arg, index, state)
     if arg == "--format":
         parsed_format = _parse_format_arg(index)
         if parsed_format is None:
@@ -279,6 +312,10 @@ def _process_dash_argument(
 
     if arg == "--quiet":
         state.cli_quiet = True
+        return index
+
+    if arg == "--update-baseline":
+        state.cli_update_baseline = True
         return index
 
     if arg in _ARG_HANDLERS:
@@ -313,6 +350,8 @@ def _parse_regular_arguments() -> Tuple[
     Optional[str],
     OutputFormat,
     Optional[str],
+    Optional[str],
+    bool,
 ]:
     """
     Parse regular command-line arguments using a lookup table.
@@ -320,7 +359,8 @@ def _parse_regular_arguments() -> Tuple[
     Returns:
         Tuple of (target_path, use_config, cli_show_summary, cli_recursive,
         cli_follow_calls, cli_max_line_length, cli_log_level, config_path,
-        cli_output_path, cli_output_format, cli_fail_on)
+        cli_output_path, cli_output_format, cli_fail_on, cli_baseline_path,
+        cli_update_baseline)
     """
     state = _ArgParseState()
 
@@ -343,6 +383,11 @@ def _parse_regular_arguments() -> Tuple[
         print_help()
         sys.exit(1)
 
+    if state.cli_update_baseline and state.cli_baseline_path is None:
+        _print_cli_error("Error: --update-baseline requires --baseline.\n")
+        print_help()
+        sys.exit(1)
+
     target_path = state.positional_paths[0] if state.positional_paths else None
 
     return (
@@ -357,6 +402,8 @@ def _parse_regular_arguments() -> Tuple[
         state.cli_output_path,
         state.cli_output_format,
         state.cli_fail_on,
+        state.cli_baseline_path,
+        state.cli_update_baseline,
     )
 
 
@@ -378,6 +425,8 @@ def _parse_cli_arguments() -> Optional[CliArguments]:
         cli_output_path,
         cli_output_format,
         cli_fail_on,
+        cli_baseline_path,
+        cli_update_baseline,
     ) = _parse_regular_arguments()
 
     if not target_path:
@@ -397,4 +446,6 @@ def _parse_cli_arguments() -> Optional[CliArguments]:
         cli_output_path=cli_output_path,
         cli_output_format=cli_output_format,
         cli_fail_on=cli_fail_on,
+        cli_baseline_path=cli_baseline_path,
+        cli_update_baseline=cli_update_baseline,
     )

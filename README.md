@@ -192,6 +192,8 @@ pip, uv, and the standalone installer can all put `blinter` on `PATH`. The insta
 - `--no-recursive`: When processing directories, only analyze files in the specified directory (not subdirectories)
 - `--follow-calls`: Automatically analyze scripts called by CALL statements and merge their variable context. When enabled, variables defined in called scripts (including transitively called scripts within depth and file limits) are recognized as "defined" in the calling script (position-aware: only after the CALL statement). This eliminates false positive undefined variable errors for configuration scripts. Each script's CALL list is walked once, including when scripts call each other in a cycle
 - `--fail-on <level>`: Exit 1 when a finding is at or above this severity. Levels, from least to most severe: `style`, `performance`, `warning`, `security`, `error`. `none` never fails because of findings. The default is `security`, so Error and Security findings are fatal. This flag overrides `fail_on` in `blinter.ini`
+- `--baseline <path>`: Accept findings recorded in a JSON file. A new finding still follows `--fail-on`. A recorded finding that no longer matches exits 1
+- `--update-baseline`: Rewrite the `--baseline` file from the current findings. Requires `--baseline`. Entries for files that were not part of this run are kept
 - `--config <path>`: Load settings from a custom configuration file instead of `blinter.ini` in the current directory
 - `--no-config`: Don't use configuration file (blinter.ini) even if it exists
 - `--create-config`: Create a default blinter.ini configuration file and exit
@@ -296,11 +298,32 @@ REM This line and the next will be ignored for all rules
 - `REM LINT:IGNORE-LINE` - Suppress all rules on the **same line**
 - `:: LINT:IGNORE <code>` - Alternative comment syntax (also supported)
 
+The directive and its rule codes match case-insensitively in ASCII only. `lınt:ıgnore` and `ſEC008` are not a directive or a rule code, so they suppress nothing.
+
 **Use cases:**
 - Suppress false positives that can't be fixed
 - Ignore intentional deviations from best practices
 - Handle edge cases in documentation or help text
 - Temporarily ignore issues during development
+
+### Baseline file
+
+`--baseline` records findings a project accepts without editing the script. Each finding has its own entry, matched on the rule code, the file path relative to the baseline file, and the trimmed text of the line. Line numbers are not part of the match, so inserting a line elsewhere does not invalidate an entry. Two identical lines need two entries.
+
+```cmd
+blinter scripts --baseline blinter-baseline.json
+blinter scripts --baseline blinter-baseline.json --update-baseline
+```
+
+```json
+[
+  {"code": "SEC009", "file": "scripts/update.bat", "text": "powershell -NoProfile -ExecutionPolicy Bypass ^"}
+]
+```
+
+Paths use POSIX separators and are relative to the directory that contains the baseline file, so the same file works on Windows and on POSIX. `--update-baseline` rewrites the file from the current findings and keeps entries for files that were not scanned. A new finding exits 1 only when its severity is at or above `--fail-on` (or `fail_on`). A stale entry, one that no longer matches any finding in a file that was scanned, always exits 1.
+
+The JSON report adds `summary.baselined_issues` and `stale_baseline_entries`. Text output lists stale entries. SARIF lists the new findings; a stale entry still exits 1.
 
 ### 🐍 **Programmatic API Usage**
 

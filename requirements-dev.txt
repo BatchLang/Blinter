@@ -4,6 +4,7 @@
 # Core Testing Packages
 pytest
 pytest-timeout
+hypothesis
 pytest-xdist
 pytest-mock
 pytest-cov

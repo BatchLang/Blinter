@@ -32,11 +32,20 @@ class MostCommonRule(TypedDict):
     count: int
 
 
+class StaleBaselineEntry(TypedDict):
+    """JSON entry for a baseline record that no longer matches a finding."""
+
+    code: str
+    file: str
+    text: str
+
+
 class ReportSummary(TypedDict):
     """JSON summary section of a lint report."""
 
     total_issues: int
     fatal_issues: int
+    baselined_issues: int
     files_processed: int
     files_with_errors: int
     severity_counts: dict[str, int]
@@ -57,6 +66,13 @@ class SkippedFile(TypedDict):
     reason: str
 
 
+class BaselineReportInfo(TypedDict):
+    """Baseline counts and stale entries included in a JSON report."""
+
+    baselined_issues: int
+    stale_baseline_entries: list[StaleBaselineEntry]
+
+
 class LintReport(TypedDict):
     """Top-level JSON lint report structure."""
 
@@ -66,6 +82,7 @@ class LintReport(TypedDict):
     summary: ReportSummary
     processed_files: list[ProcessedFile]
     skipped_files: list[SkippedFile]
+    stale_baseline_entries: list[StaleBaselineEntry]
     issues: list[SerializedIssue]
 
 
@@ -95,15 +112,26 @@ def _serialize_most_common_rule(
     return MostCommonRule(code=rule_code, name=rule_name, count=count)
 
 
+def _baseline_report_fields(
+    baseline: BaselineReportInfo | None,
+) -> tuple[int, list[StaleBaselineEntry]]:
+    """Return the accepted-finding count and stale entries for a report."""
+    if baseline is None:
+        return 0, []
+    return baseline["baselined_issues"], list(baseline["stale_baseline_entries"])
+
+
 def build_report(
     results: ProcessingResults,
     target_path: str,
     version: str,
     fatal_issues: int,
+    baseline: BaselineReportInfo | None = None,
 ) -> LintReport:
     """Build a JSON-serializable lint report from processing results."""
     issues = results.all_issues
     severity_counts = compute_severity_counts(issues)
+    baselined_issues, stale = _baseline_report_fields(baseline)
 
     return LintReport(
         blinter_version=version,
@@ -112,6 +140,7 @@ def build_report(
         summary=ReportSummary(
             total_issues=len(issues),
             fatal_issues=fatal_issues,
+            baselined_issues=baselined_issues,
             files_processed=results.total_files_processed,
             files_with_errors=results.files_with_errors,
             severity_counts={
@@ -127,6 +156,7 @@ def build_report(
             SkippedFile(path=file_path, reason=reason)
             for file_path, reason in results.skipped_files
         ],
+        stale_baseline_entries=stale,
         issues=[_serialize_issue(issue) for issue in issues],
     )
 

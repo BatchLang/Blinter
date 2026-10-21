@@ -66,8 +66,9 @@ flowchart BT
 1. **Input** — `read_file_with_encoding` reads the batch file; encoding is detected via `charset_normalizer` with fallbacks.
 2. **Structure** — Labels, SET variables, delayed expansion, and embedded script blocks are analyzed.
 3. **Checkers** — Line and global rules run via `orchestration._process_file_checks`.
-4. **Filter** — `BlinterConfig`, inline `REM LINT:IGNORE` comments, and severity filters apply.
-5. **Output** — `LintIssue` list returned to library callers, or formatted by the CLI as human-readable text (`output/formatters.py`), structured JSON (`output/json_formatter.py` via `--format json` / `--output`), or SARIF 2.1.0 (`output/sarif_formatter.py` via `--format sarif`).
+4. **Filter** — `BlinterConfig`, inline `REM LINT:IGNORE` comments (ASCII case-insensitive), and severity filters apply.
+5. **Baseline** — When the CLI is given `--baseline`, `baseline.py` hides findings the file accepts and reports entries that no longer match. `--update-baseline` rewrites the file from the current findings and keeps entries for files that were not scanned.
+6. **Output** — `LintIssue` list returned to library callers, or formatted by the CLI as human-readable text (`output/formatters.py`), structured JSON (`output/json_formatter.py` via `--format json` / `--output`), or SARIF 2.1.0 (`output/sarif_formatter.py` via `--format sarif`). JSON adds `baselined_issues` and `stale_baseline_entries` when a baseline is used.
 
 ## Public vs internal imports
 

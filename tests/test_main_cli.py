@@ -1,6 +1,7 @@
 """Tests for main function and command-line interface."""
 
 import io
+import json
 import logging
 import os
 from pathlib import Path
@@ -15,6 +16,7 @@ from unittest.mock import patch
 
 import pytest
 
+from blinter.baseline import load_baseline
 from blinter.cli.args import _parse_cli_arguments, _parse_regular_arguments
 from blinter.cli.main import (
     _apply_cli_config_overrides,
@@ -2581,3 +2583,366 @@ class TestCorpusCli:
         names = {Path(path).name for path in discovered}
         assert len(names) >= 85
         assert "%MM%.cmd" in names
+
+
+_PASSWORD_SCRIPT = "@echo off\r\nset PASSWORD=hunter2\r\nexit /b 0\r\n"
+_CLEAN_SCRIPT = "@echo off\r\nexit /b 0\r\n"
+
+
+class TestBaselineCli:
+    """CLI tests for --baseline and --update-baseline."""
+
+    def _run(self, argv: List[str]) -> tuple[Optional[int], str, str]:
+        """Run the CLI and return the exit code plus captured stdout and stderr."""
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        code: Optional[int] = None
+        with patch.object(sys, "argv", argv):
+            with (
+                patch.object(sys, "stdout", stdout),
+                patch.object(sys, "stderr", stderr),
+            ):
+                try:
+                    main()
+                except SystemExit as exc:
+                    status = exc.code
+                    code = status if isinstance(status, int) else 1
+        return code, stdout.getvalue(), stderr.getvalue()
+
+    def test_update_then_baseline_hides_accepted_finding(self, tmp_path: Path) -> None:
+        """Updating a baseline then linting again accepts the recorded finding."""
+        script = tmp_path / "creds.cmd"
+        script.write_text(_PASSWORD_SCRIPT, encoding="utf-8", newline="\n")
+        baseline = tmp_path / "blinter-baseline.json"
+        code, output, error = self._run(
+            [
+                "blinter",
+                str(script),
+                "--no-config",
+                "--baseline",
+                str(baseline),
+                "--update-baseline",
+            ]
+        )
+        assert code == 0, error
+        assert "Updated baseline" in output
+        payload = json.loads(baseline.read_text(encoding="utf-8"))
+        assert any(entry["code"] == "SEC008" for entry in payload)
+
+        code, output, error = self._run(
+            ["blinter", str(script), "--no-config", "--baseline", str(baseline)]
+        )
+        assert code == 0, output + error
+        assert "SEC008" not in output
+
+    def test_new_finding_respects_fail_on(self, tmp_path: Path) -> None:
+        """A finding the baseline does not hold fails only at or above --fail-on."""
+        script = tmp_path / "style.bat"
+        script.write_text(_CLEAN_SCRIPT, encoding="utf-8", newline="\n")
+        baseline = tmp_path / "empty.json"
+        baseline.write_text("[]\n", encoding="utf-8")
+        code, output, error = self._run(
+            ["blinter", str(script), "--no-config", "--baseline", str(baseline)]
+        )
+        assert code == 0, error
+        assert "S007" in output
+        code, output, error = self._run(
+            [
+                "blinter",
+                str(script),
+                "--no-config",
+                "--baseline",
+                str(baseline),
+                "--fail-on",
+                "style",
+            ]
+        )
+        assert code == 1, error
+        assert "S007" in output
+
+    def test_stale_entry_exits_even_when_fail_on_is_none(self, tmp_path: Path) -> None:
+        """A baseline entry that no longer matches fails the run."""
+        script = tmp_path / "clean.cmd"
+        script.write_text(_CLEAN_SCRIPT, encoding="utf-8", newline="\n")
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text(
+            json.dumps(
+                [
+                    {
+                        "code": "SEC008",
+                        "file": "clean.cmd",
+                        "text": "set PASSWORD=hunter2",
+                    }
+                ]
+            ),
+            encoding="utf-8",
+        )
+        code, output, error = self._run(
+            [
+                "blinter",
+                str(script),
+                "--no-config",
+                "--baseline",
+                str(baseline),
+                "--fail-on",
+                "none",
+            ]
+        )
+        assert code == 1, output + error
+        assert "Stale baseline entries" in output
+        assert "SEC008" in output
+        assert "clean.cmd" in output
+
+    def test_duplicate_lines_need_two_entries(self, tmp_path: Path) -> None:
+        """One entry accepts one of two identical lines."""
+        script = tmp_path / "creds.cmd"
+        script.write_text(
+            "@echo off\r\nset PASSWORD=hunter2\r\nset PASSWORD=hunter2\r\nexit /b 0\r\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text(
+            json.dumps(
+                [
+                    {
+                        "code": "SEC008",
+                        "file": "creds.cmd",
+                        "text": "set PASSWORD=hunter2",
+                    }
+                ]
+            ),
+            encoding="utf-8",
+        )
+        code, output, error = self._run(
+            ["blinter", str(script), "--no-config", "--baseline", str(baseline)]
+        )
+        assert code == 1, error
+        assert "SEC008" in output
+
+        code, _output, error = self._run(
+            [
+                "blinter",
+                str(script),
+                "--no-config",
+                "--baseline",
+                str(baseline),
+                "--update-baseline",
+            ]
+        )
+        assert code == 0, error
+        payload = json.loads(baseline.read_text(encoding="utf-8"))
+        assert len([entry for entry in payload if entry["code"] == "SEC008"]) == 2
+        code, output, error = self._run(
+            ["blinter", str(script), "--no-config", "--baseline", str(baseline)]
+        )
+        assert code == 0, output + error
+        assert "SEC008" not in output
+
+    def test_inserted_line_does_not_invalidate_entry(self, tmp_path: Path) -> None:
+        """A finding stays accepted when a line is inserted above it."""
+        script = tmp_path / "creds.cmd"
+        script.write_text(_PASSWORD_SCRIPT, encoding="utf-8", newline="\n")
+        baseline = tmp_path / "baseline.json"
+        code, _output, error = self._run(
+            [
+                "blinter",
+                str(script),
+                "--no-config",
+                "--baseline",
+                str(baseline),
+                "--update-baseline",
+            ]
+        )
+        assert code == 0, error
+        script.write_text(
+            "@echo off\r\nREM inserted\r\nset PASSWORD=hunter2\r\nexit /b 0\r\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+        code, output, error = self._run(
+            ["blinter", str(script), "--no-config", "--baseline", str(baseline)]
+        )
+        assert code == 0, output + error
+        assert "SEC008" not in output
+
+    def test_malformed_baseline_names_the_file(self, tmp_path: Path) -> None:
+        """Invalid JSON names the baseline file."""
+        script = tmp_path / "clean.cmd"
+        script.write_text(_CLEAN_SCRIPT, encoding="utf-8", newline="\n")
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text("{", encoding="utf-8")
+        code, _output, error = self._run(
+            ["blinter", str(script), "--no-config", "--baseline", str(baseline)]
+        )
+        assert code == 1
+        assert "baseline.json" in error
+        assert "JSON" in error
+
+    def test_missing_baseline_names_the_file(self, tmp_path: Path) -> None:
+        """A missing baseline file is an error."""
+        script = tmp_path / "clean.cmd"
+        script.write_text(_CLEAN_SCRIPT, encoding="utf-8", newline="\n")
+        missing = tmp_path / "missing.json"
+        code, _output, error = self._run(
+            ["blinter", str(script), "--no-config", "--baseline", str(missing)]
+        )
+        assert code == 1
+        assert "not found" in error.lower()
+        assert "missing.json" in error
+
+    def test_update_without_baseline_is_rejected(self) -> None:
+        """--update-baseline cannot be used without --baseline."""
+        _code, _output, error = self._run(
+            ["blinter", "script.cmd", "--update-baseline"]
+        )
+        assert _code == 1
+        assert "--update-baseline requires --baseline" in error
+
+    def test_json_report_includes_baseline_fields(self, tmp_path: Path) -> None:
+        """JSON reports the accepted count and stale entries."""
+        script = tmp_path / "creds.cmd"
+        script.write_text(_PASSWORD_SCRIPT, encoding="utf-8", newline="\n")
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text(
+            json.dumps(
+                [
+                    {
+                        "code": "SEC008",
+                        "file": "creds.cmd",
+                        "text": "set PASSWORD=hunter2",
+                    },
+                    {"code": "SEC009", "file": "creds.cmd", "text": "gone"},
+                ]
+            ),
+            encoding="utf-8",
+        )
+        code, output, error = self._run(
+            [
+                "blinter",
+                str(script),
+                "--no-config",
+                "--baseline",
+                str(baseline),
+                "--format",
+                "json",
+            ]
+        )
+        assert code == 1, error
+        report = json.loads(output)
+        assert report["summary"]["baselined_issues"] == 1
+        assert report["stale_baseline_entries"] == [
+            {"code": "SEC009", "file": "creds.cmd", "text": "gone"}
+        ]
+        assert not [issue for issue in report["issues"] if issue["code"] == "SEC008"]
+
+    def test_baseline_stores_posix_paths(self, tmp_path: Path) -> None:
+        """Stored paths are POSIX and relative to the baseline file."""
+        scripts = tmp_path / "scripts"
+        scripts.mkdir()
+        script = scripts / "update.cmd"
+        script.write_text(_PASSWORD_SCRIPT, encoding="utf-8", newline="\n")
+        baseline = tmp_path / "blinter-baseline.json"
+        code, _output, error = self._run(
+            [
+                "blinter",
+                str(script),
+                "--no-config",
+                "--baseline",
+                str(baseline),
+                "--update-baseline",
+            ]
+        )
+        assert code == 0, error
+        payload = json.loads(baseline.read_text(encoding="utf-8"))
+        sec008 = next(entry for entry in payload if entry["code"] == "SEC008")
+        assert sec008["file"] == "scripts/update.cmd"
+
+    def test_update_keeps_entries_outside_the_scan(self, tmp_path: Path) -> None:
+        """Update rewrites scanned files and keeps entries for other files."""
+        script = tmp_path / "creds.cmd"
+        script.write_text(_PASSWORD_SCRIPT, encoding="utf-8", newline="\n")
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text(
+            json.dumps(
+                [
+                    {"code": "S001", "file": "other/kept.cmd", "text": "echo hi"},
+                    {
+                        "code": "SEC008",
+                        "file": "creds.cmd",
+                        "text": "set PASSWORD=old",
+                    },
+                ]
+            ),
+            encoding="utf-8",
+        )
+        code, _output, error = self._run(
+            [
+                "blinter",
+                str(script),
+                "--no-config",
+                "--baseline",
+                str(baseline),
+                "--update-baseline",
+            ]
+        )
+        assert code == 0, error
+        payload = json.loads(baseline.read_text(encoding="utf-8"))
+        assert [entry for entry in payload if entry["file"] == "other/kept.cmd"] == [
+            {"code": "S001", "file": "other/kept.cmd", "text": "echo hi"}
+        ]
+        current = [entry for entry in payload if entry["code"] == "SEC008"]
+        assert len(current) == 1
+        assert current[0]["text"] == "set PASSWORD=hunter2"
+
+    def test_load_baseline_rejects_bad_entries(self, tmp_path: Path) -> None:
+        """Entry validation names the file and the entry index."""
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text("{}", encoding="utf-8")
+        with pytest.raises(ValueError, match="JSON list"):
+            load_baseline(baseline)
+        baseline.write_text(
+            json.dumps([{"code": "", "file": "a.cmd", "text": "echo hi"}]),
+            encoding="utf-8",
+        )
+        with pytest.raises(ValueError, match="entry 0"):
+            load_baseline(baseline)
+        baseline.write_text(
+            json.dumps([{"code": "S001", "file": "C:/abs.cmd", "text": "echo hi"}]),
+            encoding="utf-8",
+        )
+        with pytest.raises(ValueError, match="relative path"):
+            load_baseline(baseline)
+
+    def test_help_documents_baseline_flags(self) -> None:
+        """Help text documents both baseline flags."""
+        code, output, _error = self._run(["blinter", "--help"])
+        assert code is None
+        assert "--baseline" in output
+        assert "--update-baseline" in output
+
+    @pytest.mark.skipif(os.name != "nt", reason="Windows paths are case-insensitive")
+    def test_windows_baseline_path_is_case_insensitive(self, tmp_path: Path) -> None:
+        """On Windows a baseline path matches the file regardless of case."""
+        scripts = tmp_path / "scripts"
+        scripts.mkdir()
+        script = scripts / "update.cmd"
+        script.write_text(_PASSWORD_SCRIPT, encoding="utf-8", newline="\n")
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text(
+            json.dumps(
+                [
+                    {
+                        "code": "SEC008",
+                        "file": "Scripts/Update.cmd",
+                        "text": "set PASSWORD=hunter2",
+                    }
+                ]
+            ),
+            encoding="utf-8",
+        )
+        code, output, error = self._run(
+            ["blinter", str(script), "--no-config", "--baseline", str(baseline)]
+        )
+        assert code == 0, output + error
+        assert "SEC008" not in output
