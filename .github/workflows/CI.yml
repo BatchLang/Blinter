@@ -114,7 +114,7 @@ jobs:
       - name: Install dependencies in virtual environment
         run: |
           .\venv\Scripts\Activate.ps1
-          uv pip install setuptools==84.0.0
+          uv pip install setuptools==84.2.1
           uv pip install nuitka==4.3.1
           $env:CHARSET_NORMALIZER_USE_MYPYC = "0"
           uv pip install --upgrade -r requirements.txt --no-binary charset-normalizer
@@ -247,7 +247,7 @@ jobs:
       - name: Install dependencies in virtual environment
         run: |
           .\venv\Scripts\Activate.ps1
-          uv pip install setuptools==84.0.0
+          uv pip install setuptools==84.2.1
           uv pip install nuitka==4.3.1
           $env:CHARSET_NORMALIZER_USE_MYPYC = "0"
           uv pip install --upgrade -r requirements.txt --no-binary charset-normalizer
