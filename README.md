@@ -458,6 +458,6 @@ This project is licensed under the GNU Affero General Public License v3.0 or lat
 
 Icon by [Acidmit](https://www.flaticon.com/authors/acidmit) · [Flaticon](https://www.flaticon.com/)
 
-[![PyPI Downloads (total)](https://static.pepy.tech/personalized-badge/blinter?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/blinter)
+[![PyPI Downloads (total)](https://static.pepy.tech/personalized-badge/blinter?period=total&units=INTERNATIONAL_SYSTEM&left_color=GREY&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/blinter)
 
 </div>
