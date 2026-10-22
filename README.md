@@ -5,6 +5,9 @@
 [![Supported Python versions](https://img.shields.io/pypi/pyversions/Blinter.svg)](https://pypi.org/project/Blinter)
 [![PyPI Downloads (month)](https://static.pepy.tech/personalized-badge/blinter?period=month&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads%20%2F%20month)](https://pepy.tech/projects/blinter)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14056/badge)](https://www.bestpractices.dev/projects/14056)
+![Linux](https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black)
+![macOS](https://img.shields.io/badge/macOS-333333?logo=apple&logoColor=white)
+![Windows](https://img.shields.io/badge/Windows-0078D4?logo=windows&logoColor=white)
 
 </div>
 
