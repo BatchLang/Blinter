@@ -103,7 +103,7 @@ uv tool uninstall Blinter
 
 ### Prerequisites
 - **Python 3.11-3.15** (for the pip/uv install)
-- **Windows OS** (64-bit required for the standalone executable)
+- **Windows OS 64-bit** (for the standalone executable)
 
 ## Usage 📟
 
