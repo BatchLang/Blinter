@@ -2,6 +2,13 @@
 
 All notable changes to Blinter are documented in this file. Release tags follow [Semantic Versioning](https://semver.org/).
 
+## [1.1.47] - 2026-10-22
+
+### Changed
+
+- The installer accepts only `Blinter-<tag>-<arch>\blinter.exe` and no longer searches the archive for `blinter.exe`
+- The MegaLinter install pin is 1.1.47
+
 ## [1.1.46] - 2026-10-22
 
 ### Changed
@@ -446,6 +453,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 Older 1.0.x releases are available on the [GitHub Releases](https://github.com/BatchLang/Blinter/releases) page.
 
+[1.1.47]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.47
 [1.1.46]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.46
 [1.1.45]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.45
 [1.1.44]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.44
