@@ -53,18 +53,18 @@
 ### 🚀 Quick Start (Recommended)
 
 **Option 1: Install via pip**
-```cmd
+```bash
 pip install Blinter
 ```
 
 **Option 2: Install via uv**
-```cmd
+```bash
 uv tool install Blinter
 ```
 
 Run without installing:
 
-```cmd
+```bash
 uvx blinter
 ```
 
@@ -92,12 +92,12 @@ curl -fL --proto =https https://raw.githubusercontent.com/BatchLang/Blinter/refs
 ```
 
 **pip installation:**
-```cmd
+```bash
 pip uninstall Blinter
 ```
 
 **uv installation:**
-```cmd
+```bash
 uv tool uninstall Blinter
 ```
 
@@ -110,7 +110,7 @@ uv tool uninstall Blinter
 ### Basic Usage
 
 **If installed via pip or uv:**
-```cmd
+```bash
 # Analyze a single batch file
 blinter script.bat
 # or
@@ -145,7 +145,7 @@ python -m blinter --version
 ```
 
 **If using standalone executable (installer or manual download):**
-```cmd
+```bash
 # After the one-line installer, use blinter on PATH.
 # Manual zip: run Blinter-v1.x.x\blinter.exe or add that folder to PATH.
 
@@ -230,7 +230,7 @@ pip, uv, and the standalone installer can all put `blinter` on `PATH`. The insta
 
 Command line options always override configuration file settings:
 
-```cmd
+```bash
 # Use config file settings
 python -m blinter myscript.bat
 
@@ -253,13 +253,13 @@ python -m blinter myscript.bat --output report.json
 python -m blinter myscript.bat --format json
 
 # JSON file only, no human-readable stdout
-python -m blinter project\\scripts --output results.json --format json
+python -m blinter project/scripts --output results.json --format json
 
 # SARIF 2.1.0 on stdout (GitHub Code Scanning upload)
 python -m blinter myscript.bat --format sarif
 
 # SARIF file only, no human-readable stdout
-python -m blinter project\\scripts --output results.sarif --format sarif
+python -m blinter project/scripts --output results.sarif --format sarif
 ```
 
 <a id="inline-suppression-comments"></a>
@@ -310,7 +310,7 @@ The directive and its rule codes match case-insensitively in ASCII only. `lınt:
 
 `--baseline` records findings a project accepts without editing the script. Each finding has its own entry, matched on the rule code, the file path relative to the baseline file, and the trimmed text of the line. Line numbers are not part of the match, so inserting a line elsewhere does not invalidate an entry. Two identical lines need two entries.
 
-```cmd
+```bash
 blinter scripts --baseline blinter-baseline.json
 blinter scripts --baseline blinter-baseline.json --update-baseline
 ```
