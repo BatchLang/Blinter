@@ -8,7 +8,7 @@
 
 </div>
 
-**Blinter** is a linter for Windows batch files (`.bat` and `.cmd`). It provides static analysis to identify syntax errors, security vulnerabilities, performance issues and style problems. Blinter helps you write safer, more reliable and maintainable batch scripts. Linux and macOS are supported for linting; the standalone executable is Windows-only.
+**Blinter** is a linter for Windows batch files (`.bat` and `.cmd`). It provides static analysis to identify syntax errors, security vulnerabilities, performance issues and style problems. Blinter helps you write safer, more reliable and maintainable batch scripts on Linux, macOS or Windows.
 
 - ✅ **Configurable Options** - Configurable rules, `--verbose`/`--quiet` logging, robust error handling
 - ✅ **Unicode Support** - Support for international characters and filenames
