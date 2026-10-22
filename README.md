@@ -85,7 +85,7 @@ curl -fL --proto =https https://raw.githubusercontent.com/BatchLang/Blinter/refs
 curl -fL --proto =https https://raw.githubusercontent.com/BatchLang/Blinter/refs/heads/main/scripts/install_blinter.cmd -o install_blinter.cmd && (call install_blinter.cmd arm64 || cd .) && del install_blinter.cmd
 ```
 
-This installs the latest `blinter.exe` for the architecture you named to `%LOCALAPPDATA%\Programs\Blinter\bin`, adds it to your user `PATH`, and handles updates automatically. On ARM64, `x64` still installs and runs through emulation; `arm64` is the native build. `arm64` is refused on a non-ARM64 PC. Restart your terminal or IDE after installation for `PATH` changes to take effect.
+This installs the latest `blinter.exe` for the architecture you named to `%LOCALAPPDATA%\Programs\Blinter\bin`, adds it to your user `PATH`, and handles updates automatically. On ARM64, `x64` still installs and runs through emulation; `arm64` is the native build. Restart your terminal or IDE after installation for `PATH` changes to take effect.
 
 **Manual zip download (fallback):**
 - Download `Blinter-v1.x.x-x64.zip` for x64 Windows, or `Blinter-v1.x.x-arm64.zip` for a native ARM64 executable, from [GitHub Releases](https://github.com/BatchLang/Blinter/releases)
