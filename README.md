@@ -70,7 +70,7 @@ uvx blinter
 
 **Option 3: Standalone executable**
 
-If you prefer a standalone `.exe` over pip or uv, use the one-line installer:
+If you prefer a standalone `.exe` over pip or uv, use the one-line installer via cmd:
 
 ```cmd
 curl -fL --proto =https https://raw.githubusercontent.com/BatchLang/Blinter/refs/heads/main/scripts/install_blinter.cmd -o install_blinter.cmd && (call install_blinter.cmd || cd .) && del install_blinter.cmd
@@ -86,7 +86,7 @@ This installs the latest `blinter.exe` to `%LOCALAPPDATA%\Programs\Blinter\bin`,
 
 ### Uninstall
 
-**Standalone executable (one-line un-installer):**
+**Standalone executable (one-line un-installer) via cmd:**
 ```cmd
 curl -fL --proto =https https://raw.githubusercontent.com/BatchLang/Blinter/refs/heads/main/scripts/uninstall_blinter.cmd -o uninstall_blinter.cmd && (call uninstall_blinter.cmd || cd .) && del uninstall_blinter.cmd
 ```
