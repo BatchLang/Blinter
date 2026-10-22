@@ -166,21 +166,26 @@ function Invoke-BlinterBatch {
         [Parameter(Mandatory)][string]$ScriptPath,
         [Parameter(Mandatory)][string]$Mode,
         [Parameter(Mandatory)][string]$TempRoot,
-        [Parameter(Mandatory)][string]$Label
+        [Parameter(Mandatory)][string]$Label,
+        [string]$Arguments = ""
     )
 
     $logPath = Join-Path $TempRoot ($Label + ".log")
     $launcherPath = Join-Path $TempRoot ($Label + ".cmd")
+    $call = 'call "{0}"' -f $ScriptPath
+    if ($Arguments) {
+        $call = '{0} {1}' -f $call, $Arguments
+    }
     if ($Mode -eq "readme") {
         $body = @"
 @echo off
-(call "$ScriptPath" || cd .) > "$logPath" 2>&1
+($call || cd .) > "$logPath" 2>&1
 exit /b %ERRORLEVEL%
 "@
     } elseif ($Mode -eq "direct") {
         $body = @"
 @echo off
-call "$ScriptPath" > "$logPath" 2>&1
+$call > "$logPath" 2>&1
 exit /b %ERRORLEVEL%
 "@
     } else {
@@ -313,21 +318,50 @@ function Invoke-BlinterCleanupUninstall {
     }
 }
 
+function Assert-BlinterInstallRefused {
+    param(
+        [Parameter(Mandatory)][string]$InstallScript,
+        [Parameter(Mandatory)][string]$TempRoot,
+        [Parameter(Mandatory)][string]$Label,
+        [string]$Arguments = "",
+        [Parameter(Mandatory)][string]$RequiredPattern
+    )
+
+    $layout = Get-BlinterInstallLayout
+    $rootExisted = Test-Path -LiteralPath $layout.Root
+    $result = Invoke-BlinterBatch -ScriptPath $InstallScript -Mode "direct" -TempRoot $TempRoot -Label $Label -Arguments $Arguments
+    if ($result.ExitCode -eq 0) {
+        throw "Install with arguments '$Arguments' should have failed.`n$($result.Log)"
+    }
+    if ($result.Log -notmatch $RequiredPattern) {
+        throw "Log did not match '$RequiredPattern'.`n$($result.Log)"
+    }
+    if ($result.Log -match "Installed blinter.exe|Extracting Blinter") {
+        throw "Refused install still downloaded or extracted.`n$($result.Log)"
+    }
+    if (-not $rootExisted -and (Test-Path -LiteralPath $layout.Root)) {
+        throw "Refused install created $($layout.Root)"
+    }
+    Write-InstallerTestLog "Refused install $Label"
+}
+
 function Invoke-BlinterInstallScenario {
     param(
         [Parameter(Mandatory)][string]$Name,
         [Parameter(Mandatory)][string]$InstallScript,
         [Parameter(Mandatory)][string]$UninstallScript,
         [Parameter(Mandatory)][string]$Mode,
-        [Parameter(Mandatory)][string]$TempRoot
+        [Parameter(Mandatory)][string]$TempRoot,
+        [Parameter(Mandatory)][string]$Arguments
     )
 
     Write-InstallerTestLog "Scenario $Name ($Mode)"
-    $installed = Invoke-BlinterBatch -ScriptPath $InstallScript -Mode $Mode -TempRoot $TempRoot -Label "$Name-install"
+    $installed = Invoke-BlinterBatch -ScriptPath $InstallScript -Mode $Mode -TempRoot $TempRoot -Label "$Name-install" -Arguments $Arguments
     if ($installed.ExitCode -ne 0) {
         throw "Install exited $($installed.ExitCode).`n$($installed.Log)"
     }
     Assert-BlinterLog -Log $installed.Log -Required @(
+        "Selected build: $Arguments",
         "Installing Blinter",
         "(?m)^OK\s*$",
         "SUCCESS: Blinter",
@@ -400,12 +434,36 @@ if ($callerElevated) {
 try {
     Assert-BlinterChildIsUnelevated -TempRoot $tempRoot
     Invoke-BlinterCleanupUninstall -ScriptPath $uninstallScript -TempRoot $tempRoot
+    Assert-BlinterInstallRefused `
+        -InstallScript $installScript `
+        -TempRoot $tempRoot `
+        -Label "refuse-no-arg" `
+        -RequiredPattern "Usage: install_blinter\.cmd x64\|arm64"
+    Assert-BlinterInstallRefused `
+        -InstallScript $installScript `
+        -TempRoot $tempRoot `
+        -Label "refuse-bad-arg" `
+        -Arguments "sparc" `
+        -RequiredPattern "Usage: install_blinter\.cmd x64\|arm64"
+    $hostArch = $env:PROCESSOR_ARCHITEW6432
+    if (-not $hostArch) {
+        $hostArch = $env:PROCESSOR_ARCHITECTURE
+    }
+    if ($hostArch -ne "ARM64") {
+        Assert-BlinterInstallRefused `
+            -InstallScript $installScript `
+            -TempRoot $tempRoot `
+            -Label "refuse-arm64" `
+            -Arguments "arm64" `
+            -RequiredPattern "cannot be installed on this PC"
+    }
     Invoke-BlinterInstallScenario `
         -Name "repository" `
         -InstallScript $installScript `
         -UninstallScript $uninstallScript `
         -Mode "direct" `
-        -TempRoot $tempRoot
+        -TempRoot $tempRoot `
+        -Arguments "x64"
 
     $lfDir = Join-Path $tempRoot "lf"
     New-Item -ItemType Directory -Path $lfDir | Out-Null
@@ -418,7 +476,8 @@ try {
         -InstallScript $lfInstall `
         -UninstallScript $lfUninstall `
         -Mode "readme" `
-        -TempRoot $tempRoot
+        -TempRoot $tempRoot `
+        -Arguments "x64"
 
     Write-InstallerTestLog "Installer and uninstaller passed"
 } finally {

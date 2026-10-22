@@ -28,7 +28,7 @@ goto :blinter_crlf_ready
 
 REM Run the CRLF copy and return its exit code.
 :blinter_crlf_reexec
-cmd /c call "%BLINTER_CRLF_COPY%"
+cmd /c call "%BLINTER_CRLF_COPY%" %*
 set "BLINTER_REEXEC_EXIT=!errorlevel!"
 del /F /Q "%BLINTER_CRLF_COPY%" >nul 2>&1
 if errorlevel 1 set "BLINTER_REEXEC_EXIT=!BLINTER_REEXEC_EXIT!"
@@ -41,6 +41,35 @@ exit /b 1
 
 REM Line endings are safe for label lookup.
 :blinter_crlf_ready
+
+REM Require x64 or arm64. Any other argument, including none, downloads nothing.
+if /I "%~1"=="x64" (
+    set "BLINTER_ARCH=x64"
+    goto :blinter_arch_ready
+)
+if /I "%~1"=="arm64" (
+    set "BLINTER_ARCH=arm64"
+    goto :blinter_arch_ready
+)
+echo Usage: install_blinter.cmd x64^|arm64
+echo.
+echo No architecture was selected, so nothing was downloaded.
+goto :error_exit
+
+REM Refuse arm64 on a non-ARM PC. x64 on ARM64 is allowed and runs through emulation.
+:blinter_arch_ready
+set "BLINTER_HOST_ARCH=%PROCESSOR_ARCHITECTURE%"
+if defined PROCESSOR_ARCHITEW6432 set "BLINTER_HOST_ARCH=%PROCESSOR_ARCHITEW6432%"
+if /I "%BLINTER_ARCH%"=="arm64" if /I not "%BLINTER_HOST_ARCH%"=="ARM64" (
+    echo ERROR: The arm64 build cannot be installed on this PC.
+    echo.
+    echo Nothing was downloaded.
+    goto :error_exit
+)
+if /I "%BLINTER_ARCH%"=="x64" if /I "%BLINTER_HOST_ARCH%"=="ARM64" (
+    echo NOTE: This PC is ARM64. The x64 build runs through emulation. The arm64 argument installs the native build.
+    echo.
+)
 
 REM ============================================================================
 REM Blinter Installer/Updater
@@ -72,6 +101,7 @@ if %errorlevel% neq 0 (
 echo +===========================+
 echo + Blinter Installer/Updater +
 echo +===========================+
+echo Selected build: !BLINTER_ARCH!
 echo.
 
 set "BLINTER_DIR=%LOCALAPPDATA%\Programs\Blinter"
@@ -130,7 +160,7 @@ if "!BLINTER_SHA256!"=="" (
     goto :error_exit
 )
 
-echo Latest Blinter release: !BLINTER_VERSION!
+echo Latest Blinter !BLINTER_ARCH! release: !BLINTER_VERSION!
 echo.
 
 REM Create installation directory if it doesn't exist
@@ -262,9 +292,10 @@ if !errorlevel! neq 0 (
 )
 if exist "!PS_EXPAND!" del /F /Q "!PS_EXPAND!" >nul 2>&1
 
-REM Locate extracted executable
+REM Locate extracted executable. The folder name matches the zip name.
+REM Older releases used Blinter-<tag>\blinter.exe, so search if that folder is absent.
 set BLINTER_SOURCE_EXE=
-set "BLINTER_SOURCE_EXE=%BLINTER_TEMP%\Blinter-!BLINTER_VERSION!\blinter.exe"
+set "BLINTER_SOURCE_EXE=%BLINTER_TEMP%\Blinter-!BLINTER_VERSION!-!BLINTER_ARCH!\blinter.exe"
 if not exist "!BLINTER_SOURCE_EXE!" (
     set BLINTER_SOURCE_EXE=
     for /f "tokens=*" %%f in ('dir /s /b "%BLINTER_TEMP%\blinter.exe" 2^>nul') do (
@@ -276,7 +307,7 @@ if not exist "!BLINTER_SOURCE_EXE!" (
 if "!BLINTER_SOURCE_EXE!"=="" (
     echo ERROR: Blinter executable not found in extracted archive.
     echo.
-    echo Expected layout: Blinter-!BLINTER_VERSION!\blinter.exe
+    echo Expected layout: Blinter-!BLINTER_VERSION!-!BLINTER_ARCH!\blinter.exe
     echo The archive structure may have changed or be corrupted.
     goto :error_restore
 )
@@ -379,6 +410,8 @@ REM empty or failed response used to be reported as a missing download.
 (
 echo #Requires -Version 5.1
 echo $ProgressPreference = 'SilentlyContinue'
+echo $arch = [string]$env:BLINTER_ARCH
+echo if ($arch -ne 'x64' -and $arch -ne 'arm64'^) { Write-Output 'NOT_FOUND'; exit 0 }
 echo $release = $null
 echo $asset = $null
 echo foreach ($attempt in 1..3^) {
@@ -389,7 +422,8 @@ echo         [Console]::Error.WriteLine($_.Exception.Message^)
 echo         $release = $null
 echo     }
 echo     if ($release -and -not $release.prerelease -and -not $release.draft^) {
-echo         $asset = @($release.assets^) ^| Where-Object { $_.name -like 'Blinter-v*.zip' } ^| Select-Object -First 1
+echo         $assetName = 'Blinter-' + $release.tag_name + '-' + $arch + '.zip'
+echo         $asset = @($release.assets^) ^| Where-Object { $_.name -eq $assetName } ^| Select-Object -First 1
 echo     }
 echo     if ($asset^) { break }
 echo     if ($attempt -lt 3^) { Start-Sleep -Seconds $attempt }

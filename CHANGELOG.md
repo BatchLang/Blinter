@@ -2,6 +2,14 @@
 
 All notable changes to Blinter are documented in this file. Release tags follow [Semantic Versioning](https://semver.org/).
 
+## [1.1.46] - 2026-10-22
+
+### Changed
+
+- `install_blinter.cmd` requires `x64` or `arm64`. With no argument, or any other argument, it downloads nothing. `arm64` is refused on a non-ARM64 PC. On ARM64, `x64` is allowed and the installer notes that `arm64` is the native build
+- Each release zip contains a folder with the same name: `Blinter-v1.1.46-x64\blinter.exe` and `Blinter-v1.1.46-arm64\blinter.exe`
+- The MegaLinter install pin is 1.1.46
+
 ## [1.1.45] - 2026-10-22
 
 ### Added
@@ -438,6 +446,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 Older 1.0.x releases are available on the [GitHub Releases](https://github.com/BatchLang/Blinter/releases) page.
 
+[1.1.46]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.46
 [1.1.45]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.45
 [1.1.44]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.44
 [1.1.43]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.43

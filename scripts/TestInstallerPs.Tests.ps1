@@ -37,6 +37,22 @@ Describe 'Installer PowerShell PSScriptAnalyzer' {
 }
 
 Describe 'Get-LatestBlinterRelease.ps1' {
+    BeforeAll {
+        $script:SavedBlinterArch = $env:BLINTER_ARCH
+    }
+
+    AfterAll {
+        if ($null -eq $script:SavedBlinterArch) {
+            Remove-Item Env:BLINTER_ARCH -ErrorAction SilentlyContinue
+        } else {
+            $env:BLINTER_ARCH = $script:SavedBlinterArch
+        }
+    }
+
+    BeforeEach {
+        $env:BLINTER_ARCH = 'x64'
+    }
+
     It 'outputs NOT_FOUND when no release is available' {
         $fixturePath = Join-Path $script:InstallerPsRoot 'Get-LatestBlinterRelease.ps1'
         Mock Invoke-RestMethod { return @() }
@@ -61,8 +77,8 @@ Describe 'Get-LatestBlinterRelease.ps1' {
                     tag_name   = 'v1.1.6'
                     assets     = @(
                         [PSCustomObject]@{
-                            name                 = 'Blinter-v1.1.6.zip'
-                            browser_download_url = 'https://example.com/Blinter-v1.1.6.zip'
+                            name                 = 'Blinter-v1.1.6-x64.zip'
+                            browser_download_url = 'https://example.com/Blinter-v1.1.6-x64.zip'
                             digest               = 'sha256:abc123'
                         }
                     )
@@ -74,7 +90,7 @@ Describe 'Get-LatestBlinterRelease.ps1' {
             $output = & $fixturePath
             $LASTEXITCODE | Should -Be 0
             $global:BlinterReleaseLookupCalls | Should -Be 2
-            $output | Should -Be 'https://example.com/Blinter-v1.1.6.zip v1.1.6 sha256:abc123'
+            $output | Should -Be 'https://example.com/Blinter-v1.1.6-x64.zip v1.1.6 sha256:abc123'
         } finally {
             Remove-Variable -Name BlinterReleaseLookupCalls -Scope Global -ErrorAction SilentlyContinue
         }
@@ -90,8 +106,8 @@ Describe 'Get-LatestBlinterRelease.ps1' {
                     tag_name   = 'v1.1.6'
                     assets     = @(
                         [PSCustomObject]@{
-                            name                 = 'Blinter-v1.1.6.zip'
-                            browser_download_url = 'https://example.com/Blinter-v1.1.6.zip'
+                            name                 = 'Blinter-v1.1.6-x64.zip'
+                            browser_download_url = 'https://example.com/Blinter-v1.1.6-x64.zip'
                             digest               = 'sha256:abc123'
                         }
                     )
@@ -101,7 +117,7 @@ Describe 'Get-LatestBlinterRelease.ps1' {
 
         $output = & $fixturePath
         $LASTEXITCODE | Should -Be 0
-        $output | Should -Be 'https://example.com/Blinter-v1.1.6.zip v1.1.6 sha256:abc123'
+        $output | Should -Be 'https://example.com/Blinter-v1.1.6-x64.zip v1.1.6 sha256:abc123'
     }
 
     It 'outputs MISSING_DIGEST when the asset has no digest' {
@@ -114,8 +130,8 @@ Describe 'Get-LatestBlinterRelease.ps1' {
                     tag_name   = 'v1.1.6'
                     assets     = @(
                         [PSCustomObject]@{
-                            name                 = 'Blinter-v1.1.6.zip'
-                            browser_download_url = 'https://example.com/Blinter-v1.1.6.zip'
+                            name                 = 'Blinter-v1.1.6-x64.zip'
+                            browser_download_url = 'https://example.com/Blinter-v1.1.6-x64.zip'
                         }
                     )
                 }
@@ -125,6 +141,109 @@ Describe 'Get-LatestBlinterRelease.ps1' {
         $output = & $fixturePath
         $LASTEXITCODE | Should -Be 0
         $output | Should -Be 'MISSING_DIGEST'
+    }
+
+    It 'selects the x64 asset when both architectures are published' {
+        $fixturePath = Join-Path $script:InstallerPsRoot 'Get-LatestBlinterRelease.ps1'
+        Mock Invoke-RestMethod {
+            return @(
+                [PSCustomObject]@{
+                    prerelease = $false
+                    draft      = $false
+                    tag_name   = 'v1.1.6'
+                    assets     = @(
+                        [PSCustomObject]@{
+                            name                 = 'Blinter-v1.1.6-arm64.zip'
+                            browser_download_url = 'https://example.com/Blinter-v1.1.6-arm64.zip'
+                            digest               = 'sha256:arm'
+                        },
+                        [PSCustomObject]@{
+                            name                 = 'Blinter-v1.1.6-x64.zip'
+                            browser_download_url = 'https://example.com/Blinter-v1.1.6-x64.zip'
+                            digest               = 'sha256:x64'
+                        }
+                    )
+                }
+            )
+        }
+
+        $output = & $fixturePath
+        $LASTEXITCODE | Should -Be 0
+        $output | Should -Be 'https://example.com/Blinter-v1.1.6-x64.zip v1.1.6 sha256:x64'
+    }
+
+    It 'selects the arm64 asset when both architectures are published' {
+        $fixturePath = Join-Path $script:InstallerPsRoot 'Get-LatestBlinterRelease.ps1'
+        $env:BLINTER_ARCH = 'arm64'
+        Mock Invoke-RestMethod {
+            return @(
+                [PSCustomObject]@{
+                    prerelease = $false
+                    draft      = $false
+                    tag_name   = 'v1.1.6'
+                    assets     = @(
+                        [PSCustomObject]@{
+                            name                 = 'Blinter-v1.1.6-x64.zip'
+                            browser_download_url = 'https://example.com/Blinter-v1.1.6-x64.zip'
+                            digest               = 'sha256:x64'
+                        },
+                        [PSCustomObject]@{
+                            name                 = 'Blinter-v1.1.6-arm64.zip'
+                            browser_download_url = 'https://example.com/Blinter-v1.1.6-arm64.zip'
+                            digest               = 'sha256:arm'
+                        }
+                    )
+                }
+            )
+        }
+
+        $output = & $fixturePath
+        $LASTEXITCODE | Should -Be 0
+        $output | Should -Be 'https://example.com/Blinter-v1.1.6-arm64.zip v1.1.6 sha256:arm'
+    }
+
+    It 'outputs NOT_FOUND when the requested architecture was not published' {
+        $fixturePath = Join-Path $script:InstallerPsRoot 'Get-LatestBlinterRelease.ps1'
+        $env:BLINTER_ARCH = 'arm64'
+        Mock Invoke-RestMethod {
+            return @(
+                [PSCustomObject]@{
+                    prerelease = $false
+                    draft      = $false
+                    tag_name   = 'v1.1.6'
+                    assets     = @(
+                        [PSCustomObject]@{
+                            name                 = 'Blinter-v1.1.6-x64.zip'
+                            browser_download_url = 'https://example.com/Blinter-v1.1.6-x64.zip'
+                            digest               = 'sha256:x64'
+                        }
+                    )
+                }
+            )
+        }
+
+        $output = & $fixturePath
+        $LASTEXITCODE | Should -Be 0
+        $output | Should -Be 'NOT_FOUND'
+    }
+
+    It 'outputs NOT_FOUND without calling GitHub when the architecture is unset or invalid' {
+        $fixturePath = Join-Path $script:InstallerPsRoot 'Get-LatestBlinterRelease.ps1'
+        $global:BlinterReleaseLookupCalls = 0
+        Mock Invoke-RestMethod { $global:BlinterReleaseLookupCalls++; throw 'should not be called' }
+
+        try {
+            Remove-Item Env:BLINTER_ARCH -ErrorAction SilentlyContinue
+            $unset = & $fixturePath
+            $unset | Should -Be 'NOT_FOUND'
+
+            $env:BLINTER_ARCH = 'sparc'
+            $invalid = & $fixturePath
+            $invalid | Should -Be 'NOT_FOUND'
+            $global:BlinterReleaseLookupCalls | Should -Be 0
+        } finally {
+            Remove-Variable -Name BlinterReleaseLookupCalls -Scope Global -ErrorAction SilentlyContinue
+        }
     }
 }
 

@@ -297,7 +297,7 @@ jobs:
         run: |
           $version = "${{ steps.version.outputs.version }}"
           $arch = "${{ matrix.arch }}"
-          $folder = "dist/Blinter-v$version"
+          $folder = "dist/Blinter-v$version-$arch"
           New-Item -ItemType Directory -Path $folder -Force
           Move-Item -Path dist/blinter.exe -Destination "$folder/blinter.exe"
           Compress-Archive -Path $folder -DestinationPath "dist/Blinter-v$version-$arch.zip"

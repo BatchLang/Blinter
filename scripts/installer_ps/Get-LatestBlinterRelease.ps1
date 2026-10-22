@@ -1,5 +1,7 @@
 #Requires -Version 5.1
 $ProgressPreference = 'SilentlyContinue'
+$arch = [string]$env:BLINTER_ARCH
+if ($arch -ne 'x64' -and $arch -ne 'arm64') { Write-Output 'NOT_FOUND'; exit 0 }
 $release = $null
 $asset = $null
 foreach ($attempt in 1..3) {
@@ -10,7 +12,8 @@ foreach ($attempt in 1..3) {
         $release = $null
     }
     if ($release -and -not $release.prerelease -and -not $release.draft) {
-        $asset = @($release.assets) | Where-Object { $_.name -like 'Blinter-v*.zip' } | Select-Object -First 1
+        $assetName = 'Blinter-' + $release.tag_name + '-' + $arch + '.zip'
+        $asset = @($release.assets) | Where-Object { $_.name -eq $assetName } | Select-Object -First 1
     }
     if ($asset) { break }
     if ($attempt -lt 3) { Start-Sleep -Seconds $attempt }
