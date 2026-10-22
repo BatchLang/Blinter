@@ -73,7 +73,7 @@ uvx blinter
 
 **Option 3: Standalone executable**
 
-If you prefer a standalone `.exe` over pip or uv, use the one-line installer via cmd. Check your architecture with `echo %PROCESSOR_ARCHITECTURE%`, or in Settings > System > About. `ARM64` means use the ARM64 line. Anything else means use the x64 line. Running the installer with no argument downloads nothing.
+If you prefer a standalone `.exe` over pip or uv, use the one-line installer via cmd.
 
 **x64:**
 ```cmd
@@ -95,7 +95,7 @@ This installs the latest `blinter.exe` for the architecture you named to `%LOCAL
 
 ### Uninstall
 
-**Standalone executable (one-line un-installer) via cmd.** This removes whichever build is installed, x64 or ARM64:
+**Standalone executable (one-line un-installer) via cmd** This removes whichever build is installed, x64 or ARM64:
 ```cmd
 curl -fL --proto =https https://raw.githubusercontent.com/BatchLang/Blinter/refs/heads/main/scripts/uninstall_blinter.cmd -o uninstall_blinter.cmd && (call uninstall_blinter.cmd || cd .) && del uninstall_blinter.cmd
 ```
@@ -112,13 +112,13 @@ uv tool uninstall Blinter
 
 ### Prerequisites
 - **Python 3.11-3.15** (for the pip/uv install)
-- **Windows 64-bit (x64 or ARM64)** (for the standalone executable)
+- **Windows (x64 or ARM64)** (for the standalone executable)
 
 ## Usage 📟
 
 ### Basic Usage
 
-**If installed via pip or uv:**
+**If installed via pip/uv:**
 ```bash
 # Analyze a single batch file
 blinter script.bat
