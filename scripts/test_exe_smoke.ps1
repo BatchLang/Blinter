@@ -15,12 +15,17 @@
 
 .PARAMETER PythonPath
     Python interpreter for parity checks (default: venv\Scripts\python.exe under RepoRoot).
+
+.PARAMETER ExpectedArch
+    When set to x64 or arm64, the first check reads the executable's PE Machine field.
+    Omit it for a local run that does not care which architecture was compiled.
 #>
 [CmdletBinding()]
 param(
     [string]$ExePath = "",
     [string]$RepoRoot = "",
-    [string]$PythonPath = ""
+    [string]$PythonPath = "",
+    [string]$ExpectedArch = ""
 )
 
 Set-StrictMode -Version Latest
@@ -53,11 +58,32 @@ if (-not $versionMatch) {
 }
 $ExpectedVersion = $versionMatch.Matches[0].Groups[1].Value
 
+$peMachineByArch = @{
+    x64   = [uint16]0x8664
+    arm64 = [uint16]0xAA64
+}
+if ($ExpectedArch -and -not $peMachineByArch.ContainsKey($ExpectedArch)) {
+    throw "ExpectedArch must be x64 or arm64. Got: $ExpectedArch"
+}
+
 Initialize-SmokeTestState
 
 $FixtureRoot = New-ExeSmokeFixtureRoot
 
 try {
+    if ($ExpectedArch) {
+        Invoke-SmokeTest "exe 00 architecture" {
+            $machine = Get-PeMachineType -Path $ExePath
+            $expectedMachine = $peMachineByArch[$ExpectedArch]
+            if ($machine -ne $expectedMachine) {
+                throw (
+                    "expected PE machine 0x{0:X4} for {1}, got 0x{2:X4}" -f
+                    $expectedMachine, $ExpectedArch, $machine
+                )
+            }
+        }
+    }
+
     Invoke-SmokeTest "exe 01 version" {
         $result = Invoke-BlinterProcess -Binary $ExePath -CliArgs @("--version") -WorkingDirectory $FixtureRoot
         if ($result.ExitCode -ne 0) {

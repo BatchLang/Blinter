@@ -2,6 +2,17 @@
 
 All notable changes to Blinter are documented in this file. Release tags follow [Semantic Versioning](https://semver.org/).
 
+## [1.1.45] - 2026-10-22
+
+### Added
+
+- Native Windows ARM64 `blinter.exe`, built and smoke-tested on `windows-11-arm`. Releases include `Blinter-v1.1.45-x64.zip` and `Blinter-v1.1.45-arm64.zip`
+
+### Changed
+
+- Nuitka builds no longer pass the default `--file-reference-choice=runtime` or a second `--include-package=blinter`. MSVC builds pass `--include-windows-runtime-dlls=yes` so a missing Visual Studio redistributable fails the build
+- The MegaLinter install pin is 1.1.45
+
 ## [1.1.44] - 2026-10-21
 
 ### Added
@@ -427,6 +438,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 Older 1.0.x releases are available on the [GitHub Releases](https://github.com/BatchLang/Blinter/releases) page.
 
+[1.1.45]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.45
 [1.1.44]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.44
 [1.1.43]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.43
 [1.1.42]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.42

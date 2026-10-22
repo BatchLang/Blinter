@@ -110,6 +110,91 @@ Describe "New-ExeSmokeFixtureRoot" {
     }
 }
 
+Describe "Get-PeMachineType" {
+    BeforeAll {
+        function Write-PeStub {
+            param(
+                [Parameter(Mandatory)][string]$Path,
+                [uint16]$Machine = 0,
+                [int]$PeOffset = 0x40
+            )
+
+            $bytes = New-Object byte[] ($PeOffset + 6)
+            $bytes[0] = 0x4D
+            $bytes[1] = 0x5A
+            $offsetBytes = [System.BitConverter]::GetBytes([int]$PeOffset)
+            [System.Array]::Copy($offsetBytes, 0, $bytes, 0x3C, 4)
+            $bytes[$PeOffset] = 0x50
+            $bytes[$PeOffset + 1] = 0x45
+            $bytes[$PeOffset + 2] = 0
+            $bytes[$PeOffset + 3] = 0
+            $machineBytes = [System.BitConverter]::GetBytes($Machine)
+            [System.Array]::Copy($machineBytes, 0, $bytes, ($PeOffset + 4), 2)
+            [System.IO.File]::WriteAllBytes($Path, $bytes)
+        }
+    }
+
+    It "reads an x64 machine type" {
+        $path = Join-Path $TestDrive "x64.exe"
+        Write-PeStub -Path $path -Machine ([uint16]0x8664)
+        Get-PeMachineType -Path $path | Should -Be ([uint16]0x8664)
+    }
+
+    It "reads an arm64 machine type" {
+        $path = Join-Path $TestDrive "arm64.exe"
+        Write-PeStub -Path $path -Machine ([uint16]0xAA64)
+        Get-PeMachineType -Path $path | Should -Be ([uint16]0xAA64)
+    }
+
+    It "rejects a file without an MZ signature" {
+        $path = Join-Path $TestDrive "not-pe.bin"
+        $bytes = New-Object byte[] 64
+        $bytes[0] = 0
+        $bytes[1] = 1
+        [System.IO.File]::WriteAllBytes($path, $bytes)
+        { Get-PeMachineType -Path $path } | Should -Throw "*Missing MZ signature*"
+    }
+
+    It "rejects a truncated header" {
+        $path = Join-Path $TestDrive "short.bin"
+        [System.IO.File]::WriteAllBytes($path, [byte[]](0x4D, 0x5A, 0, 0))
+        { Get-PeMachineType -Path $path } | Should -Throw "*PE header is truncated*"
+    }
+
+    It "rejects a truncated PE signature" {
+        $path = Join-Path $TestDrive "short-pe.bin"
+        $bytes = New-Object byte[] 66
+        $bytes[0] = 0x4D
+        $bytes[1] = 0x5A
+        $offsetBytes = [System.BitConverter]::GetBytes([int]64)
+        [System.Array]::Copy($offsetBytes, 0, $bytes, 0x3C, 4)
+        [System.IO.File]::WriteAllBytes($path, $bytes)
+        { Get-PeMachineType -Path $path } | Should -Throw "*PE signature is truncated*"
+    }
+
+    It "rejects a negative PE offset" {
+        $path = Join-Path $TestDrive "neg-offset.bin"
+        $bytes = New-Object byte[] 64
+        $bytes[0] = 0x4D
+        $bytes[1] = 0x5A
+        $offsetBytes = [System.BitConverter]::GetBytes([int]-1)
+        [System.Array]::Copy($offsetBytes, 0, $bytes, 0x3C, 4)
+        [System.IO.File]::WriteAllBytes($path, $bytes)
+        { Get-PeMachineType -Path $path } | Should -Throw "*Invalid PE offset*"
+    }
+
+    It "rejects a missing PE signature" {
+        $path = Join-Path $TestDrive "bad-sig.exe"
+        $bytes = New-Object byte[] 70
+        $bytes[0] = 0x4D
+        $bytes[1] = 0x5A
+        $offsetBytes = [System.BitConverter]::GetBytes([int]0x40)
+        [System.Array]::Copy($offsetBytes, 0, $bytes, 0x3C, 4)
+        [System.IO.File]::WriteAllBytes($path, $bytes)
+        { Get-PeMachineType -Path $path } | Should -Throw "*Missing PE signature*"
+    }
+}
+
 Describe "Invoke-SmokeTest" {
     It "tracks passed and failed smoke cases" {
         Initialize-SmokeTestState

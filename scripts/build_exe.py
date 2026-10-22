@@ -14,7 +14,6 @@ import tomllib
 from types import ModuleType
 
 ROOT = Path(__file__).resolve().parent.parent
-ENTRY_MODULE = "blinter"
 MAIN_FILE = Path("src") / "blinter" / "__main__.py"
 PACKAGE_DIR = Path("src") / "blinter"
 ICON_PATH = Path("resources") / "blinter_icon.ico"
@@ -232,7 +231,6 @@ def _optimization_flags() -> list[str]:
         "--noinclude-default-mode=nofollow",
         f"--onefile-tempdir-spec={ONEFILE_TEMPDIR_SPEC}",
         "--onefile-cache-mode=cached",
-        "--file-reference-choice=runtime",
     ]
     for python_flag in PYTHON_FLAGS:
         flags.append(f"--python-flag={python_flag}")
@@ -261,7 +259,6 @@ def build_nuitka_command(
         "--assume-yes-for-downloads",
         f"--output-filename={OUTPUT_FILENAME}",
         f"--output-dir={OUTPUT_DIR.as_posix()}",
-        f"--include-package={ENTRY_MODULE}",
         "--include-module=charset_normalizer",
         f"--company-name={COMPANY_NAME}",
         f"--product-name={PRODUCT_NAME}",
@@ -277,6 +274,13 @@ def build_nuitka_command(
                 "Python 3.14 requires MSVC 14.3 / Visual Studio 2022 or newer"
             )
             command.append("--msvc=latest")
+            # Explicit so a missing Visual Studio redistributable fails the build
+            # instead of shipping an executable that needs it installed.
+            command.append("--include-windows-runtime-dlls=yes")
+            logger.info(
+                "Bundling MSVC runtime DLLs so the executable does not require "
+                "the Visual C++ redistributable"
+            )
         command.extend(
             [
                 f"--windows-icon-from-ico={ICON_PATH.as_posix()}",

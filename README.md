@@ -79,11 +79,11 @@ If you prefer a standalone `.exe` over pip or uv, use the one-line installer via
 curl -fL --proto =https https://raw.githubusercontent.com/BatchLang/Blinter/refs/heads/main/scripts/install_blinter.cmd -o install_blinter.cmd && (call install_blinter.cmd || cd .) && del install_blinter.cmd
 ```
 
-This installs the latest `blinter.exe` to `%LOCALAPPDATA%\Programs\Blinter\bin`, adds it to your user `PATH`, and handles updates automatically. Restart your terminal or IDE after installation for `PATH` changes to take effect.
+This installs the latest x64 `blinter.exe` to `%LOCALAPPDATA%\Programs\Blinter\bin`, adds it to your user `PATH`, and handles updates automatically. That x64 build also runs on Windows 11 ARM64 through emulation. Restart your terminal or IDE after installation for `PATH` changes to take effect.
 
 **Manual zip download (fallback):**
-- Download the latest `Blinter-v1.x.x.zip` from [GitHub Releases](https://github.com/BatchLang/Blinter/releases)
-- Extract the archive; the executable is `Blinter-v1.x.x\blinter.exe`
+- Download `Blinter-v1.x.x-x64.zip` for x64 Windows, or `Blinter-v1.x.x-arm64.zip` for a native ARM64 executable, from [GitHub Releases](https://github.com/BatchLang/Blinter/releases)
+- Extract the archive; the executable is `Blinter-v1.x.x\blinter.exe` in either zip
 - The one-line installer above is preferred; it keeps `blinter` on your `PATH` without manual setup.
 - ⚠️ **Note**: Some antivirus software may flag the standalone executable as a false positive. The executable is completely safe (all source code is open for inspection). If a scanner flags it, use pip installation.
 
@@ -106,7 +106,7 @@ uv tool uninstall Blinter
 
 ### Prerequisites
 - **Python 3.11-3.15** (for the pip/uv install)
-- **Windows OS 64-bit** (for the standalone executable)
+- **Windows 64-bit (x64 or ARM64)** (for the standalone executable)
 
 ## Usage 📟
 
@@ -151,6 +151,7 @@ python -m blinter --version
 ```bash
 # After the one-line installer, use blinter on PATH.
 # Manual zip: run Blinter-v1.x.x\blinter.exe or add that folder to PATH.
+# Use the -x64 zip on x64 Windows and the -arm64 zip for native ARM64.
 
 # Analyze a single batch file
 blinter script.bat
@@ -410,7 +411,7 @@ blinter ./my-batch-scripts            # Analyze all files recursively
 blinter . --no-recursive              # Current directory only
 blinter ./scripts --summary           # With summary statistics
 
-# Manual zip only (extract first):
+# Manual zip only (extract first; same path in the -x64 and -arm64 archives):
 Blinter-v1.x.x\blinter.exe ./my-batch-scripts
 ```
 

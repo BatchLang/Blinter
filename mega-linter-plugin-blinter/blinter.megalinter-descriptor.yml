@@ -46,4 +46,4 @@ linters:
       - "blinter . --summary"
     install:
       dockerfile:
-        - RUN pip install --no-cache-dir "Blinter==1.1.44"
+        - RUN pip install --no-cache-dir "Blinter==1.1.45"

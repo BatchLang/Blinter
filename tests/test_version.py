@@ -267,14 +267,15 @@ class TestBuildExe:
         assert "--mingw64" not in command
         assert f"--output-filename={OUTPUT_FILENAME}" in command
         assert f"--output-dir={OUTPUT_DIR.as_posix()}" in command
-        assert "--include-package=blinter" in command
+        assert "--include-package=blinter" not in command
         assert "--include-package-data=blinter" not in command
         assert "--include-module=charset_normalizer" in command
         assert (
             "--include-data-files=pyproject.toml=blinter/pyproject.toml" not in command
         )
         assert "--python-flag=-m" in command
-        assert "--file-reference-choice=runtime" in command
+        assert "--file-reference-choice=runtime" not in command
+        assert "--include-windows-runtime-dlls=yes" in command
         assert f"--windows-icon-from-ico={ICON_PATH.as_posix()}" in command
         assert f"--company-name={COMPANY_NAME}" in command
         assert f"--product-name={PRODUCT_NAME}" in command
@@ -442,6 +443,7 @@ class TestBuildExe:
         assert "--mingw64" in command
         assert "--experimental=force-mingw64" in command
         assert "--msvc=latest" not in command
+        assert "--include-windows-runtime-dlls=yes" not in command
 
     def test_build_command_omits_windows_flags_off_windows(self) -> None:
         """Non-Windows invocations should not pass MSVC or PE resource flags."""
@@ -452,6 +454,7 @@ class TestBuildExe:
         )
         assert "--msvc=latest" not in command
         assert "--mingw64" not in command
+        assert "--include-windows-runtime-dlls=yes" not in command
         assert not any(part.startswith("--windows-icon-from-ico=") for part in command)
         assert not any(part.startswith("--file-version=") for part in command)
         assert f"--company-name={COMPANY_NAME}" in command

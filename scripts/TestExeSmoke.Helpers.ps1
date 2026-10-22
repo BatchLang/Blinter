@@ -91,6 +91,54 @@ function Test-LintExitCode {
     }
 }
 
+function Get-PeMachineType {
+    <#
+    .SYNOPSIS
+        Return the COFF Machine field from a PE executable.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path
+    )
+
+    $stream = [System.IO.File]::OpenRead($Path)
+    try {
+        $header = New-Object byte[] 64
+        $headerRead = $stream.Read($header, 0, $header.Length)
+        if ($headerRead -lt 64) {
+            throw "PE header is truncated: $Path"
+        }
+        if ($header[0] -ne 0x4D -or $header[1] -ne 0x5A) {
+            throw "Missing MZ signature: $Path"
+        }
+        # e_lfanew is the offset from the start of the file to the PE signature.
+        $peOffset = [System.BitConverter]::ToInt32($header, 0x3C)
+        if ($peOffset -lt 0) {
+            throw "Invalid PE offset: $Path"
+        }
+        $stream.Position = $peOffset
+        $pe = New-Object byte[] 6
+        $peRead = $stream.Read($pe, 0, $pe.Length)
+        if ($peRead -lt 6) {
+            throw "PE signature is truncated: $Path"
+        }
+        $signatureOk = (
+            $pe[0] -eq 0x50 -and
+            $pe[1] -eq 0x45 -and
+            $pe[2] -eq 0 -and
+            $pe[3] -eq 0
+        )
+        if (-not $signatureOk) {
+            throw "Missing PE signature: $Path"
+        }
+        return [System.BitConverter]::ToUInt16($pe, 4)
+    }
+    finally {
+        $stream.Dispose()
+    }
+}
+
 function Invoke-SmokeTest {
     param(
         [string]$Name,

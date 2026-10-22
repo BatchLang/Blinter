@@ -94,8 +94,16 @@ jobs:
         run: python -m pytest
 
   test-windows-exe:
-    name: Windows executable smoke tests
-    runs-on: windows-latest
+    name: Windows executable smoke tests (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-latest
+          - arch: arm64
+            runner: windows-11-arm
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -106,7 +114,7 @@ jobs:
         with:
           python-version: "3.14"
           enable-cache: true
-          cache-suffix: ${{ github.job }}
+          cache-suffix: ${{ github.job }}-${{ matrix.arch }}
 
       - name: Create virtual environment
         run: uv venv venv
@@ -140,7 +148,7 @@ jobs:
         shell: pwsh
 
       - name: Smoke test executable
-        run: .\scripts\test_exe_smoke.ps1 -ExePath .\dist\blinter.exe
+        run: .\scripts\test_exe_smoke.ps1 -ExePath .\dist\blinter.exe -ExpectedArch ${{ matrix.arch }}
         shell: pwsh
 
   codeql:
@@ -220,9 +228,18 @@ jobs:
         run: python scripts/ci_release.py should-release
 
   build-windows:
+    name: Build Windows executable (${{ matrix.arch }})
     needs: [check-version]
     if: needs.check-version.outputs.should_release == 'true'
-    runs-on: windows-latest
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-latest
+          - arch: arm64
+            runner: windows-11-arm
     permissions:
       contents: read
       id-token: write
@@ -239,7 +256,7 @@ jobs:
         with:
           python-version: "3.14"
           enable-cache: true
-          cache-suffix: ${{ github.job }}
+          cache-suffix: ${{ github.job }}-${{ matrix.arch }}
 
       - name: Create virtual environment
         run: uv venv venv
@@ -259,25 +276,43 @@ jobs:
           python scripts/build_exe.py
         shell: pwsh
 
+      - name: Verify executable exists
+        run: |
+          if (-not (Test-Path -Path "dist\blinter.exe" -PathType Leaf)) {
+            throw "dist\blinter.exe was not produced by Nuitka"
+          }
+        shell: pwsh
+
+      - name: Install Blinter for parity checks
+        run: |
+          .\venv\Scripts\Activate.ps1
+          uv pip install -e .
+        shell: pwsh
+
+      - name: Smoke test executable
+        run: .\scripts\test_exe_smoke.ps1 -ExePath .\dist\blinter.exe -ExpectedArch ${{ matrix.arch }}
+        shell: pwsh
+
       - name: Package executable for release
         run: |
           $version = "${{ steps.version.outputs.version }}"
+          $arch = "${{ matrix.arch }}"
           $folder = "dist/Blinter-v$version"
           New-Item -ItemType Directory -Path $folder -Force
           Move-Item -Path dist/blinter.exe -Destination "$folder/blinter.exe"
-          Compress-Archive -Path $folder -DestinationPath "dist/Blinter-v$version.zip"
+          Compress-Archive -Path $folder -DestinationPath "dist/Blinter-v$version-$arch.zip"
         shell: pwsh
 
       - name: Attest Windows zip
         uses: actions/attest-build-provenance@96278af6caaf10aea03fd8d33a09a777ca52d62f # v3.2.0
         with:
-          subject-path: dist/Blinter-v${{ steps.version.outputs.version }}.zip
+          subject-path: dist/Blinter-v${{ steps.version.outputs.version }}-${{ matrix.arch }}.zip
 
       - name: Upload artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: windows-build
-          path: dist/Blinter-v${{ steps.version.outputs.version }}.zip
+          name: windows-build-${{ matrix.arch }}
+          path: dist/Blinter-v${{ steps.version.outputs.version }}-${{ matrix.arch }}.zip
 
   build-wheels:
     name: Build Python wheels
@@ -321,10 +356,11 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - name: Download Windows build
+      - name: Download Windows builds
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
-          name: windows-build
+          pattern: windows-build-*
+          merge-multiple: true
           path: ./build
 
       - name: Extract release notes
@@ -334,7 +370,7 @@ jobs:
       - name: Create GitHub Release
         uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1
         with:
-          artifacts: ./build/Blinter-v${{ needs.check-version.outputs.version }}.zip
+          artifacts: ./build/Blinter-v${{ needs.check-version.outputs.version }}-x64.zip,./build/Blinter-v${{ needs.check-version.outputs.version }}-arm64.zip
           tag: v${{ needs.check-version.outputs.version }}
           bodyFile: ${{ steps.release_notes.outputs.path }}
           token: ${{ secrets.GITHUB_TOKEN }}
