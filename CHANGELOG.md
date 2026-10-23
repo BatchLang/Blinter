@@ -2,6 +2,16 @@
 
 All notable changes to Blinter are documented in this file. Release tags follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- `yamllint` checks every YAML file in the repository as part of `scripts/verify.py`
+
+### Fixed
+
+- The install benchmark workflow checks out the repository, uses the matrix Python, and can upload artifacts. Release zips are verified and extracted with the same `Blinter-<tag>-<arch>/blinter.exe` layout as the installer
+
 ## [1.1.47] - 2026-10-22
 
 ### Changed

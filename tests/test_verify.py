@@ -88,6 +88,13 @@ def test_corpus_step_follows_the_snapshot() -> None:
     assert "corpus baseline check" in _names(_request(corpus_present=True))
 
 
+def test_yamllint_checks_the_repository_root() -> None:
+    """yamllint scans every YAML file from the repository root in strict mode."""
+    command = _step("yamllint").command
+    assert "yamllint" in command
+    assert command[-2:] == ("--strict", ".")
+
+
 def test_directory_targets_are_not_file_lists() -> None:
     """mypy, pylint, and bandit target directories rather than individual files."""
     mypy = _step("mypy")

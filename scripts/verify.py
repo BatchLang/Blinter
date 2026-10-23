@@ -400,6 +400,7 @@ def _quality_steps(*, fix: bool, uv_executable: str) -> tuple[Step, ...]:
         Step("isort", tuple(_isort_args(fix=fix))),
         Step("pyproject-fmt", kind=StepKind.PYPROJECT_FMT, fix=fix),
         Step("black", tuple(_python_m("black", "--check", *_CHECK_DIRS))),
+        Step("yamllint", tuple(_python_m("yamllint", "--strict", "."))),
         Step("mypy", tuple(_python_m("mypy"))),
         Step("pylint", kind=StepKind.PYLINT),
         Step(

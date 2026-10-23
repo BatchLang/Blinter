@@ -1,0 +1,34 @@
+---
+extends: default
+
+ignore-from-file:
+  - .gitignore
+  - .yamllintignore
+
+rules:
+  document-start: disable
+  indentation:
+    spaces: 2
+    indent-sequences: whatever
+    check-multi-line-strings: false
+  line-length:
+    # Rule explanations and pinned Actions commands are single-line scalars.
+    max: 360
+    allow-non-breakable-inline-mappings: true
+    allow-non-breakable-words: true
+  truthy:
+    # GitHub Actions uses the unquoted mapping key "on".
+    check-keys: false
+  comments:
+    level: error
+    min-spaces-from-content: 1
+  comments-indentation:
+    level: error
+  braces:
+    level: error
+  brackets:
+    level: error
+  colons:
+    level: error
+  commas:
+    level: error

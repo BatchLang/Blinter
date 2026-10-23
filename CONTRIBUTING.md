@@ -41,6 +41,7 @@ Match the existing codebase style:
 | [isort](https://pycqa.github.io/isort/) | Import sorting (Black-compatible profile) |
 | [mypy](https://mypy-lang.org/) | Static type checking (`strict` mode) |
 | [pylint](https://pylint.readthedocs.io/) | Linting (`pylintrc`) |
+| [yamllint](https://yamllint.readthedocs.io/) | YAML files in the repository (`.yamllint.yaml`) |
 | [bandit](https://bandit.readthedocs.io/) | Security linting for Python |
 | [PSScriptAnalyzer](https://github.com/PowerShell/PSScriptAnalyzer) | PowerShell scripts in `scripts/` |
 
