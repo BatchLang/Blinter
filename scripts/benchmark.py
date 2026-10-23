@@ -341,7 +341,14 @@ def sh(
 def _time_calls(
     calls: Sequence[Sequence[str]], env: dict[str, str], cwd: Path
 ) -> float:
-    """Return the milliseconds taken to run ``calls`` in order."""
+    """Return the milliseconds taken to run ``calls`` in order.
+
+    The working directory is created first. A missing cwd prevents the
+    process from starting (ENOENT on POSIX, WinError 267 on Windows).
+    """
+    if not cwd.is_dir():
+        _LOG.info("creating benchmark workspace %s", cwd)
+        cwd.mkdir(parents=True, exist_ok=True)
     started = time.perf_counter()
     for command in calls:
         sh(command, env, _INSTALL_TIMEOUT_SECONDS, cwd)

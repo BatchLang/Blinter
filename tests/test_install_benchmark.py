@@ -24,6 +24,7 @@ from scripts.benchmark import (
     _new_target,
     _package_spec,
     _probe_target,
+    _time_calls,
     _version_from_env,
 )
 from scripts.benchmark_release import (
@@ -107,6 +108,25 @@ def test_make_env_drops_tokens_and_interpreter_overrides(
     assert "UV_PYTHON" not in env
     assert env["PIP_CACHE_DIR"] == "cache"
     assert env["UV_PYTHON_DOWNLOADS"] == "never"
+
+
+def test_timed_install_creates_its_working_directory(tmp_path: Path) -> None:
+    """Install commands start in the family directory, so that directory must exist."""
+    workspace = tmp_path / "pip"
+    marker = workspace / "cwd.txt"
+    elapsed = _time_calls(
+        [
+            [
+                sys.executable,
+                "-c",
+                "from pathlib import Path; Path('cwd.txt').write_text('ok', encoding='utf-8')",
+            ]
+        ],
+        benchmark.make_env(),
+        workspace,
+    )
+    assert elapsed >= 0
+    assert marker.read_text(encoding="utf-8") == "ok"
 
 
 def test_version_and_package_spec(monkeypatch: pytest.MonkeyPatch) -> None:
