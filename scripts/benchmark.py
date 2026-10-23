@@ -572,7 +572,7 @@ def _install_python_families(
     """Install every Python family. A failed family does not cancel the others."""
     if uv is None:
         emit_warning(
-            f"uv not found on PATH ({config["label"]} py{config["python_label"]})"
+            f"uv not found on PATH ({config['label']} py{config['python_label']})"
         )
         errors.append({"impl": "uv", "error": "uv not found on PATH"})
         return []
@@ -586,7 +586,7 @@ def _install_python_families(
                 errors,
                 impl,
                 exc,
-                f"{impl} failed on {config["label"]} py{config["python_label"]}",
+                f"{impl} failed on {config['label']} py{config['python_label']}",
             )
             continue
         targets.extend(_targets_from_family(impl, family))
@@ -606,7 +606,7 @@ def _install_exe(
         family, tag = fam_exe(root / "exe", config["version"], arch)
     except Exception as exc:
         _record_failure(
-            errors, "standalone exe", exc, f"exe failed on {config["label"]}"
+            errors, "standalone exe", exc, f"exe failed on {config['label']}"
         )
         return []
     extra_meta["release_tag"] = tag
@@ -947,7 +947,7 @@ def _run(config: BenchConfig, root: Path) -> int:
         _print_table(results)
         exit_code = 0 if results else 1
         if exit_code != 0:
-            emit_warning(f"no benchmark results for {config["label"]}")
+            emit_warning(f"no benchmark results for {config['label']}")
         return exit_code
     finally:
         _write_output(config["out"], meta, results, errors)
