@@ -190,10 +190,6 @@ blinter --create-config
 blinter script.bat --no-config
 ```
 
-### If you installed both
-
-pip, uv, and the standalone installer can all put `blinter` on `PATH`. The installer appends `%LOCALAPPDATA%\Programs\Blinter\bin` and does not move that folder ahead of an existing copy. When another `blinter` is earlier on `PATH`, the installer prints that path and says the standalone folder will not win. `blinter --version` prints `standalone exe` or `Python 3.x` plus the package directory so you can see which copy is running. The uninstaller stops only `%LOCALAPPDATA%\Programs\Blinter\bin\blinter.exe`.
-
 ### Command Line Options
 
 - `<path>`: Path to a batch file (`.bat` or `.cmd`) OR directory containing batch files
