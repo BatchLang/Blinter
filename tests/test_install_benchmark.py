@@ -6,7 +6,9 @@ from email.message import Message
 import hashlib
 from io import BytesIO
 import json
+import os
 from pathlib import Path
+import subprocess
 import sys
 import urllib.request
 import zipfile
@@ -457,6 +459,23 @@ def _step_named(job: dict[str, object], name: str) -> dict[str, object]:
     matches = [step for step in _steps(job) if step.get("name") == name]
     assert len(matches) == 1
     return matches[0]
+
+
+def test_benchmark_script_imports_when_run_as_a_file() -> None:
+    """CI runs this file directly, so the scripts package must still import."""
+    env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
+    result = subprocess.run(
+        [sys.executable, str(_ROOT / "scripts" / "benchmark.py"), "--help"],
+        cwd=_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "Benchmark Blinter" in result.stdout
 
 
 def test_benchmark_workflow_checks_out_and_can_upload_artifacts() -> None:

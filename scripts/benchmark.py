@@ -24,7 +24,12 @@ import tempfile
 import time
 from typing import Literal, TypedDict
 
-from scripts.benchmark_release import (
+# Direct execution (`python scripts/benchmark.py`) puts scripts/ on sys.path.
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.benchmark_release import (  # noqa: E402  # pylint: disable=wrong-import-position
     _api_headers,
     _download_verified,
     _fetch_json,
