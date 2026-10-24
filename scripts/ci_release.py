@@ -88,24 +88,52 @@ def read_previous_version() -> str:
     return read_project_version(previous_text)
 
 
+def release_tag_exists(version: str) -> bool:
+    """Return whether ``origin`` already has ``refs/tags/v<version>``."""
+    tag_ref = f"refs/tags/v{version}"
+    logger.info("Checking whether %s exists on origin", tag_ref)
+    try:
+        output = subprocess.check_output(
+            ["git", "ls-remote", "origin", tag_ref],
+            cwd=_REPO_ROOT,
+            text=True,
+            encoding="utf-8",
+            timeout=_GIT_SHOW_TIMEOUT_SECONDS,
+        )
+    except (subprocess.SubprocessError, OSError) as exc:
+        logger.error("Could not query %s: %s", tag_ref, exc)
+        raise SystemExit(f"Could not check whether {tag_ref} exists") from exc
+    published = bool(output.strip())
+    logger.info("Tag %s published=%s", tag_ref, published)
+    return published
+
+
 def decide_release(
     event_name: str,
     current_version: str,
     previous_version: str,
+    *,
+    tag_exists: bool = True,
 ) -> bool:
     """Return whether this CI event should publish a release."""
     logger.info(
-        "Release inputs: event=%s current=%s previous=%s",
+        "Release inputs: event=%s current=%s previous=%s tag_exists=%s",
         event_name,
         current_version,
         previous_version,
+        tag_exists,
     )
     if event_name == _WORKFLOW_DISPATCH:
         logger.info("workflow_dispatch always releases")
         return True
-    releasing = current_version != previous_version
-    logger.info("Version comparison release=%s", releasing)
-    return releasing
+    if current_version != previous_version:
+        logger.info("Version comparison release=True")
+        return True
+    if not tag_exists:
+        logger.info("Version %s has no release tag; releasing", current_version)
+        return True
+    logger.info("Version comparison release=False")
+    return False
 
 
 def append_github_output(name: str, value: str) -> None:
@@ -134,6 +162,8 @@ def _release_message(
     """Return the CI log line for a release decision."""
     if event_name == _WORKFLOW_DISPATCH:
         return f"Manual workflow_dispatch; releasing version {current_version}."
+    if releasing and current_version == previous_version:
+        return f"Version {current_version} has no release tag; releasing."
     if releasing:
         return f"Version bumped: {previous_version} -> {current_version}"
     return f"Version unchanged ({current_version}); skipping release."
@@ -154,9 +184,17 @@ def publish_should_release() -> bool:
     logger.info("Deciding release for event %s", event_name or "<unset>")
     current_version = read_version_file(_PYPROJECT)
     previous_version = ""
+    tag_exists = True
     if event_name != _WORKFLOW_DISPATCH:
         previous_version = read_previous_version()
-    releasing = decide_release(event_name, current_version, previous_version)
+        if current_version == previous_version:
+            tag_exists = release_tag_exists(current_version)
+    releasing = decide_release(
+        event_name,
+        current_version,
+        previous_version,
+        tag_exists=tag_exists,
+    )
     message = _release_message(
         event_name,
         current_version,

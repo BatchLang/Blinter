@@ -13,10 +13,12 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 ### Fixed
 
 - The install benchmark workflow checks out the repository, uses the matrix Python, and can upload artifacts. Release zips are verified and extracted with the same `Blinter-<tag>-Windows-<arch>/blinter.exe` layout as the installer
+- A version already recorded in `pyproject.toml` still releases when its git tag does not exist, so a red release run can publish on the next green push
 
 ### Changed
 
 - Windows release archives are `Blinter-v<version>-Windows-x64.zip` and `Blinter-v<version>-Windows-arm64.zip`. Each zip contains a folder of the same name, and `install_blinter.cmd` downloads that asset
+- Until a Windows-named archive is the latest release, `install_blinter.cmd` also accepts the previous `Blinter-<tag>-<arch>.zip` name and folder. That fallback is removed in the next release
 - The MegaLinter install pin is 1.1.48
 
 ## [1.1.47] - 2026-10-22

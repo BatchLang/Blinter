@@ -44,6 +44,7 @@ from scripts.ci_release import (
     append_github_output,
     decide_release,
     main as ci_release_main,
+    release_tag_exists,
     publish_should_release,
     publish_version,
     read_previous_version,
@@ -794,6 +795,10 @@ class TestCiRelease:
         """A push with a new version publishes."""
         assert decide_release("push", "1.2.4", "1.2.3") is True
 
+    def test_same_version_releases_when_its_tag_is_missing(self) -> None:
+        """A failed release is published again when the version tag does not exist."""
+        assert decide_release("push", "1.2.3", "1.2.3", tag_exists=False) is True
+
     def test_version_command_writes_single_output_line(
         self,
         monkeypatch: pytest.MonkeyPatch,
@@ -832,6 +837,43 @@ class TestCiRelease:
         assert publish_should_release() is False
         assert output_file.read_text(encoding="utf-8") == "should_release=false\n"
         assert "skipping release" in capsys.readouterr().out
+
+    def test_should_release_when_the_version_tag_is_missing(
+        self,
+        mocker: MockerFixture,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """An unpublished tag writes should_release=true without a version bump."""
+        current = (_REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+
+        def fake_check_output(args: list[str], **_kwargs: object) -> str:
+            if args[1] == "show":
+                return current
+            if args[1] == "ls-remote":
+                return ""
+            raise AssertionError(args)
+
+        mocker.patch(
+            "scripts.ci_release.subprocess.check_output",
+            side_effect=fake_check_output,
+        )
+        output_file = tmp_path / "github_output.txt"
+        monkeypatch.setenv("GITHUB_OUTPUT", str(output_file))
+        monkeypatch.setenv("GITHUB_EVENT_NAME", "push")
+        assert publish_should_release() is True
+        assert output_file.read_text(encoding="utf-8") == "should_release=true\n"
+        assert "no release tag" in capsys.readouterr().out
+
+    def test_missing_tag_lookup_exits(self, mocker: MockerFixture) -> None:
+        """A failed tag query stops the release decision."""
+        mocker.patch(
+            "scripts.ci_release.subprocess.check_output",
+            side_effect=subprocess.CalledProcessError(128, ["git", "ls-remote"]),
+        )
+        with pytest.raises(SystemExit, match="refs/tags/v1.2.3"):
+            release_tag_exists("1.2.3")
 
     def test_should_release_when_git_version_changes(
         self,

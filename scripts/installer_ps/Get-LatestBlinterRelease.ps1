@@ -12,8 +12,13 @@ foreach ($attempt in 1..3) {
         $release = $null
     }
     if ($release -and -not $release.prerelease -and -not $release.draft) {
-        $assetName = 'Blinter-' + $release.tag_name + '-Windows-' + $arch + '.zip'
-        $asset = @($release.assets) | Where-Object { $_.name -eq $assetName } | Select-Object -First 1
+        # Previous name stays until a Windows-named release is the latest one.
+        $preferredName = 'Blinter-' + $release.tag_name + '-Windows-' + $arch + '.zip'
+        $previousName = 'Blinter-' + $release.tag_name + '-' + $arch + '.zip'
+        $asset = @($release.assets) | Where-Object { $_.name -eq $preferredName } | Select-Object -First 1
+        if (-not $asset) {
+            $asset = @($release.assets) | Where-Object { $_.name -eq $previousName } | Select-Object -First 1
+        }
     }
     if ($asset) { break }
     if ($attempt -lt 3) { Start-Sleep -Seconds $attempt }
