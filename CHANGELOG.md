@@ -4,6 +4,13 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ## [Unreleased]
 
+## [1.1.49] - 2026-10-24
+
+### Changed
+
+- `install_blinter.cmd` downloads only `Blinter-<tag>-Windows-<arch>.zip` and expects `Blinter-<tag>-Windows-<arch>\blinter.exe`
+- The MegaLinter install pin is 1.1.49
+
 ## [1.1.48] - 2026-10-24
 
 ### Added
@@ -472,6 +479,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 Older 1.0.x releases are available on the [GitHub Releases](https://github.com/BatchLang/Blinter/releases) page.
 
+[1.1.49]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.49
 [1.1.48]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.48
 [1.1.47]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.47
 [1.1.46]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.46
