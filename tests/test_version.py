@@ -44,12 +44,12 @@ from scripts.ci_release import (
     append_github_output,
     decide_release,
     main as ci_release_main,
-    release_tag_exists,
     publish_should_release,
     publish_version,
     read_previous_version,
     read_project_version,
     read_version_file,
+    release_tag_exists,
 )
 from scripts.extract_release_notes import (
     extract_latest_section,
