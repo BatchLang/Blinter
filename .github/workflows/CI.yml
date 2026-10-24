@@ -297,22 +297,22 @@ jobs:
         run: |
           $version = "${{ steps.version.outputs.version }}"
           $arch = "${{ matrix.arch }}"
-          $folder = "dist/Blinter-v$version-$arch"
+          $folder = "dist/Blinter-v$version-Windows-$arch"
           New-Item -ItemType Directory -Path $folder -Force
           Move-Item -Path dist/blinter.exe -Destination "$folder/blinter.exe"
-          Compress-Archive -Path $folder -DestinationPath "dist/Blinter-v$version-$arch.zip"
+          Compress-Archive -Path $folder -DestinationPath "dist/Blinter-v$version-Windows-$arch.zip"
         shell: pwsh
 
       - name: Attest Windows zip
         uses: actions/attest-build-provenance@96278af6caaf10aea03fd8d33a09a777ca52d62f # v3.2.0
         with:
-          subject-path: dist/Blinter-v${{ steps.version.outputs.version }}-${{ matrix.arch }}.zip
+          subject-path: dist/Blinter-v${{ steps.version.outputs.version }}-Windows-${{ matrix.arch }}.zip
 
       - name: Upload artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: windows-build-${{ matrix.arch }}
-          path: dist/Blinter-v${{ steps.version.outputs.version }}-${{ matrix.arch }}.zip
+          path: dist/Blinter-v${{ steps.version.outputs.version }}-Windows-${{ matrix.arch }}.zip
 
   build-wheels:
     name: Build Python wheels
@@ -370,7 +370,7 @@ jobs:
       - name: Create GitHub Release
         uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1
         with:
-          artifacts: ./build/Blinter-v${{ needs.check-version.outputs.version }}-x64.zip,./build/Blinter-v${{ needs.check-version.outputs.version }}-arm64.zip
+          artifacts: ./build/Blinter-v${{ needs.check-version.outputs.version }}-Windows-x64.zip,./build/Blinter-v${{ needs.check-version.outputs.version }}-Windows-arm64.zip
           tag: v${{ needs.check-version.outputs.version }}
           bodyFile: ${{ steps.release_notes.outputs.path }}
           token: ${{ secrets.GITHUB_TOKEN }}

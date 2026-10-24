@@ -4,13 +4,20 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ## [Unreleased]
 
+## [1.1.48] - 2026-10-24
+
 ### Added
 
 - `yamllint` checks every YAML file in the repository as part of `scripts/verify.py`
 
 ### Fixed
 
-- The install benchmark workflow checks out the repository, uses the matrix Python, and can upload artifacts. Release zips are verified and extracted with the same `Blinter-<tag>-<arch>/blinter.exe` layout as the installer
+- The install benchmark workflow checks out the repository, uses the matrix Python, and can upload artifacts. Release zips are verified and extracted with the same `Blinter-<tag>-Windows-<arch>/blinter.exe` layout as the installer
+
+### Changed
+
+- Windows release archives are `Blinter-v<version>-Windows-x64.zip` and `Blinter-v<version>-Windows-arm64.zip`. Each zip contains a folder of the same name, and `install_blinter.cmd` downloads that asset
+- The MegaLinter install pin is 1.1.48
 
 ## [1.1.47] - 2026-10-22
 
@@ -463,6 +470,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 Older 1.0.x releases are available on the [GitHub Releases](https://github.com/BatchLang/Blinter/releases) page.
 
+[1.1.48]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.48
 [1.1.47]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.47
 [1.1.46]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.46
 [1.1.45]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.45

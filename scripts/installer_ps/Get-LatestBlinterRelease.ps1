@@ -12,7 +12,7 @@ foreach ($attempt in 1..3) {
         $release = $null
     }
     if ($release -and -not $release.prerelease -and -not $release.draft) {
-        $assetName = 'Blinter-' + $release.tag_name + '-' + $arch + '.zip'
+        $assetName = 'Blinter-' + $release.tag_name + '-Windows-' + $arch + '.zip'
         $asset = @($release.assets) | Where-Object { $_.name -eq $assetName } | Select-Object -First 1
     }
     if ($asset) { break }

@@ -88,8 +88,8 @@ curl -fL --proto =https https://raw.githubusercontent.com/BatchLang/Blinter/refs
 This installs the latest `blinter.exe` for the architecture you named to `%LOCALAPPDATA%\Programs\Blinter\bin`, adds it to your user `PATH`, and handles updates automatically. On ARM64, `x64` still installs and runs through emulation; `arm64` is the native build. Restart your terminal or IDE after installation for `PATH` changes to take effect.
 
 **Manual zip download (fallback):**
-- Download `Blinter-v1.x.x-x64.zip` for x64 Windows, or `Blinter-v1.x.x-arm64.zip` for a native ARM64 executable, from [GitHub Releases](https://github.com/BatchLang/Blinter/releases)
-- Extract the archive. The executable is `Blinter-v1.x.x-x64\blinter.exe` or `Blinter-v1.x.x-arm64\blinter.exe`, matching the zip name
+- Download `Blinter-v1.x.x-Windows-x64.zip` for x64 Windows, or `Blinter-v1.x.x-Windows-arm64.zip` for a native ARM64 executable, from [GitHub Releases](https://github.com/BatchLang/Blinter/releases)
+- Extract the archive. The executable is `Blinter-v1.x.x-Windows-x64\blinter.exe` or `Blinter-v1.x.x-Windows-arm64\blinter.exe`, matching the zip name
 - The one-line installer above is preferred; it keeps `blinter` on your `PATH` without manual setup.
 - ⚠️ **Note**: Some antivirus software may flag the standalone executable as a false positive. The executable is completely safe (all source code is open for inspection). If a scanner flags it, use pip installation.
 
@@ -156,7 +156,7 @@ python -m blinter --version
 **If using standalone executable (installer or manual download):**
 ```bash
 # After the one-line installer, use blinter on PATH.
-# Manual zip: run Blinter-v1.x.x-x64\blinter.exe or Blinter-v1.x.x-arm64\blinter.exe,
+# Manual zip: run Blinter-v1.x.x-Windows-x64\blinter.exe or Blinter-v1.x.x-Windows-arm64\blinter.exe,
 # or add that folder to PATH.
 
 # Analyze a single batch file
@@ -414,8 +414,8 @@ blinter . --no-recursive              # Current directory only
 blinter ./scripts --summary           # With summary statistics
 
 # Manual zip only (extract first; the folder name matches the zip):
-Blinter-v1.x.x-x64\blinter.exe ./my-batch-scripts
-Blinter-v1.x.x-arm64\blinter.exe ./my-batch-scripts
+Blinter-v1.x.x-Windows-x64\blinter.exe ./my-batch-scripts
+Blinter-v1.x.x-Windows-arm64\blinter.exe ./my-batch-scripts
 ```
 
 ## 🔥 **Integration Example**

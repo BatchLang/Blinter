@@ -77,8 +77,8 @@ Describe 'Get-LatestBlinterRelease.ps1' {
                     tag_name   = 'v1.1.6'
                     assets     = @(
                         [PSCustomObject]@{
-                            name                 = 'Blinter-v1.1.6-x64.zip'
-                            browser_download_url = 'https://example.com/Blinter-v1.1.6-x64.zip'
+                            name                 = 'Blinter-v1.1.6-Windows-x64.zip'
+                            browser_download_url = 'https://example.com/Blinter-v1.1.6-Windows-x64.zip'
                             digest               = 'sha256:abc123'
                         }
                     )
@@ -90,7 +90,7 @@ Describe 'Get-LatestBlinterRelease.ps1' {
             $output = & $fixturePath
             $LASTEXITCODE | Should -Be 0
             $global:BlinterReleaseLookupCalls | Should -Be 2
-            $output | Should -Be 'https://example.com/Blinter-v1.1.6-x64.zip v1.1.6 sha256:abc123'
+            $output | Should -Be 'https://example.com/Blinter-v1.1.6-Windows-x64.zip v1.1.6 sha256:abc123'
         } finally {
             Remove-Variable -Name BlinterReleaseLookupCalls -Scope Global -ErrorAction SilentlyContinue
         }
@@ -106,8 +106,8 @@ Describe 'Get-LatestBlinterRelease.ps1' {
                     tag_name   = 'v1.1.6'
                     assets     = @(
                         [PSCustomObject]@{
-                            name                 = 'Blinter-v1.1.6-x64.zip'
-                            browser_download_url = 'https://example.com/Blinter-v1.1.6-x64.zip'
+                            name                 = 'Blinter-v1.1.6-Windows-x64.zip'
+                            browser_download_url = 'https://example.com/Blinter-v1.1.6-Windows-x64.zip'
                             digest               = 'sha256:abc123'
                         }
                     )
@@ -117,7 +117,7 @@ Describe 'Get-LatestBlinterRelease.ps1' {
 
         $output = & $fixturePath
         $LASTEXITCODE | Should -Be 0
-        $output | Should -Be 'https://example.com/Blinter-v1.1.6-x64.zip v1.1.6 sha256:abc123'
+        $output | Should -Be 'https://example.com/Blinter-v1.1.6-Windows-x64.zip v1.1.6 sha256:abc123'
     }
 
     It 'outputs MISSING_DIGEST when the asset has no digest' {
@@ -130,8 +130,8 @@ Describe 'Get-LatestBlinterRelease.ps1' {
                     tag_name   = 'v1.1.6'
                     assets     = @(
                         [PSCustomObject]@{
-                            name                 = 'Blinter-v1.1.6-x64.zip'
-                            browser_download_url = 'https://example.com/Blinter-v1.1.6-x64.zip'
+                            name                 = 'Blinter-v1.1.6-Windows-x64.zip'
+                            browser_download_url = 'https://example.com/Blinter-v1.1.6-Windows-x64.zip'
                         }
                     )
                 }
@@ -153,13 +153,13 @@ Describe 'Get-LatestBlinterRelease.ps1' {
                     tag_name   = 'v1.1.6'
                     assets     = @(
                         [PSCustomObject]@{
-                            name                 = 'Blinter-v1.1.6-arm64.zip'
-                            browser_download_url = 'https://example.com/Blinter-v1.1.6-arm64.zip'
+                            name                 = 'Blinter-v1.1.6-Windows-arm64.zip'
+                            browser_download_url = 'https://example.com/Blinter-v1.1.6-Windows-arm64.zip'
                             digest               = 'sha256:arm'
                         },
                         [PSCustomObject]@{
-                            name                 = 'Blinter-v1.1.6-x64.zip'
-                            browser_download_url = 'https://example.com/Blinter-v1.1.6-x64.zip'
+                            name                 = 'Blinter-v1.1.6-Windows-x64.zip'
+                            browser_download_url = 'https://example.com/Blinter-v1.1.6-Windows-x64.zip'
                             digest               = 'sha256:x64'
                         }
                     )
@@ -169,7 +169,7 @@ Describe 'Get-LatestBlinterRelease.ps1' {
 
         $output = & $fixturePath
         $LASTEXITCODE | Should -Be 0
-        $output | Should -Be 'https://example.com/Blinter-v1.1.6-x64.zip v1.1.6 sha256:x64'
+        $output | Should -Be 'https://example.com/Blinter-v1.1.6-Windows-x64.zip v1.1.6 sha256:x64'
     }
 
     It 'selects the arm64 asset when both architectures are published' {
@@ -183,13 +183,13 @@ Describe 'Get-LatestBlinterRelease.ps1' {
                     tag_name   = 'v1.1.6'
                     assets     = @(
                         [PSCustomObject]@{
-                            name                 = 'Blinter-v1.1.6-x64.zip'
-                            browser_download_url = 'https://example.com/Blinter-v1.1.6-x64.zip'
+                            name                 = 'Blinter-v1.1.6-Windows-x64.zip'
+                            browser_download_url = 'https://example.com/Blinter-v1.1.6-Windows-x64.zip'
                             digest               = 'sha256:x64'
                         },
                         [PSCustomObject]@{
-                            name                 = 'Blinter-v1.1.6-arm64.zip'
-                            browser_download_url = 'https://example.com/Blinter-v1.1.6-arm64.zip'
+                            name                 = 'Blinter-v1.1.6-Windows-arm64.zip'
+                            browser_download_url = 'https://example.com/Blinter-v1.1.6-Windows-arm64.zip'
                             digest               = 'sha256:arm'
                         }
                     )
@@ -199,7 +199,7 @@ Describe 'Get-LatestBlinterRelease.ps1' {
 
         $output = & $fixturePath
         $LASTEXITCODE | Should -Be 0
-        $output | Should -Be 'https://example.com/Blinter-v1.1.6-arm64.zip v1.1.6 sha256:arm'
+        $output | Should -Be 'https://example.com/Blinter-v1.1.6-Windows-arm64.zip v1.1.6 sha256:arm'
     }
 
     It 'outputs NOT_FOUND when the requested architecture was not published' {
@@ -213,8 +213,8 @@ Describe 'Get-LatestBlinterRelease.ps1' {
                     tag_name   = 'v1.1.6'
                     assets     = @(
                         [PSCustomObject]@{
-                            name                 = 'Blinter-v1.1.6-x64.zip'
-                            browser_download_url = 'https://example.com/Blinter-v1.1.6-x64.zip'
+                            name                 = 'Blinter-v1.1.6-Windows-x64.zip'
+                            browser_download_url = 'https://example.com/Blinter-v1.1.6-Windows-x64.zip'
                             digest               = 'sha256:x64'
                         }
                     )

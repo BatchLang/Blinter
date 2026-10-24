@@ -293,11 +293,11 @@ if !errorlevel! neq 0 (
 if exist "!PS_EXPAND!" del /F /Q "!PS_EXPAND!" >nul 2>&1
 
 REM Locate extracted executable. The folder name matches the zip name.
-set "BLINTER_SOURCE_EXE=%BLINTER_TEMP%\Blinter-!BLINTER_VERSION!-!BLINTER_ARCH!\blinter.exe"
+set "BLINTER_SOURCE_EXE=%BLINTER_TEMP%\Blinter-!BLINTER_VERSION!-Windows-!BLINTER_ARCH!\blinter.exe"
 if not exist "!BLINTER_SOURCE_EXE!" (
     echo ERROR: Blinter executable not found in extracted archive.
     echo.
-    echo Expected layout: Blinter-!BLINTER_VERSION!-!BLINTER_ARCH!\blinter.exe
+    echo Expected layout: Blinter-!BLINTER_VERSION!-Windows-!BLINTER_ARCH!\blinter.exe
     echo The archive structure may have changed or be corrupted.
     goto :error_restore
 )
@@ -409,7 +409,7 @@ echo         [Console]::Error.WriteLine($_.Exception.Message^)
 echo         $release = $null
 echo     }
 echo     if ($release -and -not $release.prerelease -and -not $release.draft^) {
-echo         $assetName = 'Blinter-' + $release.tag_name + '-' + $arch + '.zip'
+echo         $assetName = 'Blinter-' + $release.tag_name + '-Windows-' + $arch + '.zip'
 echo         $asset = @($release.assets^) ^| Where-Object { $_.name -eq $assetName } ^| Select-Object -First 1
 echo     }
 echo     if ($asset^) { break }

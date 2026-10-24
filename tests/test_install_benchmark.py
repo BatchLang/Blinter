@@ -198,13 +198,24 @@ def test_redirect_handler_rejects_off_host() -> None:
 
 
 def test_select_asset_prefers_the_installer_name() -> None:
-    """The current zip name wins, and a legacy x64 zip is only a fallback."""
+    """The current zip name wins, and older names are only fallbacks."""
     tag = "v1.2.3"
-    x64 = {"name": "Blinter-v1.2.3-x64.zip"}
-    arm = {"name": "Blinter-v1.2.3-arm64.zip"}
+    x64 = {"name": "Blinter-v1.2.3-Windows-x64.zip"}
+    arm = {"name": "Blinter-v1.2.3-Windows-arm64.zip"}
+    previous_x64 = {"name": "Blinter-v1.2.3-x64.zip"}
+    previous_arm = {"name": "Blinter-v1.2.3-arm64.zip"}
     legacy = {"name": "Blinter-v1.0.0.zip"}
     assert benchmark_release.select_asset([arm, x64], tag, "x64") == x64
     assert benchmark_release.select_asset([x64, arm], tag, "arm64") == arm
+    assert benchmark_release.select_asset([x64, previous_x64], tag, "x64") == x64
+    assert (
+        benchmark_release.select_asset([previous_arm, previous_x64], tag, "x64")
+        == previous_x64
+    )
+    assert (
+        benchmark_release.select_asset([previous_x64, previous_arm], tag, "arm64")
+        == previous_arm
+    )
     assert benchmark_release.select_asset([legacy], "v1.0.0", "x64") == legacy
     with pytest.raises(RuntimeError, match="arm64"):
         benchmark_release.select_asset([legacy], "v1.0.0", "arm64")
@@ -215,10 +226,10 @@ def test_select_asset_prefers_the_installer_name() -> None:
 def test_sha256_digest_is_required_and_checked(tmp_path: Path) -> None:
     """A release asset without a real sha256 digest is refused."""
     digest = hashlib.sha256(b"blinter").hexdigest()
-    asset = {"name": "Blinter-v1.2.3-x64.zip", "digest": f"sha256:{digest}"}
+    asset = {"name": "Blinter-v1.2.3-Windows-x64.zip", "digest": f"sha256:{digest}"}
     assert _require_sha256(asset) == digest
     with pytest.raises(RuntimeError, match="missing"):
-        _require_sha256({"name": "Blinter-v1.2.3-x64.zip"})
+        _require_sha256({"name": "Blinter-v1.2.3-Windows-x64.zip"})
     with pytest.raises(RuntimeError, match="invalid"):
         _require_sha256({"name": "x.zip", "digest": "sha256:abcd"})
     path = tmp_path / "blob"
@@ -239,15 +250,15 @@ def test_extract_rejects_traversal_and_finds_the_installer_layout(
         benchmark_release.extract_zip(bad, tmp_path / "out")
     assert not (tmp_path / "evil.txt").exists()
 
-    good = tmp_path / "Blinter-v1.2.3-x64.zip"
+    good = tmp_path / "Blinter-v1.2.3-Windows-x64.zip"
     with zipfile.ZipFile(good, "w") as archive:
-        archive.writestr("Blinter-v1.2.3-x64/blinter.exe", b"MZ")
+        archive.writestr("Blinter-v1.2.3-Windows-x64/blinter.exe", b"MZ")
     dest = tmp_path / "extracted"
     benchmark_release.extract_zip(good, dest)
     exe = benchmark_release.locate_exe(dest, good.name)
     assert exe.read_bytes() == b"MZ"
     with pytest.raises(RuntimeError, match="blinter.exe"):
-        benchmark_release.locate_exe(dest, "Blinter-v9.9.9-x64.zip")
+        benchmark_release.locate_exe(dest, "Blinter-v9.9.9-Windows-x64.zip")
 
 
 def test_budget_keeps_three_measured_rounds() -> None:

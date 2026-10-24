@@ -295,18 +295,23 @@ def _asset_name(asset: dict[str, object]) -> str:
 def select_asset(assets: Sequence[object], tag: str, arch: str) -> dict[str, object]:
     """Return the release asset for ``tag`` and ``arch``.
 
-    Current releases publish ``Blinter-<tag>-<arch>.zip``. Older x64 releases
-    used a single zip with no architecture suffix.
+    Current releases publish ``Blinter-<tag>-Windows-<arch>.zip``. The previous
+    name was ``Blinter-<tag>-<arch>.zip``. Older x64 releases used a single zip
+    with no architecture suffix.
     """
     mappings = [_require_mapping(item, "asset") for item in assets]
-    exact_name = f"Blinter-{tag}-{arch}.zip"
-    exact = [
-        item for item in mappings if _asset_name(item).lower() == exact_name.lower()
-    ]
-    if len(exact) == 1:
-        return exact[0]
-    if len(exact) > 1:
-        raise RuntimeError(f"multiple assets named {exact_name}")
+    published_names = (
+        f"Blinter-{tag}-Windows-{arch}.zip",
+        f"Blinter-{tag}-{arch}.zip",
+    )
+    for exact_name in published_names:
+        exact = [
+            item for item in mappings if _asset_name(item).lower() == exact_name.lower()
+        ]
+        if len(exact) == 1:
+            return exact[0]
+        if len(exact) > 1:
+            raise RuntimeError(f"multiple assets named {exact_name}")
     if arch == "x64":
         legacy = [item for item in mappings if _is_legacy_x64_zip(_asset_name(item))]
         if len(legacy) == 1:
@@ -374,7 +379,7 @@ def _exe_relative(asset_name: str) -> Path:
 
 
 def locate_exe(dest: Path, asset_name: str) -> Path:
-    """Return ``Blinter-<tag>-<arch>/blinter.exe`` inside the extracted zip."""
+    """Return ``<zip stem>/blinter.exe`` inside the extracted zip."""
     expected = dest / _exe_relative(asset_name)
     if expected.is_file():
         return expected

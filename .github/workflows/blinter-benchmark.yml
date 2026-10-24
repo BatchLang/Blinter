@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       blinter_version:
-        description: "Blinter version to test, e.g. 1.1.47 (blank = latest PyPI + latest GitHub release)"
+        description: "Blinter version to test, e.g. 1.x.x (blank = latest PyPI + latest GitHub release)"
         required: false
         default: ""
       runs:
