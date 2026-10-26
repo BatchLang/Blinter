@@ -367,15 +367,12 @@ jobs:
         id: release_notes
         run: python scripts/extract_release_notes.py --github-output
 
-      - name: Create GitHub Release
-        uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1
-        with:
-          artifacts: ./build/Blinter-v${{ needs.check-version.outputs.version }}-Windows-x64.zip,./build/Blinter-v${{ needs.check-version.outputs.version }}-Windows-arm64.zip
-          tag: v${{ needs.check-version.outputs.version }}
-          bodyFile: ${{ steps.release_notes.outputs.path }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-          allowUpdates: true
-          removeArtifacts: true
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.check-version.outputs.version }}
+          NOTES_FILE: ${{ steps.release_notes.outputs.path }}
+        run: python scripts/publish_github_release.py
 
   publish-pypi:
     name: Publish wheels to PyPI
