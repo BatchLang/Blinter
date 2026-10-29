@@ -4,6 +4,17 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ## [Unreleased]
 
+## [1.1.50] - 2026-10-29
+
+### Added
+
+- Linux and macOS standalone executables. Releases include `Blinter-v1.1.50-Linux-x64.tar.gz`, `Blinter-v1.1.50-Linux-arm64.tar.gz`, `Blinter-v1.1.50-macOS-arm64.tar.gz`, and `Blinter-v1.1.50-macOS-x64.tar.gz`. Each archive contains a folder of the same name and a `blinter` binary. Linux binaries need glibc 2.39 or newer (Ubuntu 24.04 and newer). macOS binaries target macOS 15 on arm64 and x64 and are not notarized
+- `SHA256SUMS` lists the SHA-256 digest of every release archive
+
+### Changed
+
+- The MegaLinter install pin is 1.1.50
+
 ## [1.1.49] - 2026-10-24
 
 ### Changed
@@ -479,6 +490,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 Older 1.0.x releases are available on the [GitHub Releases](https://github.com/BatchLang/Blinter/releases) page.
 
+[1.1.50]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.50
 [1.1.49]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.49
 [1.1.48]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.48
 [1.1.47]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.47
