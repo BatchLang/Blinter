@@ -75,6 +75,13 @@ uvx blinter
 
 If you prefer a standalone executable over pip or uv, use the one-line installer for your system.
 
+**Windows (cmd):**
+```cmd
+curl -fL --proto =https https://raw.githubusercontent.com/BatchLang/Blinter/refs/heads/main/scripts/install_blinter.cmd -o install_blinter.cmd && (call install_blinter.cmd || cd .) && del install_blinter.cmd
+```
+
+This installs the latest `blinter.exe` for your PC's architecture to `%LOCALAPPDATA%\Programs\Blinter\bin`, adds it to your user `PATH`, and handles updates automatically. To choose the build yourself, add `x64` or `arm64` after `call install_blinter.cmd`. `arm64` is refused on a PC that is not ARM64. On ARM64, `x64` still installs and runs through emulation, but `arm64` is the native build and the default. Restart your terminal or IDE after installation for `PATH` changes to take effect.
+
 **Linux and macOS (bash):**
 
 ```bash
@@ -84,13 +91,6 @@ curl -fL --proto =https https://raw.githubusercontent.com/BatchLang/Blinter/refs
 The installer picks the build that matches your machine. To choose one yourself, add `x64` or `arm64` after `bash install_blinter.sh`. It refuses a build that cannot run on your machine. On Apple Silicon, `x64` still installs and runs through Rosetta, but `arm64` is the native build and the default. On Linux there is no x64 emulation, so ARM Linux always gets `arm64`.
 
 This installs the latest `blinter` to `~/.local/share/blinter/bin` (or `$XDG_DATA_HOME/blinter/bin`), verifies its SHA-256 digest, and adds a marked block to `~/.profile` and your existing `~/.bashrc`, `~/.zshrc` and `~/.bash_profile` (plus `~/.zshrc` on macOS) so the folder is on your `PATH`. Run it again to update. Open a new terminal afterwards. fish does not read those files, so add the folder with `fish_add_path`. The script must run as a normal user, not root. Linux needs glibc 2.39 or newer.
-
-**Windows (cmd):**
-```cmd
-curl -fL --proto =https https://raw.githubusercontent.com/BatchLang/Blinter/refs/heads/main/scripts/install_blinter.cmd -o install_blinter.cmd && (call install_blinter.cmd || cd .) && del install_blinter.cmd
-```
-
-This installs the latest `blinter.exe` for your PC's architecture to `%LOCALAPPDATA%\Programs\Blinter\bin`, adds it to your user `PATH`, and handles updates automatically. To choose the build yourself, add `x64` or `arm64` after `call install_blinter.cmd`. `arm64` is refused on a PC that is not ARM64. On ARM64, `x64` still installs and runs through emulation, but `arm64` is the native build and the default. Restart your terminal or IDE after installation for `PATH` changes to take effect.
 
 **Manual download (fallback):**
 - Windows: download `Blinter-v1.x.x-Windows-x64.zip` or `Blinter-v1.x.x-Windows-arm64.zip` from [GitHub Releases](https://github.com/BatchLang/Blinter/releases). The executable is `Blinter-v1.x.x-Windows-x64\blinter.exe` or `Blinter-v1.x.x-Windows-arm64\blinter.exe`.
