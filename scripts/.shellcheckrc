@@ -1,0 +1,15 @@
+# ShellCheck configuration for the Linux and macOS installer scripts.
+# Lint with: python scripts/verify.py (the shellcheck step) or shellcheck scripts/*.sh
+shell=bash
+enable=all
+external-sources=true
+
+# SC2310: the scripts call small predicate functions in if conditions on purpose and
+# report their own failures with explicit "|| return 1" or die, so set -e being
+# disabled inside those functions is understood and handled.
+disable=SC2310
+
+# SC2312: the flagged command substitutions are id -u, tail -c 1 and shell_quote,
+# whose output is checked directly. A failure there yields an empty string, which
+# the surrounding test already treats as the safe branch.
+disable=SC2312

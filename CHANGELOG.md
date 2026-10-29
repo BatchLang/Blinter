@@ -4,6 +4,18 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ## [Unreleased]
 
+## [1.1.51] - 2026-10-29
+
+### Changed
+
+- `install_blinter.cmd` no longer needs an architecture. With no argument it installs the native build, and `x64` or `arm64` is an optional override. An unrecognized argument still downloads nothing, and `arm64` is still refused on a non-ARM64 PC
+- The MegaLinter install pin is 1.1.51
+
+### Added
+
+- `scripts/install_blinter.sh` and `scripts/uninstall_blinter.sh` install and remove the standalone executable on Linux and macOS. The installer picks the native build, accepts an optional `x64` or `arm64` argument to override it, verifies the archive against the release `SHA256SUMS`, installs to `${XDG_DATA_HOME:-$HOME/.local/share}/blinter/bin`, and adds a marked PATH block to the shell startup files, which the uninstaller removes
+- ShellCheck lints the shell scripts through `scripts/verify.py`, and the `quality-unix` CI job installs and uninstalls the real release on Linux and macOS, x64 and arm64
+
 ## [1.1.50] - 2026-10-29
 
 ### Added
@@ -490,6 +502,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 Older 1.0.x releases are available on the [GitHub Releases](https://github.com/BatchLang/Blinter/releases) page.
 
+[1.1.51]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.51
 [1.1.50]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.50
 [1.1.49]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.49
 [1.1.48]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.48

@@ -41,6 +41,11 @@ _PESTER_TESTS = (Path("scripts") / "TestInstallerPs.Tests.ps1",)
 _INSTALLER_PS_DIR = Path("scripts") / "installer_ps"
 _BLINTER_SCRIPTS_INI = Path("scripts") / "blinter.ini"
 _INSTALL_SCRIPT_TEST = Path("scripts") / "test_install_scripts.ps1"
+_SHELL_SCRIPTS: tuple[Path, ...] = (
+    Path("scripts") / "install_blinter.sh",
+    Path("scripts") / "uninstall_blinter.sh",
+    Path("scripts") / "test_install_scripts.sh",
+)
 
 
 class StepKind(Enum):
@@ -356,6 +361,19 @@ def _script_command(script: Path, *script_args: str) -> tuple[str, ...]:
     return (sys.executable, str(script), *script_args)
 
 
+def _shellcheck_command() -> tuple[str, ...]:
+    """Return the ShellCheck command for the shell installer scripts.
+
+    The shellcheck-py wheel installs the binary beside the interpreter. Looking there
+    first means an unactivated virtual environment works. A bare name is the fallback,
+    so a missing binary fails loudly when the step runs.
+    """
+    binary_name = "shellcheck.exe" if _is_windows() else "shellcheck"
+    candidate = Path(sys.executable).parent / binary_name
+    executable = str(candidate) if candidate.is_file() else "shellcheck"
+    return (executable, *(path.as_posix() for path in _SHELL_SCRIPTS))
+
+
 def _quality_steps(*, fix: bool, uv_executable: str) -> tuple[Step, ...]:
     """Return the platform-neutral quality checks, in run order."""
     return (
@@ -392,6 +410,7 @@ def _quality_steps(*, fix: bool, uv_executable: str) -> tuple[Step, ...]:
         Step("pyproject-fmt", kind=StepKind.PYPROJECT_FMT, fix=fix),
         Step("black", tuple(_python_m("black", "--check", *_CHECK_DIRS))),
         Step("yamllint", tuple(_python_m("yamllint", "--strict", "."))),
+        Step("shellcheck (shell scripts)", _shellcheck_command()),
         Step("mypy", tuple(_python_m("mypy"))),
         Step("pylint", kind=StepKind.PYLINT),
         Step(

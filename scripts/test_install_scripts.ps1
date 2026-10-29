@@ -345,6 +345,26 @@ function Assert-BlinterInstallRefused {
     Write-InstallerTestLog "Refused install $Label"
 }
 
+function Get-BlinterHostArch {
+    # PROCESSOR_ARCHITEW6432 names the real CPU for 32-bit and emulated processes.
+    $hostArch = $env:PROCESSOR_ARCHITEW6432
+    if (-not $hostArch) {
+        $hostArch = $env:PROCESSOR_ARCHITECTURE
+    }
+    return $hostArch
+}
+
+function Get-BlinterNativeBuild {
+    $hostArch = Get-BlinterHostArch
+    if ($hostArch -eq "ARM64") {
+        return "arm64"
+    }
+    if ($hostArch -eq "AMD64") {
+        return "x64"
+    }
+    throw "Unsupported processor architecture for this test: $hostArch"
+}
+
 function Invoke-BlinterInstallScenario {
     param(
         [Parameter(Mandatory)][string]$Name,
@@ -352,16 +372,17 @@ function Invoke-BlinterInstallScenario {
         [Parameter(Mandatory)][string]$UninstallScript,
         [Parameter(Mandatory)][string]$Mode,
         [Parameter(Mandatory)][string]$TempRoot,
-        [Parameter(Mandatory)][string]$Arguments
+        [Parameter(Mandatory)][AllowEmptyString()][string]$Arguments,
+        [Parameter(Mandatory)][string]$ExpectedArch
     )
 
-    Write-InstallerTestLog "Scenario $Name ($Mode)"
+    Write-InstallerTestLog "Scenario $Name ($Mode) arguments='$Arguments' expecting $ExpectedArch"
     $installed = Invoke-BlinterBatch -ScriptPath $InstallScript -Mode $Mode -TempRoot $TempRoot -Label "$Name-install" -Arguments $Arguments
     if ($installed.ExitCode -ne 0) {
         throw "Install exited $($installed.ExitCode).`n$($installed.Log)"
     }
     Assert-BlinterLog -Log $installed.Log -Required @(
-        "Selected build: $Arguments",
+        "Selected build: $ExpectedArch",
         "Installing Blinter",
         "(?m)^OK\s*$",
         "SUCCESS: Blinter",
@@ -437,18 +458,12 @@ try {
     Assert-BlinterInstallRefused `
         -InstallScript $installScript `
         -TempRoot $tempRoot `
-        -Label "refuse-no-arg" `
-        -RequiredPattern "Usage: install_blinter\.cmd x64\|arm64"
-    Assert-BlinterInstallRefused `
-        -InstallScript $installScript `
-        -TempRoot $tempRoot `
         -Label "refuse-bad-arg" `
         -Arguments "sparc" `
-        -RequiredPattern "Usage: install_blinter\.cmd x64\|arm64"
-    $hostArch = $env:PROCESSOR_ARCHITEW6432
-    if (-not $hostArch) {
-        $hostArch = $env:PROCESSOR_ARCHITECTURE
-    }
+        -RequiredPattern "Usage: install_blinter\.cmd \[x64\|arm64\]"
+    $hostArch = Get-BlinterHostArch
+    $nativeBuild = Get-BlinterNativeBuild
+    Write-InstallerTestLog "Host architecture: $hostArch, native build: $nativeBuild"
     if ($hostArch -ne "ARM64") {
         Assert-BlinterInstallRefused `
             -InstallScript $installScript `
@@ -463,7 +478,8 @@ try {
         -UninstallScript $uninstallScript `
         -Mode "direct" `
         -TempRoot $tempRoot `
-        -Arguments "x64"
+        -Arguments "" `
+        -ExpectedArch $nativeBuild
 
     $lfDir = Join-Path $tempRoot "lf"
     New-Item -ItemType Directory -Path $lfDir | Out-Null
@@ -477,7 +493,8 @@ try {
         -UninstallScript $lfUninstall `
         -Mode "readme" `
         -TempRoot $tempRoot `
-        -Arguments "x64"
+        -Arguments "x64" `
+        -ExpectedArch "x64"
 
     Write-InstallerTestLog "Installer and uninstaller passed"
 } finally {

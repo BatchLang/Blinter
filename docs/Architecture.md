@@ -155,4 +155,16 @@ The build enables LTO, bundles the MSVC runtime DLLs on Windows with `--include-
 - `Blinter-vVERSION-macOS-arm64.tar.gz` and `Blinter-vVERSION-macOS-x64.tar.gz`
 - `SHA256SUMS` for those archives
 
-Each archive contains a folder of the same name. Windows executables are `blinter.exe`. Linux and macOS executables are `blinter`, with the executable bit stored in the tar. `install_blinter.cmd` remains Windows-only: it requires `x64` or `arm64` and downloads `Blinter-<tag>-Windows-<arch>.zip`. `arm64` is refused on a non-ARM64 PC. On ARM64, `x64` is allowed and runs through Prism emulation. People who already have Python can keep using the PyPI wheel.
+Each archive contains a folder of the same name. Windows executables are `blinter.exe`. Linux and macOS executables are `blinter`, with the executable bit stored in the tar. `install_blinter.cmd` is the Windows installer. The architecture argument is optional: with none it picks the native build from `PROCESSOR_ARCHITECTURE` (or `PROCESSOR_ARCHITEW6432` for a 32-bit or emulated shell), and `x64` or `arm64` overrides that. Any other argument downloads nothing. It downloads `Blinter-<tag>-Windows-<arch>.zip`. `arm64` is refused on a non-ARM64 PC. On ARM64, `x64` is allowed and runs through Prism emulation.
+
+`install_blinter.sh` and `uninstall_blinter.sh` are the Linux and macOS companions. They follow the same rules as the Windows scripts: an optional `x64` or `arm64` argument that defaults to the native build (on Apple Silicon this is `arm64` even from a shell running under Rosetta), no root, an unverifiable download is refused, and a failed upgrade restores the previous install. They differ where the platform does:
+
+- The latest tag comes from the redirect of `releases/latest`, and the digest comes from the release `SHA256SUMS`, so the script needs no JSON parser and does not use the rate-limited GitHub API.
+- `arm64` is refused on a non-ARM host. `x64` is refused on ARM Linux, which has no emulation layer, and allowed on Apple Silicon through Rosetta. Linux also needs glibc 2.39 or newer, matching the build floor.
+- The install goes to `${XDG_DATA_HOME:-$HOME/.local/share}/blinter/bin`, with `installed_release.txt` beside it. The new binary is staged and renamed into place, because overwriting a running binary fails on Linux.
+- PATH is set by a block between `# >>> blinter >>>` and `# <<< blinter <<<` in `~/.profile`, `~/.bashrc`, `~/.zshrc` and `~/.bash_profile`. Both scripts carry the same awk filter that strips the block, so the uninstaller removes exactly what the installer wrote and a block with no end marker is reported rather than truncating the file.
+- The uninstaller does not stop running processes, because deleting a running executable is safe on Linux and macOS.
+
+Both scripts stay compatible with Bash 3.2, the version macOS ships. `scripts/.shellcheckrc` configures ShellCheck, and `scripts/verify.py` runs it. `tests/test_unix_installer_scripts.py` runs the scripts under bash with stubbed `curl`, `uname`, `id`, `getconf` and `sysctl`. `scripts/test_install_scripts.sh` installs and uninstalls the real latest release, and the `quality-unix` CI job runs it on Linux and macOS, x64 and arm64.
+
+People who already have Python can keep using the PyPI wheel.

@@ -42,7 +42,12 @@ exit /b 1
 REM Line endings are safe for label lookup.
 :blinter_crlf_ready
 
-REM Require x64 or arm64. Any other argument, including none, downloads nothing.
+REM The architecture is optional. With no argument the build matches this PC. An
+REM x64 or arm64 argument overrides that, and any other argument downloads nothing.
+REM PROCESSOR_ARCHITEW6432 names the real CPU when a 32-bit or emulated process runs.
+set "BLINTER_HOST_ARCH=%PROCESSOR_ARCHITECTURE%"
+if defined PROCESSOR_ARCHITEW6432 set "BLINTER_HOST_ARCH=%PROCESSOR_ARCHITEW6432%"
+if "%~1"=="" goto :blinter_arch_detect
 if /I "%~1"=="x64" (
     set "BLINTER_ARCH=x64"
     goto :blinter_arch_ready
@@ -51,15 +56,28 @@ if /I "%~1"=="arm64" (
     set "BLINTER_ARCH=arm64"
     goto :blinter_arch_ready
 )
-echo Usage: install_blinter.cmd x64^|arm64
+echo Usage: install_blinter.cmd [x64^|arm64]
 echo.
-echo No architecture was selected, so nothing was downloaded.
+echo The architecture argument was not recognized, so nothing was downloaded.
+goto :error_exit
+
+REM Choose the native build for this PC.
+:blinter_arch_detect
+if /I "%BLINTER_HOST_ARCH%"=="ARM64" (
+    set "BLINTER_ARCH=arm64"
+    goto :blinter_arch_ready
+)
+if /I "%BLINTER_HOST_ARCH%"=="AMD64" (
+    set "BLINTER_ARCH=x64"
+    goto :blinter_arch_ready
+)
+echo ERROR: Unsupported processor architecture: %BLINTER_HOST_ARCH%
+echo.
+echo Blinter is built for x64 and ARM64. Nothing was downloaded.
 goto :error_exit
 
 REM Refuse arm64 on a non-ARM PC. x64 on ARM64 is allowed and runs through emulation.
 :blinter_arch_ready
-set "BLINTER_HOST_ARCH=%PROCESSOR_ARCHITECTURE%"
-if defined PROCESSOR_ARCHITEW6432 set "BLINTER_HOST_ARCH=%PROCESSOR_ARCHITEW6432%"
 if /I "%BLINTER_ARCH%"=="arm64" if /I not "%BLINTER_HOST_ARCH%"=="ARM64" (
     echo ERROR: The arm64 build cannot be installed on this PC.
     echo.

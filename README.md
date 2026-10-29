@@ -73,31 +73,41 @@ uvx blinter
 
 **Option 3: Standalone executable**
 
-If you prefer a standalone `.exe` over pip or uv, use the one-line installer via cmd.
+If you prefer a standalone executable over pip or uv, use the one-line installer for your system.
 
-**x64:**
-```cmd
-curl -fL --proto =https https://raw.githubusercontent.com/BatchLang/Blinter/refs/heads/main/scripts/install_blinter.cmd -o install_blinter.cmd && (call install_blinter.cmd x64 || cd .) && del install_blinter.cmd
+**Linux and macOS (bash):**
+
+```bash
+curl -fL --proto =https https://raw.githubusercontent.com/BatchLang/Blinter/refs/heads/main/scripts/install_blinter.sh -o install_blinter.sh && bash install_blinter.sh; rm -f install_blinter.sh
 ```
 
-**ARM64:**
+The installer picks the build that matches your machine. To choose one yourself, add `x64` or `arm64` after `bash install_blinter.sh`. It refuses a build that cannot run on your machine. On Apple Silicon, `x64` still installs and runs through Rosetta, but `arm64` is the native build and the default. On Linux there is no x64 emulation, so ARM Linux always gets `arm64`.
+
+This installs the latest `blinter` to `~/.local/share/blinter/bin` (or `$XDG_DATA_HOME/blinter/bin`), verifies its SHA-256 digest, and adds a marked block to `~/.profile` and your existing `~/.bashrc`, `~/.zshrc` and `~/.bash_profile` (plus `~/.zshrc` on macOS) so the folder is on your `PATH`. Run it again to update. Open a new terminal afterwards. fish does not read those files, so add the folder with `fish_add_path`. The script must run as a normal user, not root. Linux needs glibc 2.39 or newer.
+
+**Windows (cmd):**
 ```cmd
-curl -fL --proto =https https://raw.githubusercontent.com/BatchLang/Blinter/refs/heads/main/scripts/install_blinter.cmd -o install_blinter.cmd && (call install_blinter.cmd arm64 || cd .) && del install_blinter.cmd
+curl -fL --proto =https https://raw.githubusercontent.com/BatchLang/Blinter/refs/heads/main/scripts/install_blinter.cmd -o install_blinter.cmd && (call install_blinter.cmd || cd .) && del install_blinter.cmd
 ```
 
-This installs the latest `blinter.exe` for the architecture you named to `%LOCALAPPDATA%\Programs\Blinter\bin`, adds it to your user `PATH`, and handles updates automatically. On ARM64, `x64` still installs and runs through emulation; `arm64` is the native build. Restart your terminal or IDE after installation for `PATH` changes to take effect.
+This installs the latest `blinter.exe` for your PC's architecture to `%LOCALAPPDATA%\Programs\Blinter\bin`, adds it to your user `PATH`, and handles updates automatically. To choose the build yourself, add `x64` or `arm64` after `call install_blinter.cmd`. `arm64` is refused on a PC that is not ARM64. On ARM64, `x64` still installs and runs through emulation, but `arm64` is the native build and the default. Restart your terminal or IDE after installation for `PATH` changes to take effect.
 
 **Manual download (fallback):**
 - Windows: download `Blinter-v1.x.x-Windows-x64.zip` or `Blinter-v1.x.x-Windows-arm64.zip` from [GitHub Releases](https://github.com/BatchLang/Blinter/releases). The executable is `Blinter-v1.x.x-Windows-x64\blinter.exe` or `Blinter-v1.x.x-Windows-arm64\blinter.exe`.
 - Linux: download `Blinter-v1.x.x-Linux-x64.tar.gz` or `Blinter-v1.x.x-Linux-arm64.tar.gz`. These need glibc 2.39 or newer (Ubuntu 24.04 and newer). Extract with `tar -xzf` and run `blinter` from the folder inside the archive.
 - macOS: download `Blinter-v1.x.x-macOS-arm64.tar.gz` or `Blinter-v1.x.x-macOS-x64.tar.gz`. The binary is not notarized. If Gatekeeper blocks it, run `xattr -d com.apple.quarantine blinter` in the extracted folder.
 - `SHA256SUMS` on the same release lists the SHA-256 digest of each archive.
-- The one-line Windows installer above is preferred on Windows; it keeps `blinter` on your `PATH` without manual setup. There is no Linux or macOS installer.
+- The one-line installers above are preferred; they keep `blinter` on your `PATH` without manual setup.
 - ⚠️ **Note**: Some antivirus software may flag the standalone executable as a false positive. The executable is completely safe (all source code is open for inspection). If a scanner flags it, use pip installation.
 
 ### Uninstall
 
-**Standalone executable (one-line un-installer) via cmd** This removes whichever build is installed, x64 or ARM64:
+**Standalone executable on Linux and macOS (one-line un-installer) via bash** This removes the install and the Blinter block from your shell startup files, leaving every other line unchanged:
+```bash
+curl -fL --proto =https https://raw.githubusercontent.com/BatchLang/Blinter/refs/heads/main/scripts/uninstall_blinter.sh -o uninstall_blinter.sh && bash uninstall_blinter.sh; rm -f uninstall_blinter.sh
+```
+
+**Standalone executable on Windows (one-line un-installer) via cmd** This removes whichever build is installed, x64 or ARM64:
 ```cmd
 curl -fL --proto =https https://raw.githubusercontent.com/BatchLang/Blinter/refs/heads/main/scripts/uninstall_blinter.cmd -o uninstall_blinter.cmd && (call uninstall_blinter.cmd || cd .) && del uninstall_blinter.cmd
 ```

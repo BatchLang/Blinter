@@ -88,6 +88,22 @@ def test_corpus_step_follows_the_snapshot() -> None:
     assert "corpus baseline check" in _names(_request(corpus_present=True))
 
 
+def test_shellcheck_runs_on_every_platform_and_covers_each_shell_script() -> None:
+    """ShellCheck runs outside --windows-only and lints each installer script."""
+    for is_windows in (False, True):
+        assert "shellcheck (shell scripts)" in _names(_request(is_windows=is_windows))
+    assert "shellcheck (shell scripts)" not in _names(
+        _request(windows_only=True, is_windows=True)
+    )
+    command = _step("shellcheck (shell scripts)").command
+    assert Path(command[0]).stem == "shellcheck"
+    assert command[1:] == (
+        "scripts/install_blinter.sh",
+        "scripts/uninstall_blinter.sh",
+        "scripts/test_install_scripts.sh",
+    )
+
+
 def test_yamllint_checks_the_repository_root() -> None:
     """yamllint scans every YAML file from the repository root in strict mode."""
     command = _step("yamllint").command

@@ -15,6 +15,7 @@ mypy
 autopep8
 bandit
 yamllint
+shellcheck-py
 
 # Security Analysis
 pip-audit
