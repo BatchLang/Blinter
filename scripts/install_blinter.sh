@@ -409,7 +409,7 @@ install_binary() {
     INSTALL_TOUCHED=1
     mkdir -p -- "${BIN_DIR}"
     cp -- "${EXTRACTED_EXE}" "${staged}"
-    chmod 0755 -- "${staged}"
+    chmod -- 0755 "${staged}"
     if [[ ${OS_NAME} == "macOS" ]]; then
         xattr -d com.apple.quarantine "${staged}" 2>/dev/null || true
     fi

@@ -217,6 +217,15 @@ jobs:
           cache-suffix: ${{ github.job }}-${{ matrix.os_name }}-${{ matrix.arch }}
           activate-environment: true
 
+      - name: Install ccache
+        # Nuitka's gcc build warns when ccache is missing. The macOS runners
+        # already provide it.
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ccache
+          ccache --version
+
       - name: Install Nuitka build dependencies
         env:
           CHARSET_NORMALIZER_USE_MYPYC: "0"

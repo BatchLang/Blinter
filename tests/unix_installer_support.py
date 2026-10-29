@@ -88,6 +88,22 @@ if [ "$1" = "GNU_LIBC_VERSION" ] && [ -n "${STUB_GLIBC:-}" ]; then
 fi
 exit 1
 """
+_CHMOD_STUB = """#!/bin/sh
+# BSD chmod, as on macOS, reads options only before the mode. Anything that
+# starts with a dash after the mode is treated as a file name.
+seen_mode=0
+for arg in "$@"; do
+    if [ "$seen_mode" = 1 ] && [ "${arg#-}" != "$arg" ]; then
+        echo "chmod: $arg: No such file or directory" >&2
+        exit 1
+    fi
+    case "$arg" in
+        -*) ;;
+        *) seen_mode=1 ;;
+    esac
+done
+exec /bin/chmod "$@"
+"""
 _SYSCTL_STUB = """#!/bin/sh
 if [ "$1" = "-n" ] && [ "$2" = "hw.optional.arm64" ] && [ -n "${STUB_SYSCTL_ARM64:-}" ]; then
     printf '%s\\n' "$STUB_SYSCTL_ARM64"
@@ -270,6 +286,7 @@ def make_sandbox(root: Path, home_name: str = "home") -> Sandbox:
     write_stub(fake_bin, "id", _ID_STUB)
     write_stub(fake_bin, "getconf", _GETCONF_STUB)
     write_stub(fake_bin, "sysctl", _SYSCTL_STUB)
+    write_stub(fake_bin, "chmod", _CHMOD_STUB)
     return Sandbox(
         root=root,
         home=home,
