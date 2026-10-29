@@ -102,14 +102,14 @@ This installs the latest `blinter` to `~/.local/share/blinter/bin` (or `$XDG_DAT
 
 ### Uninstall
 
-**Standalone executable on Linux and macOS (one-line un-installer) via bash** This removes the install and the Blinter block from your shell startup files, leaving every other line unchanged:
-```bash
-curl -fL --proto =https https://raw.githubusercontent.com/BatchLang/Blinter/refs/heads/main/scripts/uninstall_blinter.sh -o uninstall_blinter.sh && bash uninstall_blinter.sh; rm -f uninstall_blinter.sh
-```
-
 **Standalone executable on Windows (one-line un-installer) via cmd** This removes whichever build is installed, x64 or ARM64:
 ```cmd
 curl -fL --proto =https https://raw.githubusercontent.com/BatchLang/Blinter/refs/heads/main/scripts/uninstall_blinter.cmd -o uninstall_blinter.cmd && (call uninstall_blinter.cmd || cd .) && del uninstall_blinter.cmd
+```
+
+**Standalone executable on Linux and macOS (one-line un-installer) via bash** This removes the install and the Blinter block from your shell startup files, leaving every other line unchanged:
+```bash
+curl -fL --proto =https https://raw.githubusercontent.com/BatchLang/Blinter/refs/heads/main/scripts/uninstall_blinter.sh -o uninstall_blinter.sh && bash uninstall_blinter.sh; rm -f uninstall_blinter.sh
 ```
 
 **pip installation:**
