@@ -87,10 +87,12 @@ curl -fL --proto =https https://raw.githubusercontent.com/BatchLang/Blinter/refs
 
 This installs the latest `blinter.exe` for the architecture you named to `%LOCALAPPDATA%\Programs\Blinter\bin`, adds it to your user `PATH`, and handles updates automatically. On ARM64, `x64` still installs and runs through emulation; `arm64` is the native build. Restart your terminal or IDE after installation for `PATH` changes to take effect.
 
-**Manual zip download (fallback):**
-- Download `Blinter-v1.x.x-Windows-x64.zip` for x64 Windows, or `Blinter-v1.x.x-Windows-arm64.zip` for a native ARM64 executable, from [GitHub Releases](https://github.com/BatchLang/Blinter/releases)
-- Extract the archive. The executable is `Blinter-v1.x.x-Windows-x64\blinter.exe` or `Blinter-v1.x.x-Windows-arm64\blinter.exe`, matching the zip name
-- The one-line installer above is preferred; it keeps `blinter` on your `PATH` without manual setup.
+**Manual download (fallback):**
+- Windows: download `Blinter-v1.x.x-Windows-x64.zip` or `Blinter-v1.x.x-Windows-arm64.zip` from [GitHub Releases](https://github.com/BatchLang/Blinter/releases). The executable is `Blinter-v1.x.x-Windows-x64\blinter.exe` or `Blinter-v1.x.x-Windows-arm64\blinter.exe`.
+- Linux: download `Blinter-v1.x.x-Linux-x64.tar.gz` or `Blinter-v1.x.x-Linux-arm64.tar.gz`. These need glibc 2.39 or newer (Ubuntu 24.04 and newer). Extract with `tar -xzf` and run `blinter` from the folder inside the archive.
+- macOS: download `Blinter-v1.x.x-macOS-arm64.tar.gz` or `Blinter-v1.x.x-macOS-x64.tar.gz`. The binary is not notarized. If Gatekeeper blocks it, run `xattr -d com.apple.quarantine blinter` in the extracted folder.
+- `SHA256SUMS` on the same release lists the SHA-256 digest of each archive.
+- The one-line Windows installer above is preferred on Windows; it keeps `blinter` on your `PATH` without manual setup. There is no Linux or macOS installer.
 - ⚠️ **Note**: Some antivirus software may flag the standalone executable as a false positive. The executable is completely safe (all source code is open for inspection). If a scanner flags it, use pip installation.
 
 ### Uninstall
@@ -112,7 +114,7 @@ uv tool uninstall Blinter
 
 ### Prerequisites
 - **Python 3.11-3.15** (for the pip/uv install)
-- **Windows (x64 or ARM64)** (for the standalone executable)
+- **Windows (x64 or ARM64), Linux (glibc 2.39+), or macOS 15+ (arm64 or x64)** (for the standalone executable)
 
 ## Usage 📟
 
@@ -413,9 +415,11 @@ blinter ./my-batch-scripts            # Analyze all files recursively
 blinter . --no-recursive              # Current directory only
 blinter ./scripts --summary           # With summary statistics
 
-# Manual zip only (extract first; the folder name matches the zip):
+# Manual archive only (extract first; the folder name matches the archive):
 Blinter-v1.x.x-Windows-x64\blinter.exe ./my-batch-scripts
 Blinter-v1.x.x-Windows-arm64\blinter.exe ./my-batch-scripts
+./Blinter-v1.x.x-Linux-x64/blinter ./my-batch-scripts
+./Blinter-v1.x.x-macOS-arm64/blinter ./my-batch-scripts
 ```
 
 ## 🔥 **Integration Example**

@@ -36,13 +36,8 @@ _PYPROJECT = "pyproject.toml"
 _BENCHMARK_SCRIPT = Path("scripts") / "benchmark_lint.py"
 _CORPUS_BASELINE = Path("tests") / "fixtures" / "corpus-baseline.json"
 _PYLINT_OUTPUT = "pylint-output.txt"
-_POWERSHELL_SCRIPT = Path("scripts") / "test_exe_smoke.ps1"
-_POWERSHELL_HELPERS = Path("scripts") / "TestExeSmoke.Helpers.ps1"
 _POWERSHELL_ANALYZER_SETTINGS = Path("scripts") / "PSScriptAnalyzerSettings.psd1"
-_PESTER_TESTS = (
-    Path("scripts") / "TestExeSmoke.Tests.ps1",
-    Path("scripts") / "TestInstallerPs.Tests.ps1",
-)
+_PESTER_TESTS = (Path("scripts") / "TestInstallerPs.Tests.ps1",)
 _INSTALLER_PS_DIR = Path("scripts") / "installer_ps"
 _BLINTER_SCRIPTS_INI = Path("scripts") / "blinter.ini"
 _INSTALL_SCRIPT_TEST = Path("scripts") / "test_install_scripts.ps1"
@@ -312,11 +307,7 @@ def _powershell_module_command() -> str:
 def _psscriptanalyzer_paths(root: Path) -> list[Path]:
     """Return PowerShell files that should be analyzed."""
     scripts_dir = root / "scripts"
-    paths = [
-        scripts_dir / _POWERSHELL_HELPERS.name,
-        scripts_dir / _POWERSHELL_SCRIPT.name,
-        scripts_dir / _INSTALL_SCRIPT_TEST.name,
-    ]
+    paths = [scripts_dir / _INSTALL_SCRIPT_TEST.name]
     installer_ps_dir = root / _INSTALLER_PS_DIR
     if installer_ps_dir.is_dir():
         paths.extend(sorted(installer_ps_dir.glob("*.ps1")))
@@ -324,7 +315,7 @@ def _psscriptanalyzer_paths(root: Path) -> list[Path]:
 
 
 def _psscriptanalyzer_command(root: Path) -> str:
-    """Return the PSScriptAnalyzer command for smoke and installer scripts."""
+    """Return the PSScriptAnalyzer command for installer scripts."""
     analyzer_settings = _powershell_path(root / _POWERSHELL_ANALYZER_SETTINGS)
     analyze_paths = [_powershell_path(path) for path in _psscriptanalyzer_paths(root)]
     joined_paths = ", ".join(f"'{path}'" for path in analyze_paths)

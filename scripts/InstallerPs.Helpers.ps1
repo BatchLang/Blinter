@@ -188,8 +188,6 @@ function Get-PowerShellAnalyzePaths {
     param([string]$ScriptsRoot)
 
     $paths = @(
-        (Join-Path $ScriptsRoot 'TestExeSmoke.Helpers.ps1'),
-        (Join-Path $ScriptsRoot 'test_exe_smoke.ps1'),
         (Join-Path $ScriptsRoot 'test_install_scripts.ps1')
     )
     $paths += Get-InstallerPsFixturePaths -InstallerPsRoot (Join-Path $ScriptsRoot 'installer_ps')

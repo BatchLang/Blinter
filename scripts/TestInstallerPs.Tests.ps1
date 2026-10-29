@@ -21,7 +21,7 @@ Describe 'Installer batch PowerShell parity' {
 }
 
 Describe 'Installer PowerShell PSScriptAnalyzer' {
-    It 'reports no warnings for installer fixtures and smoke scripts' {
+    It 'reports no warnings for installer fixtures' {
         if (-not (Get-Module -ListAvailable -Name PSScriptAnalyzer)) {
             Set-ItResult -Inconclusive -Because 'PSScriptAnalyzer is not installed'
             return

@@ -70,7 +70,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, windows-latest, windows-2022, windows-11-arm]
+        os: [ubuntu-latest, ubuntu-24.04, ubuntu-24.04-arm, macos-latest, macos-15, macos-15-intel, windows-latest, windows-2022, windows-11-arm]
         python-version: ['3.11', '3.12', '3.13', '3.14', '3.15']
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -115,41 +115,90 @@ jobs:
           python-version: "3.14"
           enable-cache: true
           cache-suffix: ${{ github.job }}-${{ matrix.arch }}
+          activate-environment: true
 
-      - name: Create virtual environment
-        run: uv venv venv
-
-      - name: Install dependencies in virtual environment
+      - name: Install Nuitka build dependencies
+        env:
+          CHARSET_NORMALIZER_USE_MYPYC: "0"
         run: |
-          .\venv\Scripts\Activate.ps1
-          uv pip install setuptools==84.2.1
-          uv pip install nuitka==4.3.1
-          $env:CHARSET_NORMALIZER_USE_MYPYC = "0"
-          uv pip install --upgrade -r requirements.txt --no-binary charset-normalizer
-        shell: pwsh
+          uv venv venv --python 3.14
+          uv pip install --python venv setuptools==84.2.1
+          uv pip install --python venv nuitka==4.3.1
+          uv pip install --python venv --upgrade -r requirements.txt --no-binary charset-normalizer
+          uv pip install --python venv -e .
 
       - name: Build executable
-        run: |
-          .\venv\Scripts\Activate.ps1
-          python scripts/build_exe.py
-        shell: pwsh
-
-      - name: Verify executable exists
-        run: |
-          if (-not (Test-Path -Path "dist\blinter.exe" -PathType Leaf)) {
-            throw "dist\blinter.exe was not produced by Nuitka"
-          }
-        shell: pwsh
-
-      - name: Install Blinter for parity checks
-        run: |
-          .\venv\Scripts\Activate.ps1
-          uv pip install -e .
-        shell: pwsh
+        run: .\venv\Scripts\python.exe scripts/build_exe.py
 
       - name: Smoke test executable
-        run: .\scripts\test_exe_smoke.ps1 -ExePath .\dist\blinter.exe -ExpectedArch ${{ matrix.arch }}
-        shell: pwsh
+        env:
+          BLINTER_EXPECTED_ARCH: ${{ matrix.arch }}
+        run: .\venv\Scripts\python.exe scripts/test_exe_smoke.py
+
+      - name: Upload executable
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: windows-exe-${{ matrix.arch }}
+          path: dist/blinter.exe
+          if-no-files-found: error
+
+  test-unix-exe:
+    name: Unix executable smoke tests (${{ matrix.os_name }} ${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # glibc 2.39 floor: oldest supported GitHub Ubuntu images.
+          - os_name: Linux
+            arch: x64
+            runner: ubuntu-24.04
+          - os_name: Linux
+            arch: arm64
+            runner: ubuntu-24.04-arm
+          - os_name: macOS
+            arch: arm64
+            runner: macos-15
+          - os_name: macOS
+            arch: x64
+            runner: macos-15-intel
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          submodules: recursive
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          python-version: "3.14"
+          enable-cache: true
+          cache-suffix: ${{ github.job }}-${{ matrix.os_name }}-${{ matrix.arch }}
+          activate-environment: true
+
+      - name: Install Nuitka build dependencies
+        env:
+          CHARSET_NORMALIZER_USE_MYPYC: "0"
+        run: |
+          uv venv venv --python 3.14
+          uv pip install --python venv setuptools==84.2.1
+          uv pip install --python venv nuitka==4.3.1
+          uv pip install --python venv --upgrade -r requirements.txt --no-binary charset-normalizer
+          uv pip install --python venv -e .
+
+      - name: Build executable
+        run: ./venv/bin/python scripts/build_exe.py
+
+      - name: Smoke test executable
+        env:
+          BLINTER_EXPECTED_ARCH: ${{ matrix.arch }}
+        run: ./venv/bin/python scripts/test_exe_smoke.py
+
+      - name: Upload executable
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: unix-exe-${{ matrix.os_name }}-${{ matrix.arch }}
+          path: dist/blinter
+          if-no-files-found: error
 
   codeql:
     name: CodeQL (${{ matrix.language }})
@@ -204,6 +253,7 @@ jobs:
       - quality-windows
       - test-python
       - test-windows-exe
+      - test-unix-exe
       - codeql
       - dependency-graph
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
@@ -228,8 +278,8 @@ jobs:
         run: python scripts/ci_release.py should-release
 
   build-windows:
-    name: Build Windows executable (${{ matrix.arch }})
-    needs: [check-version]
+    name: Package Windows executable (${{ matrix.arch }})
+    needs: [check-version, test-windows-exe]
     if: needs.check-version.outputs.should_release == 'true'
     runs-on: ${{ matrix.runner }}
     strategy:
@@ -247,72 +297,95 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - name: Read version from pyproject.toml
-        id: version
-        run: python scripts/ci_release.py version
-
       - name: Install uv
         uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           python-version: "3.14"
-          enable-cache: true
-          cache-suffix: ${{ github.job }}-${{ matrix.arch }}
+          enable-cache: false
+          activate-environment: true
 
-      - name: Create virtual environment
-        run: uv venv venv
+      - name: Download executable
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: windows-exe-${{ matrix.arch }}
+          path: dist
 
-      - name: Install dependencies in virtual environment
-        run: |
-          .\venv\Scripts\Activate.ps1
-          uv pip install setuptools==84.2.1
-          uv pip install nuitka==4.3.1
-          $env:CHARSET_NORMALIZER_USE_MYPYC = "0"
-          uv pip install --upgrade -r requirements.txt --no-binary charset-normalizer
-        shell: pwsh
-
-      - name: Build executable
-        run: |
-          .\venv\Scripts\Activate.ps1
-          python scripts/build_exe.py
-        shell: pwsh
-
-      - name: Verify executable exists
-        run: |
-          if (-not (Test-Path -Path "dist\blinter.exe" -PathType Leaf)) {
-            throw "dist\blinter.exe was not produced by Nuitka"
-          }
-        shell: pwsh
-
-      - name: Install Blinter for parity checks
-        run: |
-          .\venv\Scripts\Activate.ps1
-          uv pip install -e .
-        shell: pwsh
-
-      - name: Smoke test executable
-        run: .\scripts\test_exe_smoke.ps1 -ExePath .\dist\blinter.exe -ExpectedArch ${{ matrix.arch }}
-        shell: pwsh
-
-      - name: Package executable for release
-        run: |
-          $version = "${{ steps.version.outputs.version }}"
-          $arch = "${{ matrix.arch }}"
-          $folder = "dist/Blinter-v$version-Windows-$arch"
-          New-Item -ItemType Directory -Path $folder -Force
-          Move-Item -Path dist/blinter.exe -Destination "$folder/blinter.exe"
-          Compress-Archive -Path $folder -DestinationPath "dist/Blinter-v$version-Windows-$arch.zip"
-        shell: pwsh
+      - name: Package executable
+        env:
+          BLINTER_OS_NAME: Windows
+          BLINTER_ARCH: ${{ matrix.arch }}
+        run: python scripts/package_executable.py
 
       - name: Attest Windows zip
         uses: actions/attest-build-provenance@96278af6caaf10aea03fd8d33a09a777ca52d62f # v3.2.0
         with:
-          subject-path: dist/Blinter-v${{ steps.version.outputs.version }}-Windows-${{ matrix.arch }}.zip
+          subject-path: dist/Blinter-v${{ needs.check-version.outputs.version }}-Windows-${{ matrix.arch }}.zip
 
       - name: Upload artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: windows-build-${{ matrix.arch }}
-          path: dist/Blinter-v${{ steps.version.outputs.version }}-Windows-${{ matrix.arch }}.zip
+          path: dist/Blinter-v${{ needs.check-version.outputs.version }}-Windows-${{ matrix.arch }}.zip
+          if-no-files-found: error
+
+  build-unix:
+    name: Package ${{ matrix.os_name }} executable (${{ matrix.arch }})
+    needs: [check-version, test-unix-exe]
+    if: needs.check-version.outputs.should_release == 'true'
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os_name: Linux
+            arch: x64
+            runner: ubuntu-24.04
+          - os_name: Linux
+            arch: arm64
+            runner: ubuntu-24.04-arm
+          - os_name: macOS
+            arch: arm64
+            runner: macos-15
+          - os_name: macOS
+            arch: x64
+            runner: macos-15-intel
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          python-version: "3.14"
+          enable-cache: false
+          activate-environment: true
+
+      - name: Download executable
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: unix-exe-${{ matrix.os_name }}-${{ matrix.arch }}
+          path: dist
+
+      - name: Package executable
+        env:
+          BLINTER_OS_NAME: ${{ matrix.os_name }}
+          BLINTER_ARCH: ${{ matrix.arch }}
+        run: python scripts/package_executable.py
+
+      - name: Attest archive
+        uses: actions/attest-build-provenance@96278af6caaf10aea03fd8d33a09a777ca52d62f # v3.2.0
+        with:
+          subject-path: dist/Blinter-v${{ needs.check-version.outputs.version }}-${{ matrix.os_name }}-${{ matrix.arch }}.tar.gz
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: ${{ matrix.os_name == 'Linux' && 'linux' || 'macos' }}-build-${{ matrix.arch }}
+          path: dist/Blinter-v${{ needs.check-version.outputs.version }}-${{ matrix.os_name }}-${{ matrix.arch }}.tar.gz
+          if-no-files-found: error
 
   build-wheels:
     name: Build Python wheels
@@ -348,7 +421,7 @@ jobs:
           path: dist/
 
   create-release:
-    needs: [check-version, build-windows]
+    needs: [check-version, build-windows, build-unix]
     if: needs.check-version.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     permissions:
@@ -356,10 +429,10 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - name: Download Windows builds
+      - name: Download release archives
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
-          pattern: windows-build-*
+          pattern: "*-build-*"
           merge-multiple: true
           path: ./build
 

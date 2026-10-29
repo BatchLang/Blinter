@@ -21,6 +21,7 @@ from scripts.build_exe import (
     FILE_DESCRIPTION,
     ICON_PATH,
     MAIN_FILE,
+    NATIVE_EXTENSION_SUFFIXES,
     NOFOLLOW_IMPORT_TO,
     ONEFILE_TEMPDIR_SPEC,
     OUTPUT_DIR,
@@ -309,12 +310,36 @@ class TestBuildExe:
             assert module_name in NOFOLLOW_IMPORT_TO
 
     def test_ci_installs_charset_normalizer_without_binary_wheels(self) -> None:
-        """Exe CI jobs must install charset-normalizer from source, not the speedup wheel."""
+        """Both compile jobs install charset-normalizer from source."""
         ci_text = (_REPO_ROOT / ".github" / "workflows" / "CI.yml").read_text(
             encoding="utf-8"
         )
         assert ci_text.count("--no-binary charset-normalizer") == 2
-        assert ci_text.count('$env:CHARSET_NORMALIZER_USE_MYPYC = "0"') == 2
+        assert ci_text.count('CHARSET_NORMALIZER_USE_MYPYC: "0"') == 2
+        assert "install_nuitka_build.py" not in ci_text
+        assert "run_venv.py" not in ci_text
+        assert "test_exe_smoke.ps1" not in ci_text
+        assert ci_text.count("scripts/test_exe_smoke.py") == 2
+        assert "ubuntu-24.04" in ci_text
+        assert "ubuntu-24.04-arm" in ci_text
+        assert "ubuntu-22.04" not in ci_text
+        assert "macos-15-intel" in ci_text
+        assert "needs: [check-version, test-windows-exe]" in ci_text
+        assert "needs: [check-version, test-unix-exe]" in ci_text
+        assert "needs: [check-version, build-windows, build-unix]" in ci_text
+        assert 'pattern: "*-build-*"' in ci_text
+        windows_package = ci_text.split("  build-windows:", maxsplit=1)[1].split(
+            "  build-unix:",
+            maxsplit=1,
+        )[0]
+        unix_package = ci_text.split("  build-unix:", maxsplit=1)[1].split(
+            "  build-wheels:",
+            maxsplit=1,
+        )[0]
+        assert "build_exe.py" not in windows_package
+        assert "build_exe.py" not in unix_package
+        assert "python scripts/package_executable.py" in windows_package
+        assert "python scripts/package_executable.py" in unix_package
 
     def test_preflight_rejects_native_charset_normalizer(
         self, mocker: MockerFixture, tmp_path: Path
@@ -431,7 +456,7 @@ class TestBuildExe:
         (tmp_path / OUTPUT_DIR).mkdir()
         caplog.set_level("INFO")
         _log_bundled_native_extensions(tmp_path)
-        assert "No leftover .pyd/.dll files" in caplog.text
+        assert "No leftover native extension files" in caplog.text
 
     def test_build_command_uses_mingw_when_requested(self) -> None:
         """Local MinGW builds must opt into the experimental 3.13+ flag."""
@@ -457,10 +482,16 @@ class TestBuildExe:
         assert "--mingw64" not in command
         assert "--include-windows-runtime-dlls=yes" not in command
         assert not any(part.startswith("--windows-icon-from-ico=") for part in command)
-        assert not any(part.startswith("--file-version=") for part in command)
+        assert not any(part.startswith("--file-description=") for part in command)
+        assert "--macos-sign-identity" not in " ".join(command)
+        assert "--output-filename=blinter" in command
+        assert "--file-version=1.2.3" in command
+        assert "--product-version=1.2.3" in command
         assert f"--company-name={COMPANY_NAME}" in command
         assert "--lto=yes" in command
         assert command[-1] == PACKAGE_DIR.as_posix()
+        assert ".dylib" in NATIVE_EXTENSION_SUFFIXES
+        assert ".so" in NATIVE_EXTENSION_SUFFIXES
 
     def test_application_icon_asset_exists(self) -> None:
         """The ICO referenced by the Nuitka build must be present."""
@@ -508,7 +539,8 @@ class TestBuildExe:
             "scripts.build_exe.subprocess.run",
             return_value=mocker.Mock(returncode=0),
         )
-        assert run_nuitka([sys.executable, "-m", "nuitka"], tmp_path) == 0
+        output_flag = f"--output-filename={OUTPUT_FILENAME}"
+        assert run_nuitka([sys.executable, "-m", "nuitka", output_flag], tmp_path) == 0
 
     def test_main_returns_2_when_inputs_missing(
         self, mocker: MockerFixture, tmp_path: Path
@@ -564,6 +596,8 @@ class TestBuildExe:
         assert "--mingw64" not in command
         assert "--msvc=latest" not in command
         assert not any(part.startswith("--windows-icon-from-ico=") for part in command)
+        assert "--output-filename=blinter" in command
+        assert any(part.startswith("--file-version=") for part in command)
         assert "--lto=yes" in command
 
     @pytest.mark.usefixtures("cleanup_build_version")

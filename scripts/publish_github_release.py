@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create or update the GitHub Release for the Windows build zips.
+"""Create or update the GitHub Release for the standalone build archives.
 
 Reads ``VERSION``, ``NOTES_FILE``, and ``GITHUB_SHA`` from the environment.
 ``GH_TOKEN`` or ``GITHUB_TOKEN`` authenticates the ``gh`` CLI. A missing
@@ -10,6 +10,7 @@ release is edited, then its same-named assets are replaced with ``--clobber``.
 from __future__ import annotations
 
 from collections.abc import Sequence
+import hashlib
 import logging
 import os
 from pathlib import Path
@@ -29,6 +30,15 @@ _TARGET_RE = re.compile(r"^[0-9a-fA-F]{7,64}\Z")
 _NOT_FOUND_MARKER = "release not found"
 _LOOKUP_TIMEOUT_SECONDS = 120
 _UPLOAD_TIMEOUT_SECONDS = 600
+_CHECKSUM_NAME = "SHA256SUMS"
+_ARCHIVE_SPECS: tuple[tuple[str, str, str], ...] = (
+    ("Windows", "x64", "zip"),
+    ("Windows", "arm64", "zip"),
+    ("Linux", "x64", "tar.gz"),
+    ("Linux", "arm64", "tar.gz"),
+    ("macOS", "arm64", "tar.gz"),
+    ("macOS", "x64", "tar.gz"),
+)
 _USAGE = (
     "usage: publish_github_release.py\n"
     "Reads VERSION, NOTES_FILE, and GITHUB_SHA from the environment.\n"
@@ -60,16 +70,41 @@ def release_tag(version: str) -> str:
     return tag
 
 
-def _windows_assets(version: str, build_dir: Path) -> tuple[Path, Path]:
-    """Return the x64 and arm64 zip paths published by the build job."""
-    x64 = build_dir / f"Blinter-v{version}-Windows-x64.zip"
-    arm64 = build_dir / f"Blinter-v{version}-Windows-arm64.zip"
-    logger.info("Windows assets %s and %s", x64, arm64)
-    return x64, arm64
+def release_archive_names(version: str) -> tuple[str, ...]:
+    """Return the archive filenames required for one release."""
+    names = tuple(
+        f"Blinter-v{version}-{os_name}-{arch}.{suffix}"
+        for os_name, arch, suffix in _ARCHIVE_SPECS
+    )
+    logger.info("Expected release archives: %s", ", ".join(names))
+    return names
+
+
+def _sha256(path: Path) -> str:
+    """Return the lowercase SHA-256 hex digest of ``path``."""
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while True:
+            chunk = handle.read(1024 * 1024)
+            if not chunk:
+                break
+            digest.update(chunk)
+    value = digest.hexdigest()
+    logger.info("SHA-256 %s %s", value, path.name)
+    return value
+
+
+def write_sha256sums(build_dir: Path, archives: Sequence[Path]) -> Path:
+    """Write ``SHA256SUMS`` for ``archives`` and return its path."""
+    lines = [f"{_sha256(archive)}  {archive.name}\n" for archive in archives]
+    destination = build_dir / _CHECKSUM_NAME
+    logger.info("Writing %s", destination)
+    destination.write_text("".join(lines), encoding="utf-8", newline="\n")
+    return destination
 
 
 def _require_files(notes_file: Path, assets: Sequence[Path]) -> None:
-    """Exit when the notes file or a zip is missing."""
+    """Exit when the notes file or an archive is missing."""
     logger.info("Checking release notes %s", notes_file)
     if not notes_file.is_file():
         raise SystemExit(f"Release notes file not found: {notes_file}")
@@ -160,23 +195,26 @@ def _require_target(target: str) -> str:
     return target
 
 
+def _asset_arguments(assets: Sequence[Path]) -> list[str]:
+    """Return archive paths in the order ``gh`` should upload them."""
+    return [str(asset) for asset in assets]
+
+
 def create_release(
     tag: str,
     notes_file: Path,
-    assets: tuple[Path, Path],
+    assets: Sequence[Path],
     target: str,
 ) -> None:
-    """Create ``tag`` at ``target`` and upload both Windows zips."""
+    """Create ``tag`` at ``target`` and upload the release archives."""
     commit = _require_target(target)
-    x64, arm64 = assets
     logger.info("Creating release %s at %s", tag, commit)
     completed = _run_gh(
         [
             "release",
             "create",
             tag,
-            str(x64),
-            str(arm64),
+            *_asset_arguments(assets),
             "--title",
             tag,
             "--notes-file",
@@ -192,10 +230,9 @@ def create_release(
 def update_release(
     tag: str,
     notes_file: Path,
-    assets: tuple[Path, Path],
+    assets: Sequence[Path],
 ) -> None:
     """Replace the title, notes, and same-named assets of an existing release."""
-    x64, arm64 = assets
     logger.info("Updating existing release %s", tag)
     edited = _run_gh(
         [
@@ -211,7 +248,7 @@ def update_release(
     )
     _require_success(edited, f"Updating release {tag}")
     uploaded = _run_gh(
-        ["release", "upload", tag, str(x64), str(arm64), "--clobber"],
+        ["release", "upload", tag, *_asset_arguments(assets), "--clobber"],
         timeout=_UPLOAD_TIMEOUT_SECONDS,
     )
     _require_success(uploaded, f"Uploading assets for {tag}")
@@ -231,8 +268,9 @@ def publish_github_release(
         build_dir,
     )
     tag = release_tag(version)
-    assets = _windows_assets(version, build_dir)
-    _require_files(notes_file, assets)
+    archives = tuple(build_dir / name for name in release_archive_names(version))
+    _require_files(notes_file, archives)
+    assets = (*archives, write_sha256sums(build_dir, archives))
     _token_source()
     if release_exists(tag):
         update_release(tag, notes_file, assets)

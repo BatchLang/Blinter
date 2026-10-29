@@ -1,13 +1,31 @@
 """Tests for scripts/publish_github_release.py."""
 
+import hashlib
 from pathlib import Path
+import struct
 import subprocess
+import sys
+import tarfile
 from typing import Any
+import zipfile
 
 import pytest
 from pytest_mock import MockerFixture
 
-from scripts.publish_github_release import main, publish_github_release, release_tag
+from scripts.build_exe import OUTPUT_DIR, run_nuitka
+from scripts.package_executable import archive_name, binary_name, package_executable
+from scripts.publish_github_release import (
+    main,
+    publish_github_release,
+    release_archive_names,
+    release_tag,
+)
+from scripts.test_exe_smoke import (
+    assert_binary_architecture,
+    elf_machine,
+    macho_cpu_type,
+    pe_machine,
+)
 
 _SHA = "a" * 40
 _VERSION = "1.2.3"
@@ -30,15 +48,21 @@ def _completed(
 
 
 def _prepare(tmp_path: Path, version: str = _VERSION) -> tuple[Path, Path]:
-    """Create notes and both Windows zips under ``tmp_path``."""
+    """Create notes and every required release archive under ``tmp_path``."""
     build_dir = tmp_path / "build"
     build_dir.mkdir()
     notes = tmp_path / "release-notes.md"
     notes.write_text("notes\n", encoding="utf-8")
-    for arch in ("x64", "arm64"):
-        asset = build_dir / f"Blinter-v{version}-Windows-{arch}.zip"
-        asset.write_bytes(b"zip")
+    for name in release_archive_names(version):
+        (build_dir / name).write_bytes(b"zip")
     return notes, build_dir
+
+
+def _uploaded_assets(build_dir: Path, version: str = _VERSION) -> list[str]:
+    """Return the archive and checksum paths passed to ``gh``."""
+    names = [str(build_dir / name) for name in release_archive_names(version)]
+    names.append(str(build_dir / "SHA256SUMS"))
+    return names
 
 
 def _argv(mock_call: Any) -> list[str]:
@@ -153,8 +177,7 @@ class TestPublishGithubRelease:
             "release",
             "create",
             "v1.2.3",
-            str(build_dir / "Blinter-v1.2.3-Windows-x64.zip"),
-            str(build_dir / "Blinter-v1.2.3-Windows-arm64.zip"),
+            *_uploaded_assets(build_dir),
             "--title",
             "v1.2.3",
             "--notes-file",
@@ -199,8 +222,7 @@ class TestPublishGithubRelease:
             "release",
             "upload",
             "v1.2.3",
-            str(build_dir / "Blinter-v1.2.3-Windows-x64.zip"),
-            str(build_dir / "Blinter-v1.2.3-Windows-arm64.zip"),
+            *_uploaded_assets(build_dir),
             "--clobber",
         ]
         assert "--target" not in edit
@@ -349,3 +371,144 @@ class TestPublishGithubRelease:
         assert "NOTES_FILE:" in job
         assert "ncipollo" not in workflow
         assert "set -euo pipefail" not in job
+
+    def test_checksum_lists_every_archive(
+        self,
+        mocker: MockerFixture,
+        tmp_path: Path,
+    ) -> None:
+        """SHA256SUMS covers the archives and is itself uploaded."""
+        notes, build_dir = _prepare(tmp_path)
+        mocker.patch(
+            "scripts.publish_github_release.subprocess.run",
+            side_effect=[
+                _completed(1, stderr="release not found\n"),
+                _completed(0),
+            ],
+        )
+        publish_github_release(_VERSION, notes, _SHA, build_dir)
+        checksum = (build_dir / "SHA256SUMS").read_text(encoding="utf-8")
+        digest = hashlib.sha256(b"zip").hexdigest()
+        for name in release_archive_names(_VERSION):
+            assert f"{digest}  {name}\n" in checksum
+        assert "SHA256SUMS" not in checksum
+
+
+def test_archive_names_match_the_publisher() -> None:
+    """Package filenames are the archives the publisher requires."""
+    expected = set(release_archive_names("1.2.3"))
+    produced = {
+        archive_name("1.2.3", "Windows", "x64"),
+        archive_name("1.2.3", "Windows", "arm64"),
+        archive_name("1.2.3", "Linux", "x64"),
+        archive_name("1.2.3", "Linux", "arm64"),
+        archive_name("1.2.3", "macOS", "arm64"),
+        archive_name("1.2.3", "macOS", "x64"),
+    }
+    assert produced == expected
+    assert binary_name("Windows") == "blinter.exe"
+    assert binary_name("Linux") == "blinter"
+    assert binary_name("macOS") == "blinter"
+
+
+def test_linux_tar_keeps_the_executable_bit(tmp_path: Path) -> None:
+    """A Linux archive stores blinter as mode 0755 inside the version folder."""
+    binary = tmp_path / "dist" / "blinter"
+    binary.parent.mkdir()
+    binary.write_bytes(b"#!/bin/sh\n")
+    archive = package_executable(tmp_path, "Linux", "x64", version="1.2.3")
+    assert archive.name == "Blinter-v1.2.3-Linux-x64.tar.gz"
+    with tarfile.open(archive, "r:gz") as tar:
+        member = tar.getmember("Blinter-v1.2.3-Linux-x64/blinter")
+        assert stat_mode(member.mode) == 0o755
+        assert tar.extractfile(member) is not None
+
+
+def test_windows_zip_uses_the_existing_folder_layout(tmp_path: Path) -> None:
+    """A Windows zip contains one folder named after the archive."""
+    binary = tmp_path / "dist" / "blinter.exe"
+    binary.parent.mkdir()
+    binary.write_bytes(b"MZ")
+    archive = package_executable(tmp_path, "Windows", "arm64", version="1.2.3")
+    with zipfile.ZipFile(archive) as zipped:
+        assert zipped.namelist() == ["Blinter-v1.2.3-Windows-arm64/blinter.exe"]
+        assert zipped.read("Blinter-v1.2.3-Windows-arm64/blinter.exe") == b"MZ"
+
+
+def test_package_refuses_a_missing_binary(tmp_path: Path) -> None:
+    """Packaging fails before writing an archive when the executable is absent."""
+    with pytest.raises(SystemExit, match="Executable not found"):
+        package_executable(tmp_path, "macOS", "arm64", version="1.2.3")
+
+
+def _pe_image(machine: int, pe_offset: int = 0x40) -> bytes:
+    """Return a minimal PE image whose COFF Machine field is ``machine``."""
+    image = bytearray(pe_offset + 6)
+    image[:2] = b"MZ"
+    image[0x3C:0x40] = pe_offset.to_bytes(4, "little", signed=True)
+    image[pe_offset : pe_offset + 4] = b"PE\x00\x00"
+    image[pe_offset + 4 : pe_offset + 6] = machine.to_bytes(2, "little")
+    return bytes(image)
+
+
+def test_elf_macho_and_pe_headers() -> None:
+    """Architecture checks read ELF e_machine, Mach-O cputype, and PE Machine."""
+    elf = bytearray(20)
+    elf[:4] = b"\x7fELF"
+    elf[5] = 1
+    elf[18:20] = (62).to_bytes(2, "little")
+    assert elf_machine(bytes(elf)) == 62
+    header = struct.pack("<II", 0xFEEDFACF, 0x0100000C)
+    assert macho_cpu_type(header) == 0x0100000C
+    assert pe_machine(_pe_image(0x8664)) == 0x8664
+    assert pe_machine(_pe_image(0xAA64, pe_offset=0x80)) == 0xAA64
+
+
+def test_pe_machine_rejects_truncated_and_unsigned_headers() -> None:
+    """A PE parser rejects truncated images, a bad offset, and a missing signature."""
+    with pytest.raises(ValueError, match="truncated"):
+        pe_machine(b"MZ" + b"\x00" * 10)
+    with pytest.raises(ValueError, match="MZ"):
+        pe_machine(b"\x00" * 64)
+    image = bytearray(_pe_image(0x8664))
+    image[0x3C:0x40] = (-1).to_bytes(4, "little", signed=True)
+    with pytest.raises(ValueError, match="offset"):
+        pe_machine(bytes(image))
+    short = bytearray(70)
+    short[:2] = b"MZ"
+    short[0x3C:0x40] = (80).to_bytes(4, "little")
+    with pytest.raises(ValueError, match="truncated"):
+        pe_machine(bytes(short))
+    missing = bytearray(_pe_image(0x8664))
+    missing[0x40:0x44] = b"\x00\x00\x00\x00"
+    with pytest.raises(ValueError, match="signature"):
+        pe_machine(bytes(missing))
+
+
+def test_assert_binary_architecture_reads_pe_machine(tmp_path: Path) -> None:
+    """A Windows executable is accepted only when its Machine field matches."""
+    path = tmp_path / "blinter.exe"
+    path.write_bytes(_pe_image(0x8664))
+    assert_binary_architecture(path, "x64")
+    with pytest.raises(AssertionError, match="8664"):
+        assert_binary_architecture(path, "arm64")
+
+
+def test_run_nuitka_renames_bin_suffix(mocker: MockerFixture, tmp_path: Path) -> None:
+    """Nuitka's onefile ``.bin`` suffix is renamed to the requested filename."""
+    dist_dir = tmp_path / OUTPUT_DIR
+    dist_dir.mkdir()
+    (dist_dir / "blinter.bin").write_bytes(b"bin")
+    mocker.patch(
+        "scripts.build_exe.subprocess.run",
+        return_value=mocker.Mock(returncode=0),
+    )
+    command = [sys.executable, "-m", "nuitka", "--output-filename=blinter"]
+    assert run_nuitka(command, tmp_path) == 0
+    assert (dist_dir / "blinter").read_bytes() == b"bin"
+    assert not (dist_dir / "blinter.bin").exists()
+
+
+def stat_mode(mode: int) -> int:
+    """Return the permission bits stored on a tar member."""
+    return mode & 0o777

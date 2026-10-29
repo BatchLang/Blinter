@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the Windows standalone blinter.exe with Nuitka."""
+"""Build the standalone blinter executable with Nuitka."""
 
 from __future__ import annotations
 
@@ -20,6 +20,7 @@ ICON_PATH = Path("resources") / "blinter_icon.ico"
 TYPED_MARKER = Path("src") / "blinter" / "py.typed"
 OUTPUT_DIR = Path("dist")
 OUTPUT_FILENAME = "blinter.exe"
+UNIX_OUTPUT_FILENAME = "blinter"
 COMPANY_NAME = "BatchLang"
 PRODUCT_NAME = "Blinter"
 FILE_DESCRIPTION = "Blinter - Batch File Linter for Windows"
@@ -54,7 +55,7 @@ NOFOLLOW_IMPORT_TO: tuple[str, ...] = (
     "wmi",
     "_wmi",
 )
-NATIVE_EXTENSION_SUFFIXES: frozenset[str] = frozenset({".pyd", ".so", ".dll"})
+NATIVE_EXTENSION_SUFFIXES: frozenset[str] = frozenset({".pyd", ".so", ".dll", ".dylib"})
 CHARSET_NORMALIZER_MODULE_NAMES: tuple[str, ...] = (
     "charset_normalizer",
     "charset_normalizer.md",
@@ -170,36 +171,46 @@ def assert_pure_python_charset_normalizer() -> None:
     logger.info("charset_normalizer is pure Python")
 
 
+def output_filename(*, windows: bool) -> str:
+    """Return ``blinter.exe`` on Windows and ``blinter`` on other platforms."""
+    if windows:
+        return OUTPUT_FILENAME
+    return UNIX_OUTPUT_FILENAME
+
+
 def _log_bundled_native_extensions(repo_root: Path) -> None:
-    """Log leftover .pyd/.dll files under dist/ after a Nuitka onefile build."""
+    """Log leftover native extensions under dist/ after a Nuitka onefile build."""
     dist_dir = repo_root / OUTPUT_DIR
     if not dist_dir.is_dir():
         logger.warning(
             "Nuitka output directory %s is missing; cannot inventory natives", dist_dir
         )
         return
+    shipped_names = {OUTPUT_FILENAME.casefold(), UNIX_OUTPUT_FILENAME.casefold()}
     native_files = sorted(
         path
         for path in dist_dir.rglob("*")
         if path.is_file()
         and path.suffix.casefold() in NATIVE_EXTENSION_SUFFIXES
-        and path.name.casefold() != OUTPUT_FILENAME.casefold()
+        and path.name.casefold() not in shipped_names
     )
     if not native_files:
-        logger.info("No leftover .pyd/.dll files under %s", dist_dir)
+        logger.info("No leftover native extension files under %s", dist_dir)
         return
     logger.info("Nuitka dist tree contains %s native files:", len(native_files))
     for native_path in native_files:
         logger.info("  %s", native_path.relative_to(dist_dir).as_posix())
 
 
-def _validate_inputs(repo_root: Path) -> Path:
+def _validate_inputs(repo_root: Path, *, windows: bool | None = None) -> Path:
     """Ensure Nuitka inputs exist and return the pyproject.toml path."""
     pyproject_path = repo_root / "pyproject.toml"
     _require_file(pyproject_path, "pyproject.toml")
     _require_file(repo_root / MAIN_FILE, "package __main__ module")
-    _require_file(repo_root / ICON_PATH, "application icon")
     _require_file(repo_root / TYPED_MARKER, "py.typed marker")
+    require_icon = _is_windows() if windows is None else windows
+    if require_icon:
+        _require_file(repo_root / ICON_PATH, "application icon")
     return pyproject_path
 
 
@@ -250,18 +261,21 @@ def build_nuitka_command(
     windows: bool,
     mingw: bool = False,
 ) -> list[str]:
-    """Return the Nuitka CLI used to produce dist/blinter.exe."""
+    """Return the Nuitka CLI used to produce the onefile executable."""
+    filename = output_filename(windows=windows)
     command: list[str] = [
         python_executable,
         "-m",
         "nuitka",
         "--mode=onefile",
         "--assume-yes-for-downloads",
-        f"--output-filename={OUTPUT_FILENAME}",
+        f"--output-filename={filename}",
         f"--output-dir={OUTPUT_DIR.as_posix()}",
         "--include-module=charset_normalizer",
         f"--company-name={COMPANY_NAME}",
         f"--product-name={PRODUCT_NAME}",
+        f"--file-version={version}",
+        f"--product-version={version}",
     ]
     command.extend(_optimization_flags())
     if windows:
@@ -284,19 +298,59 @@ def build_nuitka_command(
         command.extend(
             [
                 f"--windows-icon-from-ico={ICON_PATH.as_posix()}",
-                f"--file-version={version}",
-                f"--product-version={version}",
                 f"--file-description={FILE_DESCRIPTION}",
             ]
+        )
+    else:
+        logger.info(
+            "POSIX onefile build writes %s; MSVC, icon, and file description "
+            "are omitted. No macOS signing identity is passed",
+            filename,
         )
     command.append(PACKAGE_DIR.as_posix())
     logger.info("Constructed Nuitka command with %s arguments", len(command))
     return command
 
 
+def _output_filename_from_command(command: list[str]) -> str:
+    """Return the onefile name requested by ``--output-filename``."""
+    prefix = "--output-filename="
+    for part in command:
+        if part.startswith(prefix) and part[len(prefix) :]:
+            return part[len(prefix) :]
+    return output_filename(windows=_is_windows())
+
+
+def _mark_executable(path: Path) -> None:
+    """Set the POSIX executable bits Nuitka's onefile bootstrap needs."""
+    if os.name == "nt":
+        return
+    current = path.stat().st_mode
+    updated = current | 0o755
+    if updated != current:
+        logger.info("Setting executable bits on %s", path)
+        path.chmod(updated)
+
+
+def _finalize_onefile(dist_dir: Path, filename: str) -> Path | None:
+    """Return the onefile binary, renaming a ``.bin`` suffix when Nuitka adds one."""
+    expected = dist_dir / filename
+    if expected.is_file():
+        _mark_executable(expected)
+        return expected
+    bin_candidate = dist_dir / f"{filename}.bin"
+    if not bin_candidate.is_file():
+        return None
+    logger.info("Renaming Nuitka output %s to %s", bin_candidate.name, filename)
+    bin_candidate.replace(expected)
+    _mark_executable(expected)
+    return expected
+
+
 def run_nuitka(command: list[str], repo_root: Path) -> int:
     """Invoke Nuitka and return its process exit code."""
-    output_exe = repo_root / OUTPUT_DIR / OUTPUT_FILENAME
+    filename = _output_filename_from_command(command)
+    output_exe = repo_root / OUTPUT_DIR / filename
     logger.info("Working directory: %s", repo_root)
     logger.info("Expected output: %s", output_exe)
     logger.info("Running: %s", " ".join(command))
@@ -309,19 +363,20 @@ def run_nuitka(command: list[str], repo_root: Path) -> int:
     if completed.returncode != 0:
         logger.error("Nuitka exited with code %s", completed.returncode)
         return completed.returncode
-    if not output_exe.is_file():
+    finalized = _finalize_onefile(repo_root / OUTPUT_DIR, filename)
+    if finalized is None:
         logger.error("Nuitka reported success but %s is missing", output_exe)
         return 1
-    logger.info("Built %s (%s bytes)", output_exe, output_exe.stat().st_size)
+    logger.info("Built %s (%s bytes)", finalized, finalized.stat().st_size)
     _log_bundled_native_extensions(repo_root)
     return 0
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Compile the blinter package into dist/blinter.exe."""
+    """Compile the blinter package into a standalone executable."""
     _configure_logging()
     parser = argparse.ArgumentParser(
-        description="Build the Windows standalone blinter.exe with Nuitka."
+        description="Build the standalone blinter executable with Nuitka."
     )
     parser.add_argument(
         "--mingw",
@@ -347,12 +402,6 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     windows = _is_windows()
-    if not windows:
-        logger.warning(
-            "This script targets Windows onefile builds; "
-            "MSVC/icon/version resources will be omitted on %s",
-            os.name,
-        )
     command = build_nuitka_command(
         version=version,
         python_executable=sys.executable,
