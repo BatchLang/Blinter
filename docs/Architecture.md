@@ -136,7 +136,7 @@ Deprecated/removed command tables come from batch-spec `commands.yaml` unchanged
 
 Corpus policy: every rule in `rules.yaml` must have at least one corpus assertion (see `audit_ssot.py` coverage checks).
 
-**Performance gate:** [`scripts/benchmark_lint.py`](../scripts/benchmark_lint.py) with `--check-baseline` compares the synthetic-file median against [`spec/benchmark/synthetic-baseline.json`](../spec/benchmark/synthetic-baseline.json).
+**Performance gate:** [`scripts/benchmark_lint.py`](../scripts/benchmark_lint.py) with `--check-baseline` compares the synthetic-file median against [`spec/benchmark/synthetic-baseline.json`](../spec/benchmark/synthetic-baseline.json). That absolute CPU-time ceiling is not applied on Intel macOS, which is several times slower than the hosts used to record it. The scaling checks in the same test module still run there.
 
 ## Standalone executable
 

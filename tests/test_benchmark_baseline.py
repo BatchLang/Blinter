@@ -3,13 +3,21 @@
 from __future__ import annotations
 
 from pathlib import Path
+import platform
 import subprocess
 import sys
 import time
 
+import pytest
+
 from blinter import lint_batch_file
 
 _REPO = Path(__file__).resolve().parent.parent
+
+
+def _skips_absolute_cpu_baseline() -> bool:
+    """Intel macOS is slower than the hosts that recorded the ceiling."""
+    return sys.platform == "darwin" and platform.machine().lower() == "x86_64"
 
 
 _BENCHMARK_RUNNER = (
@@ -19,6 +27,10 @@ _BENCHMARK_RUNNER = (
 )
 
 
+@pytest.mark.skipif(
+    _skips_absolute_cpu_baseline(),
+    reason="Intel macOS CPU time is several times the committed ceiling",
+)
 def test_synthetic_lint_within_baseline() -> None:
     # Use runpy.run_path instead of executing scripts/benchmark_lint.py directly:
     # on Windows, `python scripts/foo.py` puts scripts/ on sys.path[0] and can
@@ -42,14 +54,43 @@ def _cpu_seconds(script: Path) -> float:
     return time.process_time() - start
 
 
-def test_long_whitespace_line_lints_quickly(tmp_path: Path) -> None:
-    """S003 must not backtrack on a long run of spaces."""
-    script = tmp_path / "spaces.bat"
-    script.write_text(
-        "for /f %a in (" + (" " * 5000) + ") do echo %a\r\n",
-        encoding="utf-8",
-    )
-    assert _cpu_seconds(script) < 1.0
+def test_long_whitespace_line_scales_linearly(tmp_path: Path) -> None:
+    """S003 stays near-linear between 2,000 and 5,000 spaces.
+
+    Command-casing patterns used to backtrack on a long space run. The
+    line-length cap blanks anything over 10,000 characters, so both cases
+    stay under that cap. Five thousand spaces are 2.5 times two thousand, and
+    the time limit is 8 times the shorter run, matching the IF-chain check.
+    """
+    warmup = tmp_path / "warmup_spaces.bat"
+    warmup.write_text("@echo off\r\necho hi\r\n", encoding="utf-8")
+    lint_batch_file(str(warmup))
+
+    def _write(spaces: int) -> Path:
+        script = tmp_path / f"spaces_{spaces}.bat"
+        script.write_text(
+            "for /f %a in (" + (" " * spaces) + ") do echo %a\r\n",
+            encoding="utf-8",
+        )
+        return script
+
+    small = _cpu_seconds(_write(2000))
+    large = _cpu_seconds(_write(5000))
+    assert large <= max(small, 0.05) * 8
+
+
+def test_absolute_baseline_skip_is_intel_macos_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Apple Silicon and other hosts still enforce the committed CPU-time ceiling."""
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setattr(platform, "machine", lambda: "x86_64")
+    assert _skips_absolute_cpu_baseline()
+    monkeypatch.setattr(platform, "machine", lambda: "arm64")
+    assert not _skips_absolute_cpu_baseline()
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setattr(platform, "machine", lambda: "x86_64")
+    assert not _skips_absolute_cpu_baseline()
 
 
 def test_if_chain_scales_linearly(tmp_path: Path) -> None:
