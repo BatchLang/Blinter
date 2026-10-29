@@ -1,0 +1,7 @@
+#!/bin/sh
+# Stand-in for uname: reports the host chosen by the test.
+case "$1" in
+    -s) printf '%s\n' "${STUB_UNAME_S}" ;;
+    -m) printf '%s\n' "${STUB_UNAME_M}" ;;
+    *) exit 1 ;;
+esac

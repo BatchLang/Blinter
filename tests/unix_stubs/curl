@@ -1,0 +1,32 @@
+#!/bin/sh
+# Stand-in for curl: serves a local release directory and logs each requested URL.
+out=""
+write_out=""
+url=""
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -o) out=$2; shift 2 ;;
+        -w) write_out=$2; shift 2 ;;
+        --connect-timeout|--max-time|--retry|--proto|--proto-redir) shift 2 ;;
+        -*) shift ;;
+        *) url=$1; shift ;;
+    esac
+done
+printf '%s\n' "${url}" >> "${STUB_CURL_LOG}"
+case "${url}" in
+    */releases/latest)
+        if [ -n "${STUB_LATEST_FAIL:-}" ]; then exit 22; fi
+        if [ -n "${write_out}" ]; then
+            printf '%s' "https://github.com/BatchLang/Blinter/releases/tag/${STUB_TAG}"
+        fi
+        exit 0
+        ;;
+    */releases/download/*)
+        source_file="${STUB_RELEASE_DIR}/${url##*/}"
+        if [ ! -f "${source_file}" ]; then exit 22; fi
+        cp "${source_file}" "${out}"
+        exit 0
+        ;;
+    *) ;;
+esac
+exit 22

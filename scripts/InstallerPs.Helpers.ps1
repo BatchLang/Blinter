@@ -24,6 +24,10 @@ function Get-InstallerPsScriptMap {
                 Fixture      = 'Update-BlinterUserPath.ps1'
                 Placeholders = @{}
             }
+            'write_crlf_script' = @{
+                Fixture      = 'Write-CrlfScriptCopy.ps1'
+                Placeholders = @{}
+            }
         }
         'uninstall_blinter.cmd' = [ordered]@{
             'write_stop_blinter_script' = @{
@@ -32,6 +36,10 @@ function Get-InstallerPsScriptMap {
             }
             'write_remove_path_script' = @{
                 Fixture      = 'Remove-BlinterUserPath.ps1'
+                Placeholders = @{}
+            }
+            'write_crlf_script' = @{
+                Fixture      = 'Write-CrlfScriptCopy.ps1'
                 Placeholders = @{}
             }
         }
@@ -125,7 +133,7 @@ function Get-InstallerPsFixtureContent {
   return $content.TrimEnd("`r", "`n")
 }
 
-function Apply-InstallerPsPlaceholders {
+function Expand-InstallerPsPlaceholder {
     param(
         [string]$Content,
         [hashtable]$Placeholders
@@ -138,7 +146,7 @@ function Apply-InstallerPsPlaceholders {
     return $result
 }
 
-function Normalize-InstallerPsText {
+function ConvertTo-InstallerPsNormalizedText {
     param([string]$Content)
 
     $normalized = $Content -replace "`r`n", "`n"
@@ -146,7 +154,7 @@ function Normalize-InstallerPsText {
     return $normalized.TrimEnd("`n")
 }
 
-function Get-InstallerPsParityPairs {
+function Get-InstallerPsParityPair {
     param(
         [string]$ScriptsRoot,
         [string]$InstallerPsRoot
@@ -160,7 +168,7 @@ function Get-InstallerPsParityPairs {
         foreach ($labelEntry in $cmdEntry.Value.GetEnumerator()) {
             $config = $labelEntry.Value
             $extracted = Get-BatchEchoScriptContent -CmdFilePath $cmdPath -LabelName $labelEntry.Key
-            $extracted = Apply-InstallerPsPlaceholders -Content $extracted -Placeholders $config.Placeholders
+            $extracted = Expand-InstallerPsPlaceholder -Content $extracted -Placeholders $config.Placeholders
             $fixture = Get-InstallerPsFixtureContent -InstallerPsRoot $InstallerPsRoot -FixtureName $config.Fixture
             $fixtureBody = $fixture
             $pairs.Add([PSCustomObject]@{
@@ -176,38 +184,7 @@ function Get-InstallerPsParityPairs {
     return $pairs
 }
 
-function Get-InstallerPsFixturePaths {
-    param([string]$InstallerPsRoot)
-
-    return Get-ChildItem -LiteralPath $InstallerPsRoot -Filter '*.ps1' -File |
-        Sort-Object Name |
-        Select-Object -ExpandProperty FullName
-}
-
-function Get-PowerShellAnalyzePaths {
-    param([string]$ScriptsRoot)
-
-    $paths = @(
-        (Join-Path $ScriptsRoot 'test_install_scripts.ps1')
-    )
-    $paths += Get-InstallerPsFixturePaths -InstallerPsRoot (Join-Path $ScriptsRoot 'installer_ps')
-    return $paths
-}
-
-function Invoke-InstallerPsScriptAnalyzer {
-    param(
-        [string[]]$Paths,
-        [string]$SettingsPath
-    )
-
-    $issues = @()
-    foreach ($path in $Paths) {
-        $issues += Invoke-ScriptAnalyzer -Path $path -Settings $SettingsPath -Severity Warning
-    }
-    return $issues
-}
-
-function New-InstallerPsSubstitutedScript {
+function Write-InstallerPsSubstitutedScript {
     param(
         [Parameter(Mandatory)]
         [string]$FixturePath,
@@ -260,24 +237,24 @@ function Invoke-InstallerPsPathFixture {
     }
 
     # Pester Mock cannot intercept .NET static methods, so tests rewrite the
-    # fixture against a global fake User PATH instead of mutating the real one.
+    # fixture against a fake User PATH held in an environment variable instead of mutating the real one.
     # BLINTER_PATH_TEST_MODE skips the registry read so the rewrite is the only path.
-    $script = $script.Replace($getCall, '$global:BlinterTestUserPath')
-    $script = $script.Replace($setCall, '$global:BlinterTestUserPath = $newPath')
+    $script = $script.Replace($getCall, '$env:BLINTER_TEST_USER_PATH')
+    $script = $script.Replace($setCall, '$env:BLINTER_TEST_USER_PATH = $newPath')
 
     Set-Content -LiteralPath $TempScriptPath -Value $script
     $env:BLINTER_BIN = $BinPath
     $env:BLINTER_PATH_TEST_MODE = '1'
-    $global:BlinterTestUserPath = $InitialUserPath
+    $env:BLINTER_TEST_USER_PATH = $InitialUserPath
     Write-Verbose "Invoking path fixture $FixturePath with fake User PATH '$InitialUserPath'"
     & $TempScriptPath
     return [PSCustomObject]@{
         ExitCode = $LASTEXITCODE
-        UserPath = $global:BlinterTestUserPath
+        UserPath = [string]$env:BLINTER_TEST_USER_PATH
     }
 }
 
-function Get-BatchSubroutineLines {
+function Get-BatchSubroutineLine {
     param(
         [Parameter(Mandatory)]
         [string]$CmdFilePath,
@@ -315,7 +292,7 @@ function Get-BatchSubroutineLines {
     throw "Label :$LabelName in $CmdFilePath does not end with exit /b 0"
 }
 
-function New-InstallerBatchLabelScript {
+function Write-InstallerBatchLabelScript {
     param(
         [Parameter(Mandatory)]
         [string]$CmdFilePath,
@@ -329,7 +306,7 @@ function New-InstallerBatchLabelScript {
         [string]$Newline
     )
 
-    $subroutine = @(Get-BatchSubroutineLines -CmdFilePath $CmdFilePath -LabelName $LabelName)
+    $subroutine = @(Get-BatchSubroutineLine -CmdFilePath $CmdFilePath -LabelName $LabelName)
     $header = [System.Collections.Generic.List[string]]::new()
     $header.Add('@echo off')
     $header.Add('setlocal enabledelayedexpansion')

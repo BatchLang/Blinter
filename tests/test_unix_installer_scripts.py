@@ -31,8 +31,8 @@ from tests.unix_installer_support import (
     UNINSTALL,
     ReleaseOptions,
     Sandbox,
+    install_stub,
     make_sandbox,
-    write_stub,
 )
 
 pytestmark = [
@@ -469,7 +469,7 @@ def test_install_reinstalls_when_the_binary_is_missing(sandbox: Sandbox) -> None
 def test_install_reinstalls_when_the_binary_does_not_run(sandbox: Sandbox) -> None:
     """A marker with a broken binary reinstalls and keeps a backup until success."""
     assert sandbox.install("x64").returncode == 0
-    sandbox.exe.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+    install_stub(sandbox.exe, "blinter_broken")
     result = sandbox.install("x64")
     assert result.returncode == 0, result.output
     assert "Reinstalling Blinter" in result.output
@@ -519,7 +519,7 @@ def test_install_warns_when_another_blinter_wins_on_path(sandbox: Sandbox) -> No
     """The install folder is appended, so an earlier blinter keeps winning."""
     other_bin = sandbox.root / "other-bin"
     other_bin.mkdir()
-    write_stub(other_bin, "blinter", "#!/bin/sh\nexit 0\n")
+    install_stub(other_bin / "blinter", "blinter_other")
     original_environment = sandbox.environment
 
     def with_other() -> dict[str, str]:
@@ -709,11 +709,7 @@ def test_uninstall_reports_an_unterminated_block_as_a_warning(
 def test_uninstall_leaves_a_running_blinter_working(sandbox: Sandbox) -> None:
     """Deleting the binary is safe while a copy of it is running."""
     assert sandbox.install("x64").returncode == 0
-    sandbox.exe.write_text(
-        '#!/bin/sh\nif [ "${1:-}" = "--version" ]; then echo "v1 (stub)"; exit 0; fi\n'
-        "sleep 30\nexit 0\n",
-        encoding="utf-8",
-    )
+    install_stub(sandbox.exe, "blinter_sleeping")
     with subprocess.Popen(
         [str(sandbox.exe)],
         stdout=subprocess.DEVNULL,

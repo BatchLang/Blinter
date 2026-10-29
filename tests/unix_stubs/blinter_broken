@@ -1,0 +1,3 @@
+#!/bin/sh
+# A blinter that is present but does not run.
+exit 1

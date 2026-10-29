@@ -2,7 +2,8 @@
 
 The scripts run for real under bash. Only the outside world is replaced: ``curl``
 serves a local release, and ``uname``, ``id``, ``getconf`` and ``sysctl`` report
-a chosen host. Every test gets its own HOME, so nothing touches the real user.
+a chosen host. The stand-in commands are the scripts in ``tests/unix_stubs``, which
+ShellCheck lints with the installer scripts. Every test gets its own HOME, so nothing touches the real user.
 """
 
 from __future__ import annotations
@@ -13,12 +14,15 @@ import io
 import os
 from pathlib import Path
 import random
+import shutil
 import subprocess
 import tarfile
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 INSTALL = _REPO_ROOT / "scripts" / "install_blinter.sh"
 UNINSTALL = _REPO_ROOT / "scripts" / "uninstall_blinter.sh"
+STUBS_DIR = _REPO_ROOT / "tests" / "unix_stubs"
+_STUBBED_COMMANDS = ("curl", "uname", "id", "getconf", "sysctl", "chmod")
 _BASH = "/bin/bash" if Path("/bin/bash").exists() else "bash"
 RUN_TIMEOUT_SECONDS = 60
 TAG = "v1.2.3"
@@ -39,78 +43,6 @@ MAC_ROSETTA = {
     "STUB_SYSCTL_ARM64": "1",
 }
 MAC_INTEL = {"STUB_UNAME_S": "Darwin", "STUB_UNAME_M": "x86_64"}
-
-_CURL_STUB = """#!/bin/sh
-out=""
-write_out=""
-url=""
-while [ "$#" -gt 0 ]; do
-    case "$1" in
-        -o) out=$2; shift 2 ;;
-        -w) write_out=$2; shift 2 ;;
-        --connect-timeout|--max-time|--retry|--proto|--proto-redir) shift 2 ;;
-        -*) shift ;;
-        *) url=$1; shift ;;
-    esac
-done
-printf '%s\\n' "$url" >> "$STUB_CURL_LOG"
-case "$url" in
-    */releases/latest)
-        if [ -n "${STUB_LATEST_FAIL:-}" ]; then exit 22; fi
-        if [ -n "$write_out" ]; then
-            printf '%s' "https://github.com/BatchLang/Blinter/releases/tag/$STUB_TAG"
-        fi
-        exit 0
-        ;;
-    */releases/download/*)
-        source_file="$STUB_RELEASE_DIR/${url##*/}"
-        if [ ! -f "$source_file" ]; then exit 22; fi
-        cp "$source_file" "$out"
-        exit 0
-        ;;
-esac
-exit 22
-"""
-_UNAME_STUB = """#!/bin/sh
-case "$1" in
-    -s) printf '%s\\n' "$STUB_UNAME_S" ;;
-    -m) printf '%s\\n' "$STUB_UNAME_M" ;;
-    *) exit 1 ;;
-esac
-"""
-_ID_STUB = """#!/bin/sh
-printf '%s\\n' "${STUB_UID:-1000}"
-"""
-_GETCONF_STUB = """#!/bin/sh
-if [ "$1" = "GNU_LIBC_VERSION" ] && [ -n "${STUB_GLIBC:-}" ]; then
-    printf 'glibc %s\\n' "$STUB_GLIBC"
-    exit 0
-fi
-exit 1
-"""
-_CHMOD_STUB = """#!/bin/sh
-# BSD chmod, as on macOS, reads options only before the mode. Anything that
-# starts with a dash after the mode is treated as a file name.
-seen_mode=0
-for arg in "$@"; do
-    if [ "$seen_mode" = 1 ] && [ "${arg#-}" != "$arg" ]; then
-        echo "chmod: $arg: No such file or directory" >&2
-        exit 1
-    fi
-    case "$arg" in
-        -*) ;;
-        *) seen_mode=1 ;;
-    esac
-done
-exec /bin/chmod "$@"
-"""
-_SYSCTL_STUB = """#!/bin/sh
-if [ "$1" = "-n" ] && [ "$2" = "hw.optional.arm64" ] && [ -n "${STUB_SYSCTL_ARM64:-}" ]; then
-    printf '%s\\n' "$STUB_SYSCTL_ARM64"
-    exit 0
-fi
-exit 1
-"""
 
 
 @dataclass
@@ -136,16 +68,10 @@ class ReleaseOptions:
 
 
 def _stub_binary(tag: str, version_exit: int) -> bytes:
-    """Return a shell script that stands in for the blinter executable."""
-    return (
-        "#!/bin/sh\n"
-        'if [ "${1:-}" = "--version" ]; then\n'
-        f'    echo "{tag} (standalone exe)"\n'
-        f"    exit {version_exit}\n"
-        "fi\n"
-        'echo "blinter stub"\n'
-        "exit 0\n"
-    ).encode("utf-8")
+    """Return the stand-in blinter executable with its version and exit code filled in."""
+    template = (STUBS_DIR / "blinter").read_text(encoding="utf-8")
+    script = template.replace("@TAG@", tag).replace("@VERSION_EXIT@", str(version_exit))
+    return script.encode("utf-8")
 
 
 def _write_archive(archive_path: Path, folder_name: str, script: bytes) -> None:
@@ -267,11 +193,10 @@ def _run(script: Path, sandbox: Sandbox, *args: str) -> Run:
     return Run(completed.returncode, completed.stdout)
 
 
-def write_stub(directory: Path, name: str, body: str) -> None:
-    """Write one executable stub command."""
-    path = directory / name
-    path.write_text(body, encoding="utf-8")
-    path.chmod(0o755)
+def install_stub(destination: Path, source_name: str) -> None:
+    """Copy one script from ``tests/unix_stubs`` to ``destination`` and make it executable."""
+    shutil.copyfile(STUBS_DIR / source_name, destination)
+    destination.chmod(0o755)
 
 
 def make_sandbox(root: Path, home_name: str = "home") -> Sandbox:
@@ -281,12 +206,8 @@ def make_sandbox(root: Path, home_name: str = "home") -> Sandbox:
     release_dir = root / "release"
     for directory in (home, fake_bin, release_dir, root / "tmp"):
         directory.mkdir(parents=True, exist_ok=True)
-    write_stub(fake_bin, "curl", _CURL_STUB)
-    write_stub(fake_bin, "uname", _UNAME_STUB)
-    write_stub(fake_bin, "id", _ID_STUB)
-    write_stub(fake_bin, "getconf", _GETCONF_STUB)
-    write_stub(fake_bin, "sysctl", _SYSCTL_STUB)
-    write_stub(fake_bin, "chmod", _CHMOD_STUB)
+    for command in _STUBBED_COMMANDS:
+        install_stub(fake_bin / command, command)
     return Sandbox(
         root=root,
         home=home,

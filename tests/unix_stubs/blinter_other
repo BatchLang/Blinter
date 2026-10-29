@@ -1,0 +1,3 @@
+#!/bin/sh
+# A different blinter earlier on PATH, which runs fine.
+exit 0

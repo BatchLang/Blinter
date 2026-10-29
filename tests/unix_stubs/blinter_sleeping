@@ -1,0 +1,9 @@
+#!/bin/sh
+# A blinter that answers --version at once and otherwise keeps running, so a test
+# can remove it while a copy is still in use.
+if [ "${1:-}" = "--version" ]; then
+    echo "v1 (stub)"
+    exit 0
+fi
+sleep 30
+exit 0

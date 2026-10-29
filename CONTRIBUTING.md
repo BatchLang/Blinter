@@ -43,7 +43,11 @@ Match the existing codebase style:
 | [pylint](https://pylint.readthedocs.io/) | Linting (`pylintrc`) |
 | [yamllint](https://yamllint.readthedocs.io/) | YAML files in the repository (`.yamllint.yaml`) |
 | [bandit](https://bandit.readthedocs.io/) | Security linting for Python |
-| [PSScriptAnalyzer](https://github.com/PowerShell/PSScriptAnalyzer) | PowerShell scripts in `scripts/` |
+| [ShellCheck](https://www.shellcheck.net/) | Every `.sh` file in `scripts/` and the stand-in commands in `tests/unix_stubs/` |
+| [PSScriptAnalyzer](https://github.com/PowerShell/PSScriptAnalyzer) | Every `.ps1` and `.psm1` file under `scripts/` and `tests/` |
+| [Pester](https://pester.dev/) | Every `*.Tests.ps1` file under `scripts/` and `tests/` |
+
+Shell and PowerShell code lives in its own files so these tools can check it. Do not embed it in Python strings or workflow steps beyond a plain command. The PowerShell that `scripts/verify.py` runs is in `scripts/verify_ps/`, and the Unix test stand-ins are in `tests/unix_stubs/`. New files in those folders are picked up without registering them.
 
 Auto-fix formatting before committing:
 

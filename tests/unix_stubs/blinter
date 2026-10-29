@@ -1,0 +1,10 @@
+#!/bin/sh
+# Stand-in for the blinter executable inside a test release archive. The tests
+# replace @TAG@ and @VERSION_EXIT@ before packing it.
+version_exit=@VERSION_EXIT@
+if [ "${1:-}" = "--version" ]; then
+    echo "@TAG@ (standalone exe)"
+    exit "${version_exit}"
+fi
+echo "blinter stub"
+exit 0

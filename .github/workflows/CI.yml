@@ -100,7 +100,7 @@ jobs:
         run: uv pip install -e ".[dev]"
 
       - name: Lint shell scripts
-        run: shellcheck scripts/install_blinter.sh scripts/uninstall_blinter.sh scripts/test_install_scripts.sh
+        run: shellcheck scripts/*.sh tests/unix_stubs/*
 
       - name: Run installer and uninstaller
         timeout-minutes: 15

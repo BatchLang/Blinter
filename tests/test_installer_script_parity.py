@@ -1,6 +1,5 @@
 """Byte parity between installer echo blocks and the PowerShell fixtures."""
 
-import os
 from pathlib import Path
 import subprocess
 import sys
@@ -11,10 +10,11 @@ import pytest
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _SCRIPTS = _REPO_ROOT / "scripts"
 _FIXTURES = _SCRIPTS / "installer_ps"
+_SYNTAX_CHECK = _SCRIPTS / "verify_ps" / "Test-PowerShellSyntax.ps1"
 _ECHO_SPECIALS = set("^)|><&")
 _NASTY_PATH = r"C:\Program Files\O'Brien (x86)\bin"
 
-# Each write_* label maps to exactly one fixture, and the reverse.
+# Each write_* label maps to exactly one fixture. Both batch files carry the same line-ending\n# bootstrap, so that fixture is used twice.
 _LABEL_FIXTURES: dict[tuple[str, str], str] = {
     ("install_blinter.cmd", "write_get_release_script"): "Get-LatestBlinterRelease.ps1",
     ("install_blinter.cmd", "write_file_size_script"): "Get-DownloadedFileSize.ps1",
@@ -23,7 +23,12 @@ _LABEL_FIXTURES: dict[tuple[str, str], str] = {
     ("install_blinter.cmd", "write_update_path_script"): "Update-BlinterUserPath.ps1",
     ("uninstall_blinter.cmd", "write_stop_blinter_script"): "Stop-InstalledBlinter.ps1",
     ("uninstall_blinter.cmd", "write_remove_path_script"): "Remove-BlinterUserPath.ps1",
+    ("install_blinter.cmd", "write_crlf_script"): "Write-CrlfScriptCopy.ps1",
+    ("uninstall_blinter.cmd", "write_crlf_script"): "Write-CrlfScriptCopy.ps1",
 }
+
+# The bootstrap runs before cmd.exe can find labels, so it has no exit /b 0 subroutine to call.
+_NOT_CALLABLE_LABELS = frozenset({"write_crlf_script"})
 
 
 def _encode_batch_echo(line: str) -> str:
@@ -133,7 +138,7 @@ def _output_variable(cmd_name: str, label: str) -> str:
 
 
 def test_write_labels_match_fixtures_both_ways() -> None:
-    """Every fixture belongs to one write block, and every write block has one fixture."""
+    """Every fixture belongs to a write block, and every write block has one fixture."""
     found: set[tuple[str, str]] = set()
     for cmd_name in ("install_blinter.cmd", "uninstall_blinter.cmd"):
         for label in _write_labels(cmd_name):
@@ -219,6 +224,8 @@ def _subroutine_lines(cmd_name: str, label: str) -> list[str]:
 def test_cmd_writes_fixture_bytes_for_nasty_paths() -> None:
     """cmd writes each fixture unchanged when env paths contain a space, apostrophe, and )."""
     for (cmd_name, label), fixture_name in _LABEL_FIXTURES.items():
+        if label in _NOT_CALLABLE_LABELS:
+            continue
         _assert_cmd_label_matches(cmd_name, label, fixture_name)
 
 
@@ -258,19 +265,18 @@ def _assert_cmd_label_matches(cmd_name: str, label: str, fixture_name: str) -> N
 
 def _assert_powershell_parses(script_path: Path) -> None:
     """The generated file is valid PowerShell even when its path is awkward."""
-    command = (
-        "$errors = $null; $tokens = $null; "
-        "[void][System.Management.Automation.Language.Parser]::ParseFile("
-        "$env:BLINTER_PARSE_PATH, [ref]$tokens, [ref]$errors); "
-        "if ($null -ne $errors -and $errors.Count -gt 0) { "
-        "$errors | ForEach-Object { Write-Output $_.ToString() }; exit 1 }; exit 0"
-    )
-    env = os.environ.copy()
-    env["BLINTER_PARSE_PATH"] = str(script_path)
     completed = subprocess.run(
-        ["powershell", "-NoProfile", "-Command", command],
+        [
+            "powershell",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(_SYNTAX_CHECK),
+            "-Path",
+            str(script_path),
+        ],
         capture_output=True,
         check=False,
-        env=env,
     )
     assert completed.returncode == 0, completed.stdout.decode("utf-8", "replace")

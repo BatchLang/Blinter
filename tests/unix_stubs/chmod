@@ -1,0 +1,15 @@
+#!/bin/sh
+# BSD chmod, as on macOS, reads options only before the mode. Anything that
+# starts with a dash after the mode is treated as a file name.
+seen_mode=0
+for arg in "$@"; do
+    if [ "${seen_mode}" = 1 ] && [ "${arg#-}" != "${arg}" ]; then
+        echo "chmod: ${arg}: No such file or directory" >&2
+        exit 1
+    fi
+    case "${arg}" in
+        -*) ;;
+        *) seen_mode=1 ;;
+    esac
+done
+exec /bin/chmod "$@"

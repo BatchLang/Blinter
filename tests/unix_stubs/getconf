@@ -1,0 +1,7 @@
+#!/bin/sh
+# Stand-in for getconf: reports the glibc version chosen by the test, or fails.
+if [ "$1" = "GNU_LIBC_VERSION" ] && [ -n "${STUB_GLIBC:-}" ]; then
+    printf 'glibc %s\n' "${STUB_GLIBC}"
+    exit 0
+fi
+exit 1

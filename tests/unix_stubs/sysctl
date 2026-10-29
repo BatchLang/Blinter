@@ -1,0 +1,7 @@
+#!/bin/sh
+# Stand-in for sysctl: answers only the Apple Silicon probe, as chosen by the test.
+if [ "$1" = "-n" ] && [ "$2" = "hw.optional.arm64" ] && [ -n "${STUB_SYSCTL_ARM64:-}" ]; then
+    printf '%s\n' "${STUB_SYSCTL_ARM64}"
+    exit 0
+fi
+exit 1

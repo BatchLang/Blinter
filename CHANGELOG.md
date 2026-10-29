@@ -9,12 +9,15 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 ### Changed
 
 - `install_blinter.cmd` no longer needs an architecture. With no argument it installs the native build, and `x64` or `arm64` is an optional override. An unrecognized argument still downloads nothing, and `arm64` is still refused on a non-ARM64 PC
+- PSScriptAnalyzer and Pester now find every PowerShell file under `scripts/` and `tests/` on their own. This brought the previously unchecked `InstallerPs.Helpers.ps1` and `TestInstallerPs.Tests.ps1` under lint, and their findings are fixed
+- The PowerShell that `scripts/verify.py` ran as inline strings is now `scripts/verify_ps/*.ps1`, with Pester tests. The Unix installer test stand-ins for `curl`, `uname`, `id`, `getconf`, `sysctl` and `chmod` moved from Python strings to `tests/unix_stubs/`, where ShellCheck lints them
 - The MegaLinter install pin is 1.1.51
 
 ### Added
 
 - `scripts/install_blinter.sh` and `scripts/uninstall_blinter.sh` install and remove the standalone executable on Linux and macOS. The installer picks the native build, accepts an optional `x64` or `arm64` argument to override it, verifies the archive against the release `SHA256SUMS`, installs to `${XDG_DATA_HOME:-$HOME/.local/share}/blinter/bin`, and adds a marked PATH block to the shell startup files, which the uninstaller removes
 - ShellCheck lints the shell scripts through `scripts/verify.py`, and the `quality-unix` CI job installs and uninstalls the real release on Linux and macOS, x64 and arm64
+- `scripts/installer_ps/Write-CrlfScriptCopy.ps1` mirrors the line-ending bootstrap embedded in `install_blinter.cmd` and `uninstall_blinter.cmd`, so it is linted and covered by the batch parity checks like the other embedded PowerShell
 
 ## [1.1.50] - 2026-10-29
 

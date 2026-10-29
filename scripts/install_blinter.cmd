@@ -7,6 +7,7 @@ set "BLINTER_CRLF_REEXEC=1"
 set "BLINTER_SELF=%~f0"
 set "BLINTER_CRLF_COPY=%TEMP%\blinter_crlf_%RANDOM%_%RANDOM%.cmd"
 set "BLINTER_CRLF_PS=%TEMP%\blinter_crlf_%RANDOM%_%RANDOM%.ps1"
+:write_crlf_script
 (
 echo $bytes = [System.IO.File]::ReadAllBytes($env:BLINTER_SELF^)
 echo if ($bytes -contains 13^) { exit 0 }

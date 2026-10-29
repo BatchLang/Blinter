@@ -3,35 +3,18 @@ BeforeAll {
     . (Join-Path $PSScriptRoot 'InstallerPs.Helpers.ps1')
     $script:ScriptsRoot = $PSScriptRoot
     $script:InstallerPsRoot = Join-Path $PSScriptRoot 'installer_ps'
-    $script:AnalyzerSettings = Join-Path $PSScriptRoot 'PSScriptAnalyzerSettings.psd1'
 }
 
 Describe 'Installer batch PowerShell parity' {
     It 'matches fixture content for each write_*_script block' {
-        $pairs = Get-InstallerPsParityPairs -ScriptsRoot $script:ScriptsRoot -InstallerPsRoot $script:InstallerPsRoot
-        $pairs.Count | Should -Be 7
+        $pairs = Get-InstallerPsParityPair -ScriptsRoot $script:ScriptsRoot -InstallerPsRoot $script:InstallerPsRoot
+        $pairs.Count | Should -Be 9
 
         foreach ($pair in $pairs) {
-            $normalizedExtracted = Normalize-InstallerPsText -Content $pair.Extracted
-            $normalizedFixture = Normalize-InstallerPsText -Content $pair.FixtureBody
+            $normalizedExtracted = ConvertTo-InstallerPsNormalizedText -Content $pair.Extracted
+            $normalizedFixture = ConvertTo-InstallerPsNormalizedText -Content $pair.FixtureBody
             $normalizedExtracted | Should -Be $normalizedFixture `
                 -Because "parity failed for $($pair.CmdFile):$($pair.Label) -> $($pair.Fixture)"
-        }
-    }
-}
-
-Describe 'Installer PowerShell PSScriptAnalyzer' {
-    It 'reports no warnings for installer fixtures' {
-        if (-not (Get-Module -ListAvailable -Name PSScriptAnalyzer)) {
-            Set-ItResult -Inconclusive -Because 'PSScriptAnalyzer is not installed'
-            return
-        }
-
-        $paths = Get-PowerShellAnalyzePaths -ScriptsRoot $script:ScriptsRoot
-        $issues = Invoke-InstallerPsScriptAnalyzer -Paths $paths -SettingsPath $script:AnalyzerSettings
-        if ($issues) {
-            $formatted = $issues | Format-Table RuleName, ScriptName, Line, Message -Wrap | Out-String
-            throw "PSScriptAnalyzer findings:`n$formatted"
         }
     }
 }
@@ -64,10 +47,10 @@ Describe 'Get-LatestBlinterRelease.ps1' {
 
     It 'retries a failed lookup and then returns the release' {
         $fixturePath = Join-Path $script:InstallerPsRoot 'Get-LatestBlinterRelease.ps1'
-        $global:BlinterReleaseLookupCalls = 0
-        Mock Invoke-RestMethod {
-            $global:BlinterReleaseLookupCalls++
-            if ($global:BlinterReleaseLookupCalls -lt 2) {
+        $lookup = @{ Calls = 0 }
+        $release = {
+            $lookup.Calls++
+            if ($lookup.Calls -lt 2) {
                 throw 'temporary failure'
             }
             return @(
@@ -84,16 +67,13 @@ Describe 'Get-LatestBlinterRelease.ps1' {
                     )
                 }
             )
-        }
+        }.GetNewClosure()
+        Mock Invoke-RestMethod -MockWith $release
 
-        try {
-            $output = & $fixturePath
-            $LASTEXITCODE | Should -Be 0
-            $global:BlinterReleaseLookupCalls | Should -Be 2
-            $output | Should -Be 'https://example.com/Blinter-v1.1.6-Windows-x64.zip v1.1.6 sha256:abc123'
-        } finally {
-            Remove-Variable -Name BlinterReleaseLookupCalls -Scope Global -ErrorAction SilentlyContinue
-        }
+        $output = & $fixturePath
+        $LASTEXITCODE | Should -Be 0
+        $lookup.Calls | Should -Be 2
+        $output | Should -Be 'https://example.com/Blinter-v1.1.6-Windows-x64.zip v1.1.6 sha256:abc123'
     }
 
     It 'outputs URL tag and digest when a matching asset exists' {
@@ -229,21 +209,16 @@ Describe 'Get-LatestBlinterRelease.ps1' {
 
     It 'outputs NOT_FOUND without calling GitHub when the architecture is unset or invalid' {
         $fixturePath = Join-Path $script:InstallerPsRoot 'Get-LatestBlinterRelease.ps1'
-        $global:BlinterReleaseLookupCalls = 0
-        Mock Invoke-RestMethod { $global:BlinterReleaseLookupCalls++; throw 'should not be called' }
+        Mock Invoke-RestMethod { throw 'should not be called' }
 
-        try {
-            Remove-Item Env:BLINTER_ARCH -ErrorAction SilentlyContinue
-            $unset = & $fixturePath
-            $unset | Should -Be 'NOT_FOUND'
+        Remove-Item Env:BLINTER_ARCH -ErrorAction SilentlyContinue
+        $unset = & $fixturePath
+        $unset | Should -Be 'NOT_FOUND'
 
-            $env:BLINTER_ARCH = 'sparc'
-            $invalid = & $fixturePath
-            $invalid | Should -Be 'NOT_FOUND'
-            $global:BlinterReleaseLookupCalls | Should -Be 0
-        } finally {
-            Remove-Variable -Name BlinterReleaseLookupCalls -Scope Global -ErrorAction SilentlyContinue
-        }
+        $env:BLINTER_ARCH = 'sparc'
+        $invalid = & $fixturePath
+        $invalid | Should -Be 'NOT_FOUND'
+        Should -Invoke -CommandName Invoke-RestMethod -Times 0 -Exactly
     }
 }
 
@@ -302,7 +277,7 @@ Describe 'Installer batch hash helper emission' {
 
         $outFile = Join-Path $TestDrive "hash-verify-$Name.ps1"
         $cmdPath = Join-Path $TestDrive "hash-verify-$Name.cmd"
-        New-InstallerBatchLabelScript `
+        Write-InstallerBatchLabelScript `
             -CmdFilePath (Join-Path $script:ScriptsRoot 'install_blinter.cmd') `
             -LabelName 'write_hash_verify_script' `
             -DestinationPath $cmdPath `
@@ -338,7 +313,7 @@ Describe 'Installer batch hash helper emission' {
 
 Describe 'Update-BlinterUserPath.ps1' {
     AfterEach {
-        Remove-Variable -Name BlinterTestUserPath -Scope Global -ErrorAction SilentlyContinue
+        Remove-Item Env:BLINTER_TEST_USER_PATH -ErrorAction SilentlyContinue
     }
 
     It 'appends the bin directory when it is missing from User PATH' {
@@ -384,7 +359,7 @@ Describe 'Update-BlinterUserPath.ps1' {
 
 Describe 'Remove-BlinterUserPath.ps1' {
     AfterEach {
-        Remove-Variable -Name BlinterTestUserPath -Scope Global -ErrorAction SilentlyContinue
+        Remove-Item Env:BLINTER_TEST_USER_PATH -ErrorAction SilentlyContinue
     }
 
     It 'removes the bin directory from User PATH' {

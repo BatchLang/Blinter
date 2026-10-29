@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -14,12 +15,16 @@ from scripts.verify import (
     _parse_project_name,
     _require_uv,
     _set_project_name,
+    _shellcheck_command,
     select_steps,
 )
 
 pytestmark = pytest.mark.timeout(30)
 
 _CHECK_DIRS = ("src", "scripts", "tests")
+_UNSCANNED_DIRECTORIES = frozenset(
+    {".git", ".venv", "venv", "node_modules", "__pycache__", "dist", "build"}
+)
 
 
 def _request(**overrides: bool) -> StepRequest:
@@ -97,11 +102,57 @@ def test_shellcheck_runs_on_every_platform_and_covers_each_shell_script() -> Non
     )
     command = _step("shellcheck (shell scripts)").command
     assert Path(command[0]).stem == "shellcheck"
-    assert command[1:] == (
+    assert set(command[1:]) >= {
         "scripts/install_blinter.sh",
         "scripts/uninstall_blinter.sh",
         "scripts/test_install_scripts.sh",
+        "tests/unix_stubs/curl",
+        "tests/unix_stubs/chmod",
+    }
+
+
+def test_shellcheck_covers_every_shell_script_in_the_repository() -> None:
+    """No .sh file or Unix test stub can exist without being linted."""
+    root = Path(__file__).resolve().parents[1]
+    expected = {
+        path.relative_to(root).as_posix()
+        for pattern in ("scripts/*.sh", "tests/unix_stubs/*")
+        for path in root.glob(pattern)
+        if path.is_file() and not path.name.startswith(".")
+    }
+    on_disk: set[str] = set()
+    for directory, subdirectories, names in os.walk(root):
+        subdirectories[:] = [
+            name for name in subdirectories if name not in _UNSCANNED_DIRECTORIES
+        ]
+        on_disk.update(
+            (Path(directory) / name).relative_to(root).as_posix()
+            for name in names
+            if name.endswith(".sh")
+        )
+    assert on_disk <= expected, "a .sh file outside scripts/ is not linted"
+    assert expected <= set(_step("shellcheck (shell scripts)").command[1:])
+
+
+def test_shellcheck_fails_loudly_when_there_is_nothing_to_lint(tmp_path: Path) -> None:
+    """An empty tree is an error, so the step cannot pass by checking nothing."""
+    with pytest.raises(FileNotFoundError, match="No shell scripts"):
+        _shellcheck_command(tmp_path)
+
+
+def test_powershell_steps_run_script_files_that_exist() -> None:
+    """PowerShell checks are files, so they are linted and tested like other scripts."""
+    root = Path(__file__).resolve().parents[1]
+    steps = select_steps(
+        StepRequest(root=root, uv_executable="uv", windows_only=True, is_windows=True)
     )
+    powershell_steps = [step for step in steps if step.kind is StepKind.POWERSHELL]
+    assert len(powershell_steps) == 3
+    for step in powershell_steps:
+        script = Path(step.command[0])
+        assert script.suffix == ".ps1"
+        assert script.is_file()
+        assert script.parent == root / "scripts" / "verify_ps"
 
 
 def test_yamllint_checks_the_repository_root() -> None:

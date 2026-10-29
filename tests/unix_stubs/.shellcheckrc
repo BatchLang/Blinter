@@ -1,0 +1,10 @@
+# ShellCheck configuration for the stand-in commands the Unix installer tests put on PATH.
+# ShellCheck reads only the nearest .shellcheckrc, so this file replaces the root one
+# for this folder.
+shell=sh
+enable=all
+external-sources=true
+
+# SC2154: the tests pass each stub its inputs (STUB_TAG, STUB_UNAME_S and so on)
+# through the environment, so the variables are never assigned in the script.
+disable=SC2154

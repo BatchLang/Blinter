@@ -1,0 +1,3 @@
+#!/bin/sh
+# Stand-in for id: reports the user ID chosen by the test, 1000 by default.
+printf '%s\n' "${STUB_UID:-1000}"

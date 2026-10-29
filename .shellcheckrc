@@ -1,5 +1,6 @@
-# ShellCheck configuration for the Linux and macOS installer scripts.
-# Lint with: python scripts/verify.py (the shellcheck step) or shellcheck scripts/*.sh
+# ShellCheck configuration for the bash scripts under scripts/.
+# Lint with: python scripts/verify.py (the shellcheck step). The POSIX sh stubs in
+# tests/unix_stubs have their own configuration.
 shell=bash
 enable=all
 external-sources=true

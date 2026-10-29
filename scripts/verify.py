@@ -37,14 +37,13 @@ _BENCHMARK_SCRIPT = Path("scripts") / "benchmark_lint.py"
 _CORPUS_BASELINE = Path("tests") / "fixtures" / "corpus-baseline.json"
 _PYLINT_OUTPUT = "pylint-output.txt"
 _POWERSHELL_ANALYZER_SETTINGS = Path("scripts") / "PSScriptAnalyzerSettings.psd1"
-_PESTER_TESTS = (Path("scripts") / "TestInstallerPs.Tests.ps1",)
-_INSTALLER_PS_DIR = Path("scripts") / "installer_ps"
+_VERIFY_PS_DIR = Path("scripts") / "verify_ps"
 _BLINTER_SCRIPTS_INI = Path("scripts") / "blinter.ini"
-_INSTALL_SCRIPT_TEST = Path("scripts") / "test_install_scripts.ps1"
-_SHELL_SCRIPTS: tuple[Path, ...] = (
-    Path("scripts") / "install_blinter.sh",
-    Path("scripts") / "uninstall_blinter.sh",
-    Path("scripts") / "test_install_scripts.sh",
+# Every shell script is linted: the .sh files under scripts and the extension-less
+# stand-in commands the Unix installer tests put on PATH.
+_SHELL_SCRIPT_GLOBS: tuple[tuple[Path, str], ...] = (
+    (Path("scripts"), "*.sh"),
+    (Path("tests") / "unix_stubs", "*"),
 )
 
 
@@ -275,16 +274,17 @@ def _windows_powershell_env() -> dict[str, str]:
     return env
 
 
-def _powershell_exit(command: str, cwd: Path) -> int:
-    """Run a PowerShell command and return its exit code."""
+def _powershell_exit(script: Path, script_args: tuple[str, ...], cwd: Path) -> int:
+    """Run a PowerShell script file and return its exit code."""
     result = subprocess.run(
         [
             _powershell_executable(),
             "-NoProfile",
             "-ExecutionPolicy",
             "Bypass",
-            "-Command",
-            command,
+            "-File",
+            str(script),
+            *script_args,
         ],
         cwd=cwd,
         env=_windows_powershell_env(),
@@ -293,54 +293,9 @@ def _powershell_exit(command: str, cwd: Path) -> int:
     return result.returncode
 
 
-def _powershell_path(path: Path) -> str:
-    """Return a PowerShell-friendly absolute path string."""
-    return str(path.resolve()).replace("'", "''")
-
-
-def _powershell_module_command() -> str:
-    """Return the command that installs PSScriptAnalyzer and Pester when missing."""
-    return (
-        "$ErrorActionPreference = 'Stop'; "
-        "foreach ($moduleName in @('PSScriptAnalyzer', 'Pester')) { "
-        "if (-not (Get-Module -ListAvailable -Name $moduleName)) { "
-        "Install-Module -Name $moduleName -Force -Scope CurrentUser -AllowClobber "
-        "-Repository PSGallery } }"
-    )
-
-
-def _psscriptanalyzer_paths(root: Path) -> list[Path]:
-    """Return PowerShell files that should be analyzed."""
-    scripts_dir = root / "scripts"
-    paths = [scripts_dir / _INSTALL_SCRIPT_TEST.name]
-    installer_ps_dir = root / _INSTALLER_PS_DIR
-    if installer_ps_dir.is_dir():
-        paths.extend(sorted(installer_ps_dir.glob("*.ps1")))
-    return paths
-
-
-def _psscriptanalyzer_command(root: Path) -> str:
-    """Return the PSScriptAnalyzer command for installer scripts."""
-    analyzer_settings = _powershell_path(root / _POWERSHELL_ANALYZER_SETTINGS)
-    analyze_paths = [_powershell_path(path) for path in _psscriptanalyzer_paths(root)]
-    joined_paths = ", ".join(f"'{path}'" for path in analyze_paths)
-    return (
-        "$issues = @(); "
-        f"foreach ($path in @({joined_paths})) {{ "
-        f"$issues += Invoke-ScriptAnalyzer -Path $path -Settings '{analyzer_settings}' "
-        "-Severity Warning }; "
-        "if ($issues) { $issues | Format-Table -AutoSize; exit 1 }"
-    )
-
-
-def _pester_command(root: Path) -> str:
-    """Return the Pester command for repository PowerShell tests."""
-    pester_paths = [_powershell_path(root / test_path) for test_path in _PESTER_TESTS]
-    joined_paths = ", ".join(f"'{path}'" for path in pester_paths)
-    return (
-        "Import-Module Pester -MinimumVersion 5.0 -ErrorAction Stop; "
-        f"Invoke-Pester -Path @({joined_paths}) -CI"
-    )
+def _verify_ps_step(root: Path, script_name: str, *script_args: str) -> tuple[str, ...]:
+    """Return a PowerShell step command: the script path, then its arguments."""
+    return (str(root / _VERIFY_PS_DIR / script_name), *script_args)
 
 
 def _blinter_install_command(root: Path) -> tuple[str, ...]:
@@ -361,20 +316,35 @@ def _script_command(script: Path, *script_args: str) -> tuple[str, ...]:
     return (sys.executable, str(script), *script_args)
 
 
-def _shellcheck_command() -> tuple[str, ...]:
-    """Return the ShellCheck command for the shell installer scripts.
+def _shell_scripts(root: Path) -> tuple[str, ...]:
+    """Return every shell script to lint, as sorted POSIX paths relative to ``root``."""
+    found = {
+        path.relative_to(root).as_posix()
+        for directory, pattern in _SHELL_SCRIPT_GLOBS
+        for path in (root / directory).glob(pattern)
+        if path.is_file() and not path.name.startswith(".")
+    }
+    return tuple(sorted(found))
+
+
+def _shellcheck_command(root: Path) -> tuple[str, ...]:
+    """Return the ShellCheck command for every shell script in the repository.
 
     The shellcheck-py wheel installs the binary beside the interpreter. Looking there
     first means an unactivated virtual environment works. A bare name is the fallback,
-    so a missing binary fails loudly when the step runs.
+    so a missing binary fails loudly when the step runs. A repository with no shell
+    scripts is an error too, so the step cannot pass by checking nothing.
     """
+    scripts = _shell_scripts(root)
+    if not scripts:
+        raise FileNotFoundError(f"No shell scripts found under {root}")
     binary_name = "shellcheck.exe" if _is_windows() else "shellcheck"
     candidate = Path(sys.executable).parent / binary_name
     executable = str(candidate) if candidate.is_file() else "shellcheck"
-    return (executable, *(path.as_posix() for path in _SHELL_SCRIPTS))
+    return (executable, *scripts)
 
 
-def _quality_steps(*, fix: bool, uv_executable: str) -> tuple[Step, ...]:
+def _quality_steps(*, fix: bool, uv_executable: str, root: Path) -> tuple[Step, ...]:
     """Return the platform-neutral quality checks, in run order."""
     return (
         Step("validate spec schemas", _script_command(_SPEC_VALIDATE)),
@@ -410,7 +380,7 @@ def _quality_steps(*, fix: bool, uv_executable: str) -> tuple[Step, ...]:
         Step("pyproject-fmt", kind=StepKind.PYPROJECT_FMT, fix=fix),
         Step("black", tuple(_python_m("black", "--check", *_CHECK_DIRS))),
         Step("yamllint", tuple(_python_m("yamllint", "--strict", "."))),
-        Step("shellcheck (shell scripts)", _shellcheck_command()),
+        Step("shellcheck (shell scripts)", _shellcheck_command(root)),
         Step("mypy", tuple(_python_m("mypy"))),
         Step("pylint", kind=StepKind.PYLINT),
         Step(
@@ -456,19 +426,26 @@ def _windows_steps(root: Path) -> tuple[Step, ...]:
         ),
         Step(
             "PowerShell module prerequisites",
-            (_powershell_module_command(),),
+            _verify_ps_step(root, "Install-VerifyModules.ps1"),
             windows_only=True,
             kind=StepKind.POWERSHELL,
         ),
         Step(
             "PSScriptAnalyzer (PowerShell scripts)",
-            (_psscriptanalyzer_command(root),),
+            _verify_ps_step(
+                root,
+                "Invoke-ScriptAnalysis.ps1",
+                "-Root",
+                str(root),
+                "-SettingsPath",
+                str(root / _POWERSHELL_ANALYZER_SETTINGS),
+            ),
             windows_only=True,
             kind=StepKind.POWERSHELL,
         ),
         Step(
             "Pester (PowerShell tests)",
-            (_pester_command(root),),
+            _verify_ps_step(root, "Invoke-PesterTests.ps1", "-Root", str(root)),
             windows_only=True,
             kind=StepKind.POWERSHELL,
         ),
@@ -504,7 +481,9 @@ def select_steps(request: StepRequest) -> tuple[Step, ...]:
 
     selected = [
         step
-        for step in _quality_steps(fix=request.fix, uv_executable=request.uv_executable)
+        for step in _quality_steps(
+            fix=request.fix, uv_executable=request.uv_executable, root=request.root
+        )
         if request.is_windows or not step.windows_only
     ]
     if request.corpus_present:
@@ -537,7 +516,9 @@ def _execute_step(step: Step, root: Path) -> None:
             case StepKind.PYLINT:
                 exit_code = _run_pylint(root)
             case StepKind.POWERSHELL:
-                exit_code = _powershell_exit(step.command[0], root)
+                exit_code = _powershell_exit(
+                    Path(step.command[0]), step.command[1:], root
+                )
             case StepKind.COMMAND:
                 exit_code = _command_exit(step.command, root)
             case _ as unreachable:
