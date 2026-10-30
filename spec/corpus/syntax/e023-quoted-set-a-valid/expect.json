@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "SET /A with special characters inside quotes (E023 negative)",
+  "lines": {},
+  "must_not": [
+    "E023"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

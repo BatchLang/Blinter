@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "TIMEOUT with /NOBREAK (W042 negative)",
+  "lines": {},
+  "must_not": [
+    "W042"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

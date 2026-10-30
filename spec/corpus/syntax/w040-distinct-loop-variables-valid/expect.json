@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Nested FORs use different loop variables (W040 negative)",
+  "lines": {},
+  "must_not": [
+    "W040"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

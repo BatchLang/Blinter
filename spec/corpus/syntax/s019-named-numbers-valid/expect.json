@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Numbers are held in named variables (S019 negative)",
+  "lines": {},
+  "must_not": [
+    "S019"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

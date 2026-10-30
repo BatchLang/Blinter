@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Balanced quote pairs on each line (E009 negative)",
+  "lines": {},
+  "must_not": [
+    "E009"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

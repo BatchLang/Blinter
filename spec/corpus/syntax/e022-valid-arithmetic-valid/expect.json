@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "A well-formed SET /A expression (E022 negative)",
+  "lines": {},
+  "must_not": [
+    "E022"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

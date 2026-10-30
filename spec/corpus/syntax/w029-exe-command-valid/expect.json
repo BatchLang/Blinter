@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "A 32/64-bit executable (W029 negative)",
+  "lines": {},
+  "must_not": [
+    "W029"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

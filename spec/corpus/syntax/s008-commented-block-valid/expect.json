@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "A comment precedes a multi-line block (S008 negative)",
+  "lines": {},
+  "must_not": [
+    "S008"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

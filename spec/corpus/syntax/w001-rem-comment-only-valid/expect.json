@@ -1,0 +1,9 @@
+{
+  "config": {},
+  "description": "REM, @REM and a bare REM are comments, so a comment-only script needs no exit code (W001 negative)",
+  "lines": {},
+  "must_not": ["W001"],
+  "oracle": "skip",
+  "rules": [],
+  "tags": ["syntax", "control-flow"]
+}

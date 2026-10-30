@@ -4,7 +4,8 @@
 Reads ``VERSION``, ``NOTES_FILE``, and ``GITHUB_SHA`` from the environment.
 ``GH_TOKEN`` or ``GITHUB_TOKEN`` authenticates the ``gh`` CLI. A missing
 release is created with ``--target`` set to ``GITHUB_SHA``. An existing
-release is edited, then its same-named assets are replaced with ``--clobber``.
+release is updated only when its tag already points at ``GITHUB_SHA``; it is
+then edited and its same-named assets are replaced with ``--clobber``.
 """
 
 from __future__ import annotations
@@ -227,6 +228,28 @@ def create_release(
     _require_success(completed, f"Creating release {tag}")
 
 
+def require_tag_at_commit(tag: str, target: str) -> None:
+    """Exit unless ``tag`` already points at the commit that was built.
+
+    Replacing the assets of a release whose tag names a different commit would
+    publish binaries that do not match the tagged source.
+    """
+    commit = _require_target(target).lower()
+    completed = _run_gh(
+        ["api", f"repos/{{owner}}/{{repo}}/commits/{tag}", "--jq", ".sha"],
+        timeout=_LOOKUP_TIMEOUT_SECONDS,
+    )
+    _require_success(completed, f"Resolving the commit of tag {tag}")
+    tagged = (completed.stdout or "").strip().lower()
+    logger.info("Tag %s resolves to %s; built commit is %s", tag, tagged, commit)
+    if not tagged or not tagged.startswith(commit):
+        raise SystemExit(
+            f"Release {tag} already exists at commit {tagged[:12] or 'unknown'}, "
+            f"but this run built {commit[:12]}. Refusing to replace its assets; "
+            "bump the project version to publish new code."
+        )
+
+
 def update_release(
     tag: str,
     notes_file: Path,
@@ -273,6 +296,7 @@ def publish_github_release(
     assets = (*archives, write_sha256sums(build_dir, archives))
     _token_source()
     if release_exists(tag):
+        require_tag_at_commit(tag, target_sha)
         update_release(tag, notes_file, assets)
         return
     create_release(tag, notes_file, assets, target_sha)

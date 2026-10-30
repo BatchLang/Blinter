@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Long text split with a continuation (S020 negative)",
+  "lines": {},
+  "must_not": [
+    "S020"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

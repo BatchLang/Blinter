@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "FOR /R with a wildcard set (W038 negative)",
+  "lines": {},
+  "must_not": [
+    "W038"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

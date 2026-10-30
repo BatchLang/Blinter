@@ -13,6 +13,7 @@ from scripts.verify import (
     StepRequest,
     _execute_step,
     _parse_project_name,
+    _require_cpython,
     _require_uv,
     _set_project_name,
     _shellcheck_command,
@@ -186,6 +187,23 @@ def test_require_uv_exits_when_missing(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("scripts.verify.shutil.which", lambda _name: None)
     with pytest.raises(SystemExit, match="uv"):
         _require_uv()
+
+
+def test_require_cpython_rejects_other_implementations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Running the gate under PyPy fails early with an actionable message."""
+    monkeypatch.setattr("scripts.verify.platform.python_implementation", lambda: "PyPy")
+    with pytest.raises(SystemExit, match="CPython"):
+        _require_cpython()
+
+
+def test_require_cpython_accepts_cpython(monkeypatch: pytest.MonkeyPatch) -> None:
+    """CPython passes the interpreter guard."""
+    monkeypatch.setattr(
+        "scripts.verify.platform.python_implementation", lambda: "CPython"
+    )
+    _require_cpython()
 
 
 def test_failed_command_exits(

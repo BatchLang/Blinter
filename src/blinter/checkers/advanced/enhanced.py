@@ -7,17 +7,26 @@ from typing import (
 )
 
 from blinter.models import LintIssue
+from blinter.parsing.context import _is_comment_line
 from blinter.patterns import DEPRECATED_COMMANDS, REMOVED_COMMANDS
 from blinter.rules.registry import RULES
 
+_FOR_F_START_RE = re.compile(r"\s*for\s+/f\s+", re.IGNORECASE)
+_FOR_F_OPTIONS_RE = re.compile(r'"[^"]*(?:tokens|delims)[^"]*"', re.IGNORECASE)
+
 
 def _check_for_f_options(stripped: str, line_number: int) -> Optional[LintIssue]:
-    """Check FOR /F without proper options (W020)."""
-    if re.match(
-        r'\s*for\s+/f\s+(?!.*"[^"]*(?:tokens|delims)[^"]*")[^(]*\(',
-        stripped,
-        re.IGNORECASE,
-    ):
+    """Check FOR /F without proper options (W020).
+
+    Flags a FOR /F with a parenthesized set and no quoted option string that
+    names ``tokens`` or ``delims``. The checks run one after another so the cost
+    stays linear on long lines.
+    """
+    start = _FOR_F_START_RE.match(stripped)
+    if start is None:
+        return None
+    remainder = stripped[start.end() :]
+    if "(" in remainder and _FOR_F_OPTIONS_RE.search(remainder) is None:
         return LintIssue(
             line_number=line_number,
             rule=RULES["W020"],
@@ -43,7 +52,7 @@ def _check_deprecated_commands(stripped: str, line_number: int) -> List[LintIssu
     issues: List[LintIssue] = []
 
     # Skip comment lines (REM or ::)
-    if stripped.lower().startswith("rem ") or stripped.startswith("::"):
+    if _is_comment_line(stripped):
         return issues
 
     # First check for removed commands (more severe - Error level)
@@ -138,6 +147,9 @@ def _check_cmd_error_handling(
 
     for cmd in commands_needing_handling:
         if re.match(rf"\s*{cmd}\s+", stripped, re.IGNORECASE):
+            # A failure branch on the same line (cmd || exit /b 1) is handling
+            if "||" in re.sub(r'"[^"]*"', "", stripped):
+                return None
             # Check if next 3 lines have error handling
             for j in range(line_number, min(line_number + 3, len(lines) + 1)):
                 if j <= len(lines) and (

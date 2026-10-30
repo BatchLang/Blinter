@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Balanced parentheses in SET /A (E029 negative)",
+  "lines": {},
+  "must_not": [
+    "E029"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

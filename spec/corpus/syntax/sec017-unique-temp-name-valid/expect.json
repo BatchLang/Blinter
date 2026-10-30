@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Temp file named with %RANDOM% (SEC017 negative)",
+  "lines": {},
+  "must_not": [
+    "SEC017"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

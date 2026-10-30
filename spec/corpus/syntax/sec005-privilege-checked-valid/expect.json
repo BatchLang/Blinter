@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "The privilege check precedes the admin operation (SEC005 negative)",
+  "lines": {},
+  "must_not": [
+    "SEC005"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

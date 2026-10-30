@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "ASCII straight quotes delimit strings (E035 negative)",
+  "lines": {},
+  "must_not": [
+    "E035"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

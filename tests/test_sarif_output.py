@@ -164,7 +164,7 @@ class TestBuildSarifReport:
         assert notifications[0]["descriptor"]["id"] == "BLINT001"
         assert skipped in notifications[0]["message"]["text"]
         assert "Access denied" in notifications[0]["message"]["text"]
-        assert report["runs"][0]["invocations"][0]["executionSuccessful"] is True
+        assert report["runs"][0]["invocations"][0]["executionSuccessful"] is False
 
     def test_uris_are_cwd_relative_or_file_uris(self, tmp_path: Path) -> None:
         """Paths inside cwd are relative; paths outside cwd are file URIs."""

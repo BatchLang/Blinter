@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "A network call with an explicit timeout (W006 negative)",
+  "lines": {},
+  "must_not": [
+    "W006"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

@@ -1,5 +1,6 @@
 """CLI entry point and multi-file batch processing orchestration."""
 
+import io
 import logging
 from pathlib import Path
 import sys
@@ -9,6 +10,7 @@ from typing import (
     NoReturn,
     Optional,
     Sequence,
+    TextIO,
     Tuple,
     assert_never,
 )
@@ -829,13 +831,51 @@ def _apply_baseline_or_exit(
     return filtered, list(diff.stale), len(diff.matched)
 
 
+_UTF8_STDIO_WRAPPERS: List[io.TextIOWrapper] = []
+
+
+def _utf8_replacing_wrapper(stream: TextIO) -> Optional[io.TextIOWrapper]:
+    """Wrap a stream that cannot be reconfigured in a UTF-8 replacing writer.
+
+    Returns None when the stream has no underlying binary buffer to wrap, such as
+    in-memory streams, which already accept any text.
+    """
+    try:
+        buffer = stream.buffer
+    except AttributeError:
+        return None
+    try:
+        wrapper = io.TextIOWrapper(
+            buffer, encoding="utf-8", errors="replace", line_buffering=True
+        )
+    except (ValueError, OSError):
+        logger.debug("Could not wrap %r for UTF-8 output", stream, exc_info=True)
+        return None
+    # Keep a reference so the wrapper is never collected, which would close the
+    # shared buffer underneath the original stream.
+    _UTF8_STDIO_WRAPPERS.append(wrapper)
+    return wrapper
+
+
+def _reconfigure_or_wrap_utf8(stream: TextIO) -> Optional[io.TextIOWrapper]:
+    """Make a stream emit UTF-8, returning a replacement when it had to be wrapped."""
+    try:
+        stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
+    except AttributeError:
+        return _utf8_replacing_wrapper(stream)
+    except OSError:
+        logger.debug("UTF-8 reconfigure failed for %r", stream, exc_info=True)
+    return None
+
+
 def _configure_stdio_utf8() -> None:
-    """Reconfigure stdout/stderr for UTF-8 on Windows consoles."""
-    for stream in (sys.stdout, sys.stderr):
-        try:
-            stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
-        except (AttributeError, OSError):
-            pass
+    """Make stdout/stderr emit UTF-8 so Unicode issue text never aborts a run."""
+    stdout_wrapper = _reconfigure_or_wrap_utf8(sys.stdout)
+    if stdout_wrapper is not None:
+        sys.stdout = stdout_wrapper
+    stderr_wrapper = _reconfigure_or_wrap_utf8(sys.stderr)
+    if stderr_wrapper is not None:
+        sys.stderr = stderr_wrapper
 
 
 def main() -> None:

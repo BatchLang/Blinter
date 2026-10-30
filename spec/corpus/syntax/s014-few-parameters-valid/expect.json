@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "A subroutine with a short parameter list (S014 negative)",
+  "lines": {},
+  "must_not": [
+    "S014"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

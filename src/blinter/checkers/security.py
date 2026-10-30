@@ -24,7 +24,29 @@ from blinter.patterns import (
 )
 from blinter.rules.registry import RULES
 
+
+def _in_order(*parts: str) -> str:
+    """Return a search pattern requiring ``parts`` to appear in order.
+
+    Equivalent to ``part1.*part2.*part3`` under ``re.search`` but linear in the
+    line length: it is anchored, and each lazy segment is atomic so the engine
+    never retries earlier segments. The leftmost occurrence of each part is
+    always sufficient, so no match is lost.
+    """
+    return r"\A" + "".join(f"(?>.*?(?:{part}))" for part in parts)
+
+
 _ADMIN_COMMANDS: tuple[str, ...] = ("reg add hklm", "reg delete hklm", "sc ")
+_EXECUTION_POLICY_BYPASS_PATTERN = _in_order("powershell", r"-executionpolicy\s+bypass")
+_HOSTS_REDIRECT_PATTERNS: tuple[str, ...] = (
+    _in_order(">>", "hosts"),
+    _in_order("echo", ">>", "drivers", "etc", "hosts"),
+)
+_AUTORUN_CREATION_PATTERNS: tuple[str, ...] = (
+    _in_order("echo", ">", r"autorun\.inf"),
+    _in_order("copy", r"autorun\.inf"),
+)
+_SELF_COPY_REMOVABLE_PATTERN = _in_order("xcopy", "%0", "[a-z]:")
 _HARDCODED_TEMP_PATH_PATTERNS: tuple[str, ...] = (
     r"C:\temp",
     r"C:\tmp",
@@ -322,7 +344,7 @@ def _check_info_disclosure_sec(
             break
 
     # SEC009: PowerShell execution policy bypass
-    if re.search(r"powershell.*-executionpolicy\s+bypass", stripped, re.IGNORECASE):
+    if re.search(_EXECUTION_POLICY_BYPASS_PATTERN, stripped, re.IGNORECASE):
         issues.append(
             LintIssue(
                 line_number=line_num,
@@ -354,7 +376,7 @@ _MALWARE_HIGH_CONFIDENCE_PATTERNS: tuple[str, ...] = (
     r"start\s+%0",
     r"start\s+cmd\s*/c\s*%0",
     r"copy\s+%0\s+[a-z]:",
-    r"xcopy.*%0.*[a-z]:",
+    _SELF_COPY_REMOVABLE_PATTERN,
 )
 
 
@@ -393,8 +415,9 @@ def _check_malware_security(line: str, stripped: str, line_num: int) -> List[Lin
         )
 
     # SEC022: Potential hosts file modification
-    if re.search(r">>.*hosts", stripped, re.IGNORECASE) or re.search(
-        r"echo.*>>.*drivers.*etc.*hosts", stripped, re.IGNORECASE
+    if any(
+        re.search(pattern, stripped, re.IGNORECASE)
+        for pattern in _HOSTS_REDIRECT_PATTERNS
     ):
         issues.append(
             LintIssue(
@@ -405,8 +428,9 @@ def _check_malware_security(line: str, stripped: str, line_num: int) -> List[Lin
         )
 
     # SEC023: Autorun.inf creation detected
-    if re.search(r"echo.*>.*autorun\.inf", stripped, re.IGNORECASE) or re.search(
-        r"copy.*autorun\.inf", stripped, re.IGNORECASE
+    if any(
+        re.search(pattern, stripped, re.IGNORECASE)
+        for pattern in _AUTORUN_CREATION_PATTERNS
     ):
         issues.append(
             LintIssue(
@@ -418,7 +442,7 @@ def _check_malware_security(line: str, stripped: str, line_num: int) -> List[Lin
 
     # SEC024: Batch file copying itself to removable media
     if re.search(r"copy\s+%0\s+[a-z]:", stripped, re.IGNORECASE) or re.search(
-        r"xcopy.*%0.*[a-z]:", stripped, re.IGNORECASE
+        _SELF_COPY_REMOVABLE_PATTERN, stripped, re.IGNORECASE
     ):
         issues.append(
             LintIssue(

@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "A 9000 character comment line stays below the E048 limit (E048 negative)",
+  "lines": {},
+  "must_not": [
+    "E048"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "ASCII-only text carries no Unicode risk (W011 negative)",
+  "lines": {},
+  "must_not": [
+    "W011"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

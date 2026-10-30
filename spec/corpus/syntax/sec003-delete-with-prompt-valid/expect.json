@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "DEL /P asks for confirmation (SEC003 negative)",
+  "lines": {},
+  "must_not": [
+    "SEC003"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

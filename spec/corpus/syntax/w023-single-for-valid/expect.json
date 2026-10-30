@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "A single, non-nested FOR loop (W023 negative)",
+  "lines": {},
+  "must_not": [
+    "W023"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

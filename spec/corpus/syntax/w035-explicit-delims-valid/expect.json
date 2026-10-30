@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "FOR /F with explicit tokens and delimiters (W035 negative)",
+  "lines": {},
+  "must_not": [
+    "W035"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

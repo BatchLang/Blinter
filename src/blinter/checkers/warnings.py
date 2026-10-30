@@ -15,6 +15,7 @@ from blinter.checkers.cmd_extended import (
 from blinter.checkers.warnings_compat import _check_compatibility_warnings
 from blinter.constants import PSEUDO_ENV_VARS
 from blinter.models import LintIssue
+from blinter.parsing.context import _is_blank_or_comment
 from blinter.parsing.structure import (
     _collect_empty_assigned_variables,
     _defined_vars_cache_var,
@@ -783,7 +784,7 @@ def _check_bat_invocation_without_call(stripped: str, line_num: int) -> List[Lin
     if stripped.startswith("::"):
         return []
     normalized = stripped.lstrip("@").strip()
-    if not normalized or normalized.lower().startswith("rem "):
+    if _is_blank_or_comment(normalized):
         return []
     first_word_match = re.match(r"^(\S+)", normalized)
     if not first_word_match:
@@ -844,7 +845,7 @@ def _check_call_ambiguity(stripped: str, line_num: int) -> List[LintIssue]:
     issues: List[LintIssue] = []
     call_match = re.match(r"call\s+([^:\s]+)", stripped, re.IGNORECASE)
     if call_match:
-        call_target: str = call_match.group(1)
+        call_target: str = call_match.group(1).strip('"')
         # Check if it's a filename without extension
         if not re.search(
             r"\.[a-z]{1,4}$", call_target.lower()

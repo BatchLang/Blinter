@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "SETLOCAL is needed because the script sets variables (P003 negative)",
+  "lines": {},
+  "must_not": [
+    "P003"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

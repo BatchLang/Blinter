@@ -14,6 +14,17 @@ _IF_UNARY_PREDICATES = frozenset({"defined", "exist", "errorlevel", "cmdextversi
 _IF_COMPARISON_OPERATORS = frozenset({"==", "equ", "neq", "lss", "leq", "gtr", "geq"})
 _SEGMENT_PREFIXES = frozenset({"do", "else"})
 _NON_COMMAND_STARTERS = frozenset({"echo", "rem"})
+_COMMENT_TEXT_RE = re.compile(r"^@?(?:rem(?:\s|$)|::)", re.IGNORECASE)
+
+
+def _is_blank_or_comment(line: str) -> bool:
+    """Return True for blank lines and REM or :: comments.
+
+    Unlike a bare ``startswith("rem")`` test, a command such as ``RENAME`` is not
+    mistaken for a comment, and ``@rem`` and a lone ``rem`` are recognized.
+    """
+    stripped = line.strip()
+    return not stripped or _COMMENT_TEXT_RE.match(stripped) is not None
 
 
 def _is_comment_line(line: str) -> bool:
@@ -26,12 +37,7 @@ def _is_comment_line(line: str) -> bool:
     Returns:
         True if the line is a comment
     """
-    stripped = line.strip().lower()
-    return (
-        stripped.startswith("rem ")
-        or stripped.startswith("rem\t")
-        or stripped.startswith("::")
-    )
+    return _COMMENT_TEXT_RE.match(line.strip()) is not None
 
 
 def _is_comment_or_label(line: str) -> bool:

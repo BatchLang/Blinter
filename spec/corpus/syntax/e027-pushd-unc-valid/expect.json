@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "PUSHD maps a UNC path instead of CD (E027 negative)",
+  "lines": {},
+  "must_not": [
+    "E027"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Reading the hosts file does not modify it (SEC022 negative)",
+  "lines": {},
+  "must_not": [
+    "SEC022"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

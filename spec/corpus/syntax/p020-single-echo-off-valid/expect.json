@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "One @ECHO OFF at the top (P020 negative)",
+  "lines": {},
+  "must_not": [
+    "P020"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

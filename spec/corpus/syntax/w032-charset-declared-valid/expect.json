@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Non-ASCII text with an explicit code page (W032 negative)",
+  "lines": {},
+  "must_not": [
+    "W032"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

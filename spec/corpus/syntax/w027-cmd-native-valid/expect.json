@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "A cmd.exe command that behaves the same everywhere (W027 negative)",
+  "lines": {},
+  "must_not": [
+    "W027"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

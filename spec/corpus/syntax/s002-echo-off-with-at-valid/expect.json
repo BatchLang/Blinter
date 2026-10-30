@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "ECHO OFF carries the @ prefix (S002 negative)",
+  "lines": {},
+  "must_not": [
+    "S002"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

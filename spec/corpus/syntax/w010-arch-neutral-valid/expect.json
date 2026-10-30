@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "No architecture-specific operation (W010 negative)",
+  "lines": {},
+  "must_not": [
+    "W010"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

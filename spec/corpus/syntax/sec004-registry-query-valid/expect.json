@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "A read-only registry query (SEC004 negative)",
+  "lines": {},
+  "must_not": [
+    "SEC004"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

@@ -130,3 +130,20 @@ def test_line_count_scales_linearly(tmp_path: Path) -> None:
     small = _cpu_seconds(_write_echo_file(2000))
     large = _cpu_seconds(_write_echo_file(8000))
     assert large <= max(small, 0.05) * 10
+
+
+@pytest.mark.parametrize(
+    "fragment",
+    ["%a%", "for /f usebackq ", ">echo ", "for /f ", "if "],
+)
+def test_pathological_long_line_stays_bounded(tmp_path: Path, fragment: str) -> None:
+    """A repeated-fragment line at the length cap cannot stall the linter.
+
+    Each fragment once drove a checker pattern into cubic backtracking, taking
+    from several seconds to over a minute for one 10,000 character line. The
+    ceiling is generous for slow CI hosts but far below those regressions.
+    """
+    script = tmp_path / "pathological.bat"
+    line = (fragment * (9990 // len(fragment) + 1))[:9990]
+    script.write_text(f"@echo off\r\n{line}\r\n", encoding="utf-8")
+    assert _cpu_seconds(script) < 6.0

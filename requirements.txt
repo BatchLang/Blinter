@@ -1,2 +1,5 @@
-# Required runtime dependency for encoding detection
+# Required runtime dependency for encoding detection.
+# Pinned exactly because CI installs it with --no-binary into the environment
+# used for the Nuitka standalone builds, which must be reproducible. The wider
+# range accepted by pip installs lives in pyproject.toml.
 charset-normalizer==3.5.2

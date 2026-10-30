@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "A single expansion inside a loop body (P019 negative)",
+  "lines": {},
+  "must_not": [
+    "P019"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

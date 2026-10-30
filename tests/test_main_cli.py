@@ -2471,6 +2471,29 @@ class TestCliStdioAndModuleEntry:
             with patch("blinter.cli.main.sys.stderr", _LegacyStream()):
                 _configure_stdio_utf8()
 
+    def test_configure_stdio_utf8_wraps_stream_without_reconfigure(self) -> None:
+        """A legacy stream with a binary buffer gets a UTF-8 replacing writer."""
+
+        class _LegacyStream:
+            """Stream stub lacking reconfigure() but exposing a binary buffer."""
+
+            encoding = "cp1252"
+
+            def __init__(self) -> None:
+                self.buffer = io.BytesIO()
+
+        out_stream = _LegacyStream()
+        err_stream = _LegacyStream()
+        with patch("blinter.cli.main.sys.stdout", out_stream):
+            with patch("blinter.cli.main.sys.stderr", err_stream):
+                _configure_stdio_utf8()
+                print("arrow \u2192 and \U0001f600")
+                print("error \u2192", file=sys.stderr)
+        out_text = out_stream.buffer.getvalue().decode("utf-8")
+        err_text = err_stream.buffer.getvalue().decode("utf-8")
+        assert out_text.splitlines() == ["arrow \u2192 and \U0001f600"]
+        assert err_text.splitlines() == ["error \u2192"]
+
     def test_configure_stdio_utf8_handles_oserror(self) -> None:
         """OSError during reconfigure is swallowed."""
 

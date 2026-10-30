@@ -1,0 +1,9 @@
+{
+  "config": {},
+  "description": "A command whose name starts with rem is executable code, not a comment (W001)",
+  "lines": { "2": ["W001"] },
+  "must_not": [],
+  "oracle": "skip",
+  "rules": ["W001"],
+  "tags": ["syntax", "control-flow"]
+}

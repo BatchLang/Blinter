@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "A command available on every Windows version (W009 negative)",
+  "lines": {},
+  "must_not": [
+    "W009"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

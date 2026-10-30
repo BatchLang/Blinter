@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "One existence check, no repetition (P001 negative)",
+  "lines": {},
+  "must_not": [
+    "P001"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

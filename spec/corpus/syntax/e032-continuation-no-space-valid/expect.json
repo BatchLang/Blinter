@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Continuation caret at the very end of the line (E032 negative)",
+  "lines": {},
+  "must_not": [
+    "E032"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

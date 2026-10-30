@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Output that is not needed is redirected to NUL (P014 negative)",
+  "lines": {},
+  "must_not": [
+    "P014"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

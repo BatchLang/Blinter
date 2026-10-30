@@ -76,26 +76,33 @@ def _parse_max_line_length_arg(arg_index: int) -> Optional[Tuple[int, int]]:
         Tuple of (next argv index, parsed line length), or None when invalid.
     """
     if arg_index + 1 >= len(sys.argv):
-        _print_cli_error("Error: --max-line-length requires a value.\n")
-        print_help()
+        _report_invalid_max_line_length("Error: --max-line-length requires a value.\n")
         return None
     try:
         line_length = int(sys.argv[arg_index + 1])
-        if line_length <= 0:
-            _print_cli_error("Error: --max-line-length must be a positive integer.\n")
-            return None
-        if line_length > MAX_LINE_LENGTH:
-            _print_cli_error(
-                f"Error: --max-line-length must not exceed {MAX_LINE_LENGTH}.\n"
-            )
-            return None
-        return arg_index + 1, line_length
     except ValueError:
-        _print_cli_error(
+        _report_invalid_max_line_length(
             f"Error: --max-line-length requires a numeric value, "
             f"got '{sys.argv[arg_index + 1]}'.\n"
         )
         return None
+    if line_length <= 0:
+        _report_invalid_max_line_length(
+            "Error: --max-line-length must be a positive integer.\n"
+        )
+        return None
+    if line_length > MAX_LINE_LENGTH:
+        _report_invalid_max_line_length(
+            f"Error: --max-line-length must not exceed {MAX_LINE_LENGTH}.\n"
+        )
+        return None
+    return arg_index + 1, line_length
+
+
+def _report_invalid_max_line_length(message: str) -> None:
+    """Report an invalid ``--max-line-length`` value with the usage text."""
+    _print_cli_error(message)
+    print_help()
 
 
 def _parse_config_arg(arg_index: int) -> Optional[Tuple[int, str]]:

@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Plain ASCII characters (W012 negative)",
+  "lines": {},
+  "must_not": [
+    "W012"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

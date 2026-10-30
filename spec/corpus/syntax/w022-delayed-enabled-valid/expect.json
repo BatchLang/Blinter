@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Delayed expansion is enabled before !x! is used (W022 negative)",
+  "lines": {},
+  "must_not": [
+    "W022"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

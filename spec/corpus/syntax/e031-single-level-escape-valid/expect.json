@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "A single level of caret escaping (E031 negative)",
+  "lines": {},
+  "must_not": [
+    "E031"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

@@ -127,6 +127,16 @@ class TestMaxLineLengthCLI:
         finally:
             os.unlink(temp_file)
 
+    @pytest.mark.parametrize("value", ["abc", "-10", "0", "10001"])
+    def test_cli_max_line_length_invalid_value_prints_usage(self, value: str) -> None:
+        """Every invalid --max-line-length value shows usage like other bad options."""
+        with patch("sys.argv", ["blinter", "script.bat", "--max-line-length", value]):
+            with patch("blinter.cli.args.print_help") as mock_help:
+                with pytest.raises(SystemExit) as exc_info:
+                    _parse_cli_arguments()
+        assert exc_info.value.code == 1
+        mock_help.assert_called_once_with()
+
     def test_cli_max_line_length_negative_value(self) -> None:
         """Test --max-line-length with negative value shows error."""
         content = "@echo off\necho test\n"

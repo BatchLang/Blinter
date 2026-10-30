@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "A quoted empty-variable comparison and IF NOT DEFINED are valid (E007 negative)",
+  "lines": {},
+  "must_not": [
+    "E007"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

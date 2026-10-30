@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "REM comments rather than double-colon (S016 negative)",
+  "lines": {},
+  "must_not": [
+    "S016"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

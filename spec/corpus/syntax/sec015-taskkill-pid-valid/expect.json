@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "TASKKILL for a specific process id from a variable (SEC015 negative)",
+  "lines": {},
+  "must_not": [
+    "SEC015"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

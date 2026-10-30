@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "FOR /F with an empty delimiter set reads whole lines (W048 negative)",
+  "lines": {},
+  "must_not": [
+    "W048"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

@@ -1,6 +1,7 @@
 """Tests for package version resolution."""
 
-from collections.abc import Iterator
+# pylint: disable=too-many-lines
+
 from importlib.metadata import PackageNotFoundError, version
 import os
 from pathlib import Path
@@ -60,7 +61,6 @@ from scripts.extract_release_notes import (
 from tests.conftest import get_project_version
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
-_BUILD_VERSION_PATH = _REPO_ROOT / "src" / "blinter" / "_build_version.py"
 _UV_EXECUTABLE = shutil.which("uv")
 _NETWORK_WMI_NOFOLLOW: tuple[str, ...] = (
     "ssl",
@@ -195,23 +195,23 @@ class TestVersion:
         ), f"README must state **{RULE_COUNT}** rules explicitly"
 
 
-def _assert_build_version_present_for_nuitka(
-    command: list[str], repo_root: Path
-) -> int:
+def _assert_build_version_present_for_nuitka(generated: Path) -> int:
     """Nuitka must be able to compile the generated module."""
-    del command
-
     project_version = get_project_version()
-    generated = repo_root / PACKAGE_DIR / "_build_version.py"
     assert generated.read_text(encoding="utf-8") == f'VERSION = "{project_version}"\n'
     return 0
 
 
-@pytest.fixture
-def cleanup_build_version() -> Iterator[None]:
-    """Remove the version module main() writes into the real source tree."""
-    yield
-    _BUILD_VERSION_PATH.unlink(missing_ok=True)
+@pytest.fixture(name="isolated_build_version")
+def fixture_isolated_build_version(mocker: MockerFixture, tmp_path: Path) -> Path:
+    """Send the version module main() generates to tmp_path.
+
+    The real path is a single file in the source tree, so parallel xdist workers
+    that each ran main() would delete it from under one another.
+    """
+    destination = tmp_path / "_build_version.py"
+    mocker.patch("scripts.build_exe._build_version_path", return_value=destination)
+    return destination
 
 
 class TestBuildExe:
@@ -553,8 +553,9 @@ class TestBuildExe:
         """Platform detection must follow os.name without mutating the process."""
         assert _is_windows() is (os.name == "nt")
 
-    @pytest.mark.usefixtures("cleanup_build_version")
-    def test_main_invokes_nuitka_with_mingw_flag(self, mocker: MockerFixture) -> None:
+    def test_main_invokes_nuitka_with_mingw_flag(
+        self, mocker: MockerFixture, isolated_build_version: Path
+    ) -> None:
         """--mingw must reach the Nuitka command line."""
         repo_root = Path(__file__).resolve().parent.parent
         mocker.patch("scripts.build_exe.ROOT", repo_root)
@@ -565,18 +566,19 @@ class TestBuildExe:
         )
         run = mocker.patch(
             "scripts.build_exe.run_nuitka",
-            side_effect=_assert_build_version_present_for_nuitka,
+            side_effect=lambda _command, _root: (
+                _assert_build_version_present_for_nuitka(isolated_build_version)
+            ),
         )
         assert main(["--mingw"]) == 0
-        assert not _BUILD_VERSION_PATH.is_file()
+        assert not isolated_build_version.is_file()
         command = run.call_args[0][0]
         assert "--mingw64" in command
         assert "--experimental=force-mingw64" in command
         assert run.call_args[0][1] == repo_root
 
-    @pytest.mark.usefixtures("cleanup_build_version")
     def test_main_omits_windows_flags_when_not_windows(
-        self, mocker: MockerFixture
+        self, mocker: MockerFixture, isolated_build_version: Path
     ) -> None:
         """POSIX hosts must not receive MSVC or MinGW flags even with --mingw."""
         repo_root = Path(__file__).resolve().parent.parent
@@ -588,10 +590,12 @@ class TestBuildExe:
         )
         run = mocker.patch(
             "scripts.build_exe.run_nuitka",
-            side_effect=_assert_build_version_present_for_nuitka,
+            side_effect=lambda _command, _root: (
+                _assert_build_version_present_for_nuitka(isolated_build_version)
+            ),
         )
         assert main(["--mingw"]) == 0
-        assert not _BUILD_VERSION_PATH.is_file()
+        assert not isolated_build_version.is_file()
         command = run.call_args[0][0]
         assert "--mingw64" not in command
         assert "--msvc=latest" not in command
@@ -600,12 +604,13 @@ class TestBuildExe:
         assert any(part.startswith("--file-version=") for part in command)
         assert "--lto=yes" in command
 
-    @pytest.mark.usefixtures("cleanup_build_version")
-    def test_main_reports_launch_failures(self, mocker: MockerFixture) -> None:
+    def test_main_reports_launch_failures(
+        self, mocker: MockerFixture, isolated_build_version: Path
+    ) -> None:
         """OS errors starting Nuitka should return exit code 1."""
 
-        def _fail_after_version_is_present(command: list[str], repo_root: Path) -> int:
-            _assert_build_version_present_for_nuitka(command, repo_root)
+        def _fail_after_version_is_present(_command: list[str], _root: Path) -> int:
+            _assert_build_version_present_for_nuitka(isolated_build_version)
             raise OSError("nuitka missing")
 
         repo_root = Path(__file__).resolve().parent.parent
@@ -619,7 +624,7 @@ class TestBuildExe:
             side_effect=_fail_after_version_is_present,
         )
         assert main([]) == 1
-        assert not _BUILD_VERSION_PATH.is_file()
+        assert not isolated_build_version.is_file()
 
     def test_main_returns_2_when_charset_normalizer_is_native(
         self, mocker: MockerFixture
@@ -728,6 +733,55 @@ class TestExtractReleaseNotes:
         )
         assert "9.9.9" in extract_latest_section(changelog)
 
+    def test_extracts_the_section_for_a_requested_version(self, tmp_path: Path) -> None:
+        """A requested version selects its own section, not the newest one."""
+        changelog = tmp_path / "CHANGELOG.md"
+        changelog.write_text(
+            "## [Unreleased]\n\n- Work\n\n"
+            "## [1.2.3] - 2026-01-01\n\n- Newest\n\n"
+            "## [1.2.2] - 2025-12-01\n\n- Older change\n",
+            encoding="utf-8",
+        )
+        section = extract_latest_section(changelog, "1.2.2")
+        assert "Older change" in section
+        assert "Newest" not in section
+
+    def test_missing_requested_version_is_an_error(self, tmp_path: Path) -> None:
+        """A version bump without a matching changelog section fails the release."""
+        changelog = tmp_path / "CHANGELOG.md"
+        changelog.write_text("## [1.2.3] - 2026-01-01\n\n- Newest\n", encoding="utf-8")
+        with pytest.raises(SystemExit, match="No changelog section for version 9.9.9"):
+            extract_latest_section(changelog, "9.9.9")
+
+    def test_repo_changelog_has_a_section_for_the_project_version(self) -> None:
+        """The version in pyproject.toml always has release notes."""
+        project_version = read_version_file(_REPO_ROOT / "pyproject.toml")
+        section = extract_latest_section(_REPO_ROOT / "CHANGELOG.md", project_version)
+        assert section.startswith(f"## [{project_version}]")
+
+    def test_github_output_cli_accepts_a_version(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        """--github-output --version writes the requested section."""
+        notes_dir = tmp_path / "runner"
+        notes_dir.mkdir()
+        output_file = tmp_path / "github_output.txt"
+        monkeypatch.setenv("RUNNER_TEMP", str(notes_dir))
+        monkeypatch.setenv("GITHUB_OUTPUT", str(output_file))
+        project_version = read_version_file(_REPO_ROOT / "pyproject.toml")
+        extract_release_notes_main(["--github-output", "--version", project_version])
+        notes_path = notes_dir / "release-notes.md"
+        assert notes_path.read_text(encoding="utf-8").startswith(
+            f"## [{project_version}]"
+        )
+
+    def test_unknown_arguments_print_usage(self) -> None:
+        """Unsupported arguments exit with the usage text."""
+        with pytest.raises(SystemExit, match="--version VERSION"):
+            extract_release_notes_main(["--version", "1.0.0"])
+
     def test_repo_changelog_latest_versioned_section_is_non_empty(self) -> None:
         """The repository changelog must yield a versioned release section."""
         section = extract_latest_section(_REPO_ROOT / "CHANGELOG.md")
@@ -807,6 +861,21 @@ class TestCiRelease:
         with pytest.raises(SystemExit, match="pyproject.toml not found"):
             read_version_file(missing)
 
+    def test_release_gate_wiring_in_ci_workflow(self) -> None:
+        """Manual releases need confirmation and the gate ignores dependency-graph."""
+        ci_text = (_REPO_ROOT / ".github" / "workflows" / "CI.yml").read_text(
+            encoding="utf-8"
+        )
+        assert "confirm_release:" in ci_text
+        assert "CONFIRM_RELEASE: ${{ inputs.confirm_release }}" in ci_text
+        gate = ci_text.split("  check-version:", maxsplit=1)[1].split(
+            "  build-windows:", maxsplit=1
+        )[0]
+        needs = gate.split("if:", maxsplit=1)[0]
+        assert "dependency-graph" not in needs
+        assert '--version "$VERSION"' in ci_text
+        assert "twine upload --skip-existing dist/*" in ci_text
+
     def test_windows_ci_runs_installer_and_uninstaller(self) -> None:
         """Windows CI must execute the install and uninstall batch scripts."""
         ci_text = (_REPO_ROOT / ".github" / "workflows" / "CI.yml").read_text(
@@ -817,9 +886,34 @@ class TestCiRelease:
         )[0]
         assert "test_install_scripts.ps1" in windows_job
 
-    def test_workflow_dispatch_releases_even_when_version_is_unchanged(self) -> None:
-        """Manual runs publish the current version without a bump."""
-        assert decide_release("workflow_dispatch", "1.2.3", "1.2.3") is True
+    def test_workflow_dispatch_skips_a_released_version_without_confirmation(
+        self,
+    ) -> None:
+        """A manual run cannot replace the assets of an already tagged version."""
+        assert (
+            decide_release("workflow_dispatch", "1.2.3", "1.2.3", tag_exists=True)
+            is False
+        )
+
+    def test_workflow_dispatch_releases_when_confirmed(self) -> None:
+        """An explicit confirmation re-publishes an existing version."""
+        assert (
+            decide_release(
+                "workflow_dispatch",
+                "1.2.3",
+                "1.2.3",
+                tag_exists=True,
+                confirm_release=True,
+            )
+            is True
+        )
+
+    def test_workflow_dispatch_releases_when_the_tag_is_missing(self) -> None:
+        """A manual run can finish a release whose tag was never created."""
+        assert (
+            decide_release("workflow_dispatch", "1.2.3", "1.2.3", tag_exists=False)
+            is True
+        )
 
     def test_unchanged_version_skips_release(self) -> None:
         """A push with the same version does not publish."""
@@ -928,25 +1022,50 @@ class TestCiRelease:
         assert output_file.read_text(encoding="utf-8") == "should_release=true\n"
         assert "Version bumped:" in capsys.readouterr().out
 
-    def test_workflow_dispatch_does_not_read_git(
-        self,
-        mocker: MockerFixture,
-        monkeypatch: pytest.MonkeyPatch,
-        tmp_path: Path,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        """Manual dispatch releases without calling git show."""
-        git_show = mocker.patch(
-            "scripts.ci_release.subprocess.check_output",
-            side_effect=AssertionError("git show should not run"),
-        )
+    @pytest.fixture(name="dispatch_output")
+    def fixture_dispatch_output(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> Path:
+        """Point the release decision at a manual-dispatch GITHUB_OUTPUT file."""
         output_file = tmp_path / "github_output.txt"
         monkeypatch.setenv("GITHUB_OUTPUT", str(output_file))
         monkeypatch.setenv("GITHUB_EVENT_NAME", "workflow_dispatch")
-        assert publish_should_release() is True
-        git_show.assert_not_called()
-        assert output_file.read_text(encoding="utf-8") == "should_release=true\n"
-        assert "workflow_dispatch" in capsys.readouterr().out
+        return output_file
+
+    @pytest.mark.parametrize(
+        "scenario",
+        [
+            ("deadbeef\trefs/tags/v1\n", "", False, "confirm_release was not set"),
+            ("deadbeef\trefs/tags/v1\n", "true", True, "releasing version"),
+            ("", "", True, "releasing version"),
+        ],
+        ids=["tag-unconfirmed", "tag-confirmed", "tag-missing"],
+    )
+    def test_workflow_dispatch_decision_uses_tag_and_confirmation(
+        self,
+        mocker: MockerFixture,
+        dispatch_output: Path,
+        capsys: pytest.CaptureFixture[str],
+        scenario: tuple[str, str, bool, str],
+    ) -> None:
+        """Manual dispatch checks the tag, never git show, and honors confirmation."""
+        tag_listing, confirm, expected, message = scenario
+
+        def fake_check_output(args: list[str], **_kwargs: object) -> str:
+            if args[1] == "ls-remote":
+                return tag_listing
+            raise AssertionError(f"unexpected git call: {args}")
+
+        mocker.patch(
+            "scripts.ci_release.subprocess.check_output",
+            side_effect=fake_check_output,
+        )
+        mocker.patch.dict(os.environ, {"CONFIRM_RELEASE": confirm})
+        assert publish_should_release() is expected
+        assert dispatch_output.read_text(encoding="utf-8") == (
+            f"should_release={'true' if expected else 'false'}\n"
+        )
+        assert message in capsys.readouterr().out
 
     def test_previous_version_git_failure(self, mocker: MockerFixture) -> None:
         """A missing parent commit fails the release decision."""

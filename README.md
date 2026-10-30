@@ -209,7 +209,7 @@ blinter script.bat --no-config
 - `--max-line-length <n>`: Set maximum line length for S011 and S020 rules (default: 100)
 - `--no-recursive`: When processing directories, only analyze files in the specified directory (not subdirectories)
 - `--follow-calls`: Automatically analyze scripts called by CALL statements and merge their variable context. When enabled, variables defined in called scripts (including transitively called scripts within depth and file limits) are recognized as "defined" in the calling script (position-aware: only after the CALL statement). This eliminates false positive undefined variable errors for configuration scripts. Each script's CALL list is walked once, including when scripts call each other in a cycle
-- `--fail-on <level>`: Exit 1 when a finding is at or above this severity. Levels, from least to most severe: `style`, `performance`, `warning`, `security`, `error`. `none` never fails because of findings. The default is `security`, so Error and Security findings are fatal. This flag overrides `fail_on` in `blinter.ini`
+- `--fail-on <level>`: Exit 1 when a finding is at or above this severity. Levels, from least to most severe: `style`, `performance`, `warning`, `security`, `error`. `none` never fails because of findings. The default is `security`, so Error and Security findings are fatal; `error` fails on fewer findings and ignores Security findings. This flag overrides `fail_on` in `blinter.ini`
 - `--baseline <path>`: Accept findings recorded in a JSON file. A new finding still follows `--fail-on`. A recorded finding that no longer matches exits 1
 - `--update-baseline`: Rewrite the `--baseline` file from the current findings. Requires `--baseline`. Entries for files that were not part of this run are kept
 - `--config <path>`: Load settings from a custom configuration file instead of `blinter.ini` in the current directory
@@ -235,7 +235,7 @@ blinter script.bat --no-config
 | `[general]` | `max_line_length` | Maximum line length for S011 and S020 rules | `100` |
 | `[general]` | `max_scan_files` | Maximum batch files to scan in a directory | `1000` |
 | `[general]` | `follow_calls` | Analyze scripts called by CALL statements with shared variable context | `false` |
-| `[general]` | `min_severity` | Minimum severity level to report | None (all) |
+| `[general]` | `min_severity` | Minimum severity level to report. `error` keeps both Error and Security findings | None (all) |
 | `[general]` | `fail_on` | Lowest severity that makes the process exit 1 (`style`, `performance`, `warning`, `security`, `error`, or `none`) | `security` |
 | `[rules]` | `enabled_rules` | Comma-separated list of rules to enable exclusively | None (all enabled) |
 | `[rules]` | `disabled_rules` | Comma-separated list of rules to disable | None |
@@ -465,6 +465,13 @@ The `blinter` CLI exit codes:
 | **2** | Unexpected internal error |
 
 The default threshold is Security, so Error and Security findings are fatal and Warning, Performance, and Style findings are not. `--fail-on` or `fail_on` in `blinter.ini` changes that threshold. `none` never fails because of findings.
+
+Details that matter in CI:
+
+- The threshold is a ranking, not a set. From most to least severe it is Error, Security, Warning, Performance, Style, so `--fail-on error` fails only on Error findings and ignores Security findings.
+- Only the files you pass (or discover in a directory) decide the exit code. With `--follow-calls`, findings in called scripts are still reported in the text, JSON, and SARIF output, but they never change the exit code.
+- With the default text output, a run where every file fails to read exits 1 without writing a JSON or SARIF document. Use `--format json` or `--format sarif` when a pipeline needs a report even for failed runs. A SARIF report from a run that skipped files records them as error notifications and sets `executionSuccessful` to `false`.
+- Stale baseline entries exit 1 but are not part of the SARIF output. Read them from the text or JSON report.
 
 **Special thanks go out to [BrainWaveCC](https://github.com/BrainWaveCC) for all the help bug hunting.**
 

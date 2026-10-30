@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "ENDLOCAL follows a SETLOCAL (P005 negative)",
+  "lines": {},
+  "must_not": [
+    "P005"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

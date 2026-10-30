@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Errors handled with || (W025 negative)",
+  "lines": {},
+  "must_not": [
+    "W025"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

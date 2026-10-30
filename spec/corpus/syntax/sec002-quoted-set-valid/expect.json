@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "SET with the assignment quoted (SEC002 negative)",
+  "lines": {},
+  "must_not": [
+    "SEC002"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

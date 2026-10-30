@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "A header comment block documents the script (S013 negative)",
+  "lines": {},
+  "must_not": [
+    "S013"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

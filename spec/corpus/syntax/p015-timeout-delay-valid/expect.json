@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "TIMEOUT for a delay instead of ping (P015 negative)",
+  "lines": {},
+  "must_not": [
+    "P015"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

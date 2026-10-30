@@ -114,6 +114,16 @@ When `follow_calls` is enabled, Blinter resolves `CALL` targets to read variable
 
 `BlinterConfig` controls recursion, rule enablement, `max_line_length`, `follow_calls`, `scan_root`, and severity filtering. Values can be loaded from `blinter.ini` and overridden by CLI flags.
 
+## CLI exit codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | No finding at or above `fail_on`, and every primary file was processed |
+| 1 | A finding at or above `fail_on`, a CLI or path error, no processable files, a skipped primary file, or a stale baseline entry |
+| 2 | Unexpected internal error |
+
+The failure threshold is a severity ranking (`SEVERITY_RANK` in `models.py`: Style, Performance, Warning, Security, Error). `fail_on = error` therefore ignores Security findings, whereas `min_severity = error` keeps both Error and Security findings in the report. Only primary targets count toward the exit code; findings from scripts reached through `--follow-calls` appear in the output but do not change it. In text mode, a run where every file fails to read exits 1 without a JSON or SARIF document; `--format json` and `--format sarif` still emit one, and SARIF marks the run `executionSuccessful: false` when files were skipped.
+
 ## SSOT split: batch-spec vs Blinter
 
 | Artifact | Repo / path |
@@ -121,7 +131,7 @@ When `follow_calls` is enabled, Blinter resolves `CALL` targets to read variable
 | ANTLR grammar, expansion rules, command catalog, cmd-help | [`vendor/batch-spec`](../vendor/batch-spec) ([`BatchLang/batch-spec`](https://github.com/BatchLang/batch-spec), pinned in [`spec/batch-spec.lock`](../spec/batch-spec.lock)) |
 | [`spec/data/rules.yaml`](../spec/data/rules.yaml) | Rule catalog (`checker: regex`; see `RULE_COUNT`) |
 | [`spec/data/commands-linter.yaml`](../spec/data/commands-linter.yaml) | Security/style command policy (merged with batch-spec `commands.yaml` for `patterns.py`; pins W009 `older_windows_commands`) |
-| [`spec/corpus/`](../spec/corpus/) | 294 committed fixtures + `expect.json` oracles |
+| [`spec/corpus/`](../spec/corpus/) | 417 committed fixtures + `expect.json` oracles |
 | [`spec/audit/`](../spec/audit/) | Reference matrix and audit baselines |
 
 Clone with `git clone --recurse-submodules` or run `git submodule update --init --recursive` after checkout.

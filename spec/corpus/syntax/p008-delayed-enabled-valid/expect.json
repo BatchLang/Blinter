@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Delayed expansion is enabled before !VAR! is used (P008 negative)",
+  "lines": {},
+  "must_not": [
+    "P008"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

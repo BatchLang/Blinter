@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "A command that is not deprecated (W024 negative)",
+  "lines": {},
+  "must_not": [
+    "W024"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

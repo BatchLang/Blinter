@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "A .cmd script handles errorlevel consistently (W028 negative)",
+  "lines": {},
+  "must_not": [
+    "W028"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

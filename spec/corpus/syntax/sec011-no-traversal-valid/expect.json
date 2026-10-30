@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "A path without parent-directory sequences (SEC011 negative)",
+  "lines": {},
+  "must_not": [
+    "SEC011"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

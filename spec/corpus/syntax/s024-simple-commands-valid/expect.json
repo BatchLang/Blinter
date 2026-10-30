@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Operations split onto their own lines (S024 negative)",
+  "lines": {},
+  "must_not": [
+    "S024"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

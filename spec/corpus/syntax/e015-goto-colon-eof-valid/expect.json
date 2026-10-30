@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "GOTO :EOF with its colon (E015 negative)",
+  "lines": {},
+  "must_not": [
+    "E015"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

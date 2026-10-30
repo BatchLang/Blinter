@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Temporary file name includes %RANDOM% (P007 negative)",
+  "lines": {},
+  "must_not": [
+    "P007"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

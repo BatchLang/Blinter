@@ -52,14 +52,11 @@ _SET_P_NAME_RE = re.compile(
     r'set\s+/p\s+"?([A-Za-z_][\w]*)\s*=',
     re.IGNORECASE,
 )
-_FOR_F_SINGLE_QUOTE_CMD_RE = re.compile(
-    r"for\s+/f\b(?:(?!\bin\b).)*\bin\s*\(\s*'([^']*)'",
-    re.IGNORECASE | re.DOTALL,
-)
-_FOR_F_USEBACKQ_CMD_RE = re.compile(
-    r"for\s+/f\b[^\n]*usebackq[^\n]*\bin\s*\(\s*`([^`]*)`",
-    re.IGNORECASE | re.DOTALL,
-)
+_FOR_F_HEAD_RE = re.compile(r"for\s+/f\b", re.IGNORECASE)
+_FOR_F_IN_WORD_RE = re.compile(r"\bin\b", re.IGNORECASE)
+_FOR_F_SINGLE_QUOTE_BODY_RE = re.compile(r"\s*\(\s*'([^']*)'")
+_FOR_F_USEBACKQ_WORD_RE = re.compile(r"usebackq", re.IGNORECASE)
+_FOR_F_BACKTICK_IN_RE = re.compile(r"\bin\s*\(\s*`([^`]*)`", re.IGNORECASE)
 _UNARY_IF_RE = re.compile(
     r"\bif\s+(?:/i\s+)?(?:not\s+)?(?:exist|defined|errorlevel|cmdextversion)\b",
     re.IGNORECASE,
@@ -359,14 +356,60 @@ def _unescaped_specials(command_text: str) -> bool:
     return False
 
 
+def _for_f_single_quote_commands(text: str) -> List[str]:
+    """Return ``IN ('command')`` bodies of each FOR /F, scanning once.
+
+    Each FOR /F is paired with the first following ``in`` word, as in
+    ``for /f ... in ('cmd')``. A single forward pass keeps this linear on long
+    lines, where a lazy ``.*`` pattern would rescan the line for every FOR /F.
+    """
+    commands: List[str] = []
+    position = 0
+    while True:
+        head = _FOR_F_HEAD_RE.search(text, position)
+        if head is None:
+            break
+        in_word = _FOR_F_IN_WORD_RE.search(text, head.end())
+        if in_word is None:
+            break
+        body = _FOR_F_SINGLE_QUOTE_BODY_RE.match(text, in_word.end())
+        if body is None:
+            position = in_word.end()
+            continue
+        commands.append(body.group(1))
+        position = body.end()
+    return commands
+
+
+def _for_f_usebackq_commands(text: str) -> List[str]:
+    """Return the backtick ``IN (`command`)`` body that follows ``usebackq``.
+
+    Mirrors one greedy match per FOR /F: the last ``in (`...`)`` after the first
+    ``usebackq`` that follows the FOR /F keyword, found without nested scans.
+    """
+    commands: List[str] = []
+    position = 0
+    while True:
+        head = _FOR_F_HEAD_RE.search(text, position)
+        if head is None:
+            break
+        option = _FOR_F_USEBACKQ_WORD_RE.search(text, head.end())
+        if option is None:
+            break
+        bodies = list(_FOR_F_BACKTICK_IN_RE.finditer(text, option.end()))
+        if not bodies:
+            break
+        commands.append(bodies[-1].group(1))
+        position = bodies[-1].end()
+    return commands
+
+
 def _check_e047_for_f_unescaped(stripped: str, line_num: int) -> List[LintIssue]:
     """E047: unescaped specials inside FOR /F ``IN ('command')`` / usebackq ticks."""
     snippets: List[str] = []
-    for match in _FOR_F_SINGLE_QUOTE_CMD_RE.finditer(stripped):
-        if "usebackq" not in stripped.lower():
-            snippets.append(match.group(1))
-    for match in _FOR_F_USEBACKQ_CMD_RE.finditer(stripped):
-        snippets.append(match.group(1))
+    if "usebackq" not in stripped.lower():
+        snippets.extend(_for_f_single_quote_commands(stripped))
+    snippets.extend(_for_f_usebackq_commands(stripped))
     for snippet in snippets:
         if _unescaped_specials(snippet):
             return [

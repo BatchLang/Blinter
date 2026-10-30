@@ -4,6 +4,31 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ## [Unreleased]
 
+## [1.1.52] - 2026-10-30
+
+### Fixed
+
+- W001 no longer treats a command whose name merely begins with `rem` (for example `remote.exe`) as a comment, so a script that ends on such a command is flagged for a missing exit code. Every checker now shares one comment test that accepts only `REM`, `@REM`, a lone `REM` and `::`, in any letter case. Several checkers previously missed `@REM`, a bare `REM`, or an upper-case `REM`
+- The FOR-block scan behind the loop-scoped performance rules ignores parentheses inside quotes and after a caret, and its cache is reset at the start of every lint pass
+- Several rules took seconds to minutes on long pathological lines because of nested wildcards in their regular expressions (the `%a%` and `>echo ` command-injection patterns, FOR /F quoting in E047, the SEC009 and SEC022 to SEC024 patterns and others). They now run in linear time and return the same findings
+- P010 flags DIR only when its output is piped or redirected to standard output and `/B` is absent, as the rule describes. It previously fired on any DIR line and suggested a `/F` switch that DIR does not have
+- S008 accepts a comment directly above a block, W025 accepts `command || exit /b` on the same line, and W033 no longer reports a quoted CALL target that carries an extension
+- The SARIF log reports `executionSuccessful: false` when a file could not be linted
+- Standard output falls back to UTF-8 on consoles whose code page cannot encode the report, and the `--max-line-length` usage message is printed when the value is rejected
+- `uninstall_blinter.cmd` removes only the exact Blinter entry from the user PATH. A directory name that merely contained the bin path, or a path with square brackets, was previously mishandled
+- `scripts/verify.py` stops with a clear message when it runs on a non-CPython interpreter, because mypy does not support PyPy
+
+### Changed
+
+- A manual run of the release workflow now needs the `confirm_release` input when the version tag already exists, and it only replaces release assets when the tag points at the commit being built. The PyPI upload skips files that already exist, so a confirmed re-publish does not fail there. Release notes are extracted for the exact version being published
+- The `dependency-graph` job no longer blocks the release version check
+- The MegaLinter install pin is 1.1.52
+- The documentation describes the exit codes, `--follow-calls`, `--fail-on`, `min_severity` and the SARIF semantics, and the package `Documentation` URL points at the project docs
+
+### Added
+
+- A negative corpus case for 120 rules that had none. `scripts/spec/audit_ssot.py` now fails when a rule has no case listing it in `must_not`, and the reference-matrix counts a `must_not` assertion as covering a construct. The corpus holds 417 cases
+
 ## [1.1.51] - 2026-10-29
 
 ### Changed

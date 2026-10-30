@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "ERRORLEVEL is checked after the critical operation (W002 negative)",
+  "lines": {},
+  "must_not": [
+    "W002"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

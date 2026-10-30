@@ -11,7 +11,7 @@ from typing import (
 
 from blinter.constants import LARGE_FILE_LINE_THRESHOLD
 from blinter.models import LintIssue
-from blinter.parsing.context import _is_comment_line
+from blinter.parsing.context import _is_blank_or_comment, _is_comment_line
 from blinter.patterns import COMMAND_CASING_KEYWORDS
 from blinter.rules.registry import RULES
 
@@ -92,7 +92,11 @@ def _check_code_duplication(lines: List[str]) -> List[LintIssue]:
 
     for i, line in enumerate(lines):
         stripped = line.strip().lower()
-        if stripped and not stripped.startswith(":") and not stripped.startswith("rem"):
+        if (
+            stripped
+            and not stripped.startswith(":")
+            and not _is_blank_or_comment(stripped)
+        ):
             # Skip common user interface commands that are legitimately repeated
             is_ui_command = any(re.search(pattern, stripped) for pattern in ui_commands)
             if is_ui_command:
@@ -154,7 +158,7 @@ def _check_missing_pause(lines: List[str]) -> List[LintIssue]:
     if has_user_input and not has_pause:
         # Find an appropriate line number (near the end)
         for i in range(len(lines) - 1, -1, -1):
-            if lines[i].strip() and not lines[i].strip().startswith("rem"):
+            if not _is_blank_or_comment(lines[i]):
                 issues.append(
                     LintIssue(
                         line_number=i + 1,
@@ -369,7 +373,7 @@ def _collect_cmd_cases(lines: List[str]) -> Dict[str, List[Tuple[int, str]]]:
 
     for line_num, line in enumerate(lines, 1):
         stripped = line.strip()
-        if not stripped or stripped.startswith("rem ") or stripped.startswith("::"):
+        if _is_blank_or_comment(stripped):
             continue
 
         # Skip lines where commands appear in contexts that aren't actual batch commands

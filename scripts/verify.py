@@ -472,6 +472,21 @@ def _require_uv() -> str:
     return uv_executable
 
 
+def _require_cpython() -> None:
+    """Exit with a clear message when not running under CPython.
+
+    mypy and several other gate tools do not support alternative interpreters
+    such as PyPy, and fail with obscure errors midway through the gate.
+    """
+    implementation = platform.python_implementation()
+    if implementation != "CPython":
+        raise SystemExit(
+            f"verify.py must run under CPython, not {implementation}. "
+            "Recreate the virtual environment with "
+            "`uv venv --python cpython-3.14 --clear` and `uv sync --extra dev`."
+        )
+
+
 def select_steps(request: StepRequest) -> tuple[Step, ...]:
     """Choose verification steps for the requested flags and platform."""
     if request.windows_only:
@@ -572,6 +587,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     """Execute formatting, linting, security, and test checks."""
     _configure_logging()
     args = _parse_args(argv)
+    _require_cpython()
     fix = cast(bool, args.fix)
     skip_pytest = cast(bool, args.skip_pytest)
     windows_only = cast(bool, args.windows_only)

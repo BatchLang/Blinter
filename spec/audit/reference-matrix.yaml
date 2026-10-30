@@ -51,6 +51,9 @@ entries:
   - integration/w005-unquoted-var
   - integration/w028-bat-errorlevel
   - integration/w028-bat-errorlevel-ext
+  - syntax/w001-rem-comment-only-valid
+  - syntax/w001-rem-prefixed-command
+  - syntax/w019-goto-crlf-valid
 - construct: IF command format and EXIST/NOT mixing
   sources:
   - MS Learn if
@@ -81,6 +84,8 @@ entries:
   - syntax/w056-else-if-pseudo-and
   - syntax/else-if-valid
   - syntax/conditional-exec-valid
+  - syntax/e004-if-exist-alone-valid
+  - syntax/w021-quoted-if-valid
 - construct: Path validation, UNC, and hardcoded absolute paths
   sources:
   - MS Learn cd/path
@@ -111,6 +116,9 @@ entries:
   - syntax/w061-pushd-popd-valid
   - syntax/w062-cd-no-d-switch
   - syntax/w062-cd-d-valid
+  - syntax/e005-valid-path-valid
+  - syntax/e027-pushd-unc-valid
+  - syntax/sec006-environment-paths-valid
 - construct: Undefined variable references
   sources:
   - MS Learn set
@@ -140,6 +148,7 @@ entries:
   - E007
   corpus:
   - syntax/e007-empty-var-check
+  - syntax/e007-quoted-empty-check-valid
 - construct: Unreachable code after EXIT/GOTO
   sources:
   - MS Learn control flow
@@ -187,6 +196,8 @@ entries:
   - syntax/e011-invalid-expansion
   - syntax/e028-complex-quotes
   - syntax/e028-for-f-empty-find-valid
+  - syntax/e009-balanced-quotes-valid
+  - syntax/e011-valid-expansion-valid
 - construct: FOR loop syntax and variable forms
   sources:
   - vendor/batch-spec/audit/cmd-help/for-help.txt
@@ -213,6 +224,9 @@ entries:
   - syntax/w036-for-f-command-with-parens-valid
   - syntax/w036-for-f-command-noprofile-valid
   - syntax/w036-for-f-usebackq-quoted-file
+  - syntax/e010-for-with-do-valid
+  - syntax/e020-for-double-percent-valid
+  - syntax/w038-for-r-wildcard-valid
 - construct: SET /A syntax errors in FOR context
   sources:
   - MS Learn set /A
@@ -225,6 +239,8 @@ entries:
   - syntax/e022-set-a-invalid
   - syntax/e023-set-a-unquoted
   - syntax/e029-set-a-unbalanced
+  - syntax/e022-valid-arithmetic-valid
+  - syntax/e023-quoted-set-a-valid
 - construct: CALL subroutine and GOTO EOF colon rules
   sources:
   - MS Learn goto/call
@@ -247,6 +263,7 @@ entries:
   - syntax/w057-bat-without-call
   - syntax/w057-bat-with-call-valid
   - syntax/s010-if-goto-call-valid
+  - syntax/e015-goto-colon-eof-valid
 - construct: Command typos and removed/deprecated commands
   sources:
   - vendor/batch-spec/data/commands.yaml
@@ -271,6 +288,10 @@ entries:
   - integration/w007-locked-path
   - syntax/e005-invalid-path
   - syntax/w031-unicode-filename
+  - syntax/e034-available-command-valid
+  - syntax/w024-current-command-valid
+  - syntax/w025-or-exit-valid
+  - syntax/w029-exe-command-valid
 - construct: IF ERRORLEVEL and numeric comparison semantics
   sources:
   - vendor/batch-spec/audit/cmd-help/if-help.txt
@@ -287,6 +308,8 @@ entries:
   - syntax/w017-not-errorlevel-zero
   - syntax/w017-not-errorlevel-one-valid
   - syntax/w046-if-numeric-compare
+  - syntax/e016-errorlevel-valid-valid
+  - syntax/w046-equ-comparison-valid
 - construct: Percent-tilde (%~) parameter expansion
   sources:
   - vendor/batch-spec/audit/cmd-help/call-help.txt
@@ -313,6 +336,7 @@ entries:
   - syntax/w051-param-10-ambiguous
   - syntax/w051-param-9-valid
   - syntax/w051-for-loop-valid
+  - syntax/e025-modifier-on-parameter-valid
 - construct: Line endings, encoding, and multibyte risks
   sources:
   - cmd.exe CRLF behavior
@@ -330,6 +354,10 @@ entries:
   - syntax/w018-multibyte-lf
   - integration/p027-setlocal-nesting
   - syntax/w019-goto-lf
+  - syntax/e018-crlf-endings-valid
+  - syntax/s005-uniform-crlf-valid
+  - syntax/s016-rem-comments-valid
+  - syntax/w018-multibyte-crlf-valid
 - construct: String substring, replacement, and unset expansion
   sources:
   - SS64 variable substring
@@ -345,6 +373,9 @@ entries:
   - syntax/w047-substring-unset
   - syntax/w047-substring-empty
   - syntax/p012-string-ops
+  - syntax/e021-valid-substring-valid
+  - syntax/p012-single-string-op-valid
+  - syntax/w047-guarded-substring-valid
 - construct: SET /A arithmetic syntax and octal literals
   sources:
   - MS Learn set /A
@@ -358,6 +389,8 @@ entries:
   - syntax/e029-set-a-unbalanced
   - syntax/w045-set-a-octal
   - syntax/e023-set-a-unquoted
+  - syntax/e029-balanced-set-a-valid
+  - syntax/w045-decimal-literal-valid
 - construct: Caret escape, multilevel escaping, and continuation
   sources:
   - vendor/batch-spec/data/expansion.yaml
@@ -375,6 +408,9 @@ entries:
   - syntax/e032-continuation-trailing-space
   - syntax/e033-double-percent
   - syntax/e033-expansion-percent-valid
+  - syntax/e030-escaped-ampersand-valid
+  - syntax/e031-single-level-escape-valid
+  - syntax/e032-continuation-no-space-valid
 - construct: Smart/curly quotes in source
   sources:
   - Unicode not valid as cmd.exe delimiters
@@ -384,6 +420,7 @@ entries:
   - E035
   corpus:
   - syntax/e035-smart-quotes
+  - syntax/e035-straight-quotes-valid
 - construct: IF DEFINED and IF/ELSE block forms
   sources:
   - MS Learn if
@@ -419,6 +456,10 @@ entries:
   - syntax/p026-redundant-disable-delayed
   - integration/p006-missing-endlocal
   - integration/p027-setlocal-nesting
+  - syntax/p003-setlocal-with-set-valid
+  - syntax/p004-delayed-used-valid
+  - syntax/p008-delayed-enabled-valid
+  - syntax/w022-delayed-enabled-valid
 - construct: SETLOCAL/ENDLOCAL pairing and nesting limit
   sources:
   - MS Learn setlocal
@@ -437,6 +478,8 @@ entries:
   - integration/p027-setlocal-nesting
   - integration/p024-conditional-setlocal
   - syntax/p024-p006-setlocal-in-comment-valid
+  - syntax/p005-endlocal-paired-valid
+  - syntax/p027-shallow-setlocal-valid
 - construct: Temporary files, randomness, and predictable paths
   sources:
   - MS Learn environment variables
@@ -455,6 +498,10 @@ entries:
   - integration/sec017-predictable-temp
   - integration/sec018-insecure-redirection
   - syntax/p013-dir-no-b-flag
+  - syntax/p007-temp-with-random-valid
+  - syntax/sec007-temp-variable-valid
+  - syntax/sec012-random-temp-name-valid
+  - syntax/sec017-unique-temp-name-valid
 - construct: FOR loop and I/O performance anti-patterns
   sources:
   - MS Learn for
@@ -493,6 +540,16 @@ entries:
   - syntax/e030-improper-caret
   - integration/p020-redundant-echo-off
   - integration/sec003-dangerous-del
+  - syntax/p010-dir-bare-valid
+  - syntax/p013-dir-with-b-valid
+  - syntax/p014-output-silenced-valid
+  - syntax/p015-timeout-delay-valid
+  - syntax/p016-paren-in-string-valid
+  - syntax/p018-for-r-with-mask-valid
+  - syntax/p019-light-expansion-in-loop-valid
+  - syntax/p020-single-echo-off-valid
+  - syntax/p021-tasklist-filtered-valid
+  - syntax/p025-specific-wildcard-valid
 - construct: Redundant existence checks and code duplication
   sources:
   - Community performance practice
@@ -510,6 +567,9 @@ entries:
   - integration/p027-setlocal-nesting
   - integration/p024-conditional-setlocal
   - syntax/p024-p006-setlocal-in-comment-valid
+  - syntax/p001-single-exist-check-valid
+  - syntax/p002-distinct-commands-valid
+  - syntax/p017-distinct-exist-checks-valid
 - construct: Global style conventions and readability
   sources:
   - Community batch style
@@ -572,6 +632,27 @@ entries:
   - syntax/w046-if-numeric-compare
   - syntax/s020-long-line
   - syntax/e023-set-a-unquoted
+  - syntax/s001-echo-off-first-valid
+  - syntax/s002-echo-off-with-at-valid
+  - syntax/s003-consistent-casing-valid
+  - syntax/s004-no-trailing-space-valid
+  - syntax/s007-cmd-extension-valid
+  - syntax/s008-commented-block-valid
+  - syntax/s009-named-constant-valid
+  - syntax/s011-short-lines-valid
+  - syntax/s012-consistent-indent-valid
+  - syntax/s013-header-comment-valid
+  - syntax/s014-few-parameters-valid
+  - syntax/s015-consistent-goto-valid
+  - syntax/s017-consistent-names-valid
+  - syntax/s018-documented-subroutine-valid
+  - syntax/s019-named-numbers-valid
+  - syntax/s020-wrapped-line-valid
+  - syntax/s022-uniform-naming-valid
+  - syntax/s023-documented-timeout-valid
+  - syntax/s024-simple-commands-valid
+  - syntax/s026-no-continuation-valid
+  - syntax/s027-blank-line-around-block-valid
 - construct: Compatibility, portability, and environment warnings
   sources:
   - MS Learn compatibility
@@ -648,6 +729,24 @@ entries:
   - integration/w043-tasklist-before-taskkill
   - syntax/w060-setx-equals-sign
   - syntax/w060-setx-valid
+  - syntax/w002-errorlevel-checked-valid
+  - syntax/w003-failure-handled-valid
+  - syntax/w005-quoted-variables-valid
+  - syntax/w006-curl-timeout-valid
+  - syntax/w007-unlocked-file-valid
+  - syntax/w008-setx-other-variable-valid
+  - syntax/w009-portable-command-valid
+  - syntax/w010-arch-neutral-valid
+  - syntax/w011-ascii-only-valid
+  - syntax/w012-ascii-text-valid
+  - syntax/w026-combined-modifiers-valid
+  - syntax/w027-cmd-native-valid
+  - syntax/w028-cmd-ext-errorlevel-valid
+  - syntax/w030-ascii-codepage-valid
+  - syntax/w031-ascii-filename-valid
+  - syntax/w032-charset-declared-valid
+  - syntax/w033-explicit-extension-valid
+  - syntax/w042-timeout-nobreak-valid
 - construct: Duplicate GOTO labels
   sources:
   - MS Learn goto
@@ -657,6 +756,7 @@ entries:
   - W013
   corpus:
   - integration/w013-duplicate-label
+  - syntax/w013-unique-labels-valid
 - construct: Nested FOR loops and variable scope
   sources:
   - MS Learn for
@@ -671,6 +771,9 @@ entries:
   - syntax/w023-nested-for
   - syntax/w039-nested-for-no-call
   - syntax/w040-for-var-scope
+  - syntax/w023-single-for-valid
+  - syntax/w039-for-with-call-valid
+  - syntax/w040-distinct-loop-variables-valid
 - construct: FOR /F tokenization, delimiters, and CSV
   sources:
   - vendor/batch-spec/audit/cmd-help/for-help.txt
@@ -706,6 +809,8 @@ entries:
   - syntax/w063-for-f-multiline-overflow
   - syntax/w063-for-f-tokens-star-suffix-overflow
   - syntax/w063-for-f-tokens-star-suffix-valid
+  - syntax/w035-explicit-delims-valid
+  - syntax/w048-delims-empty-valid
 - construct: SET variable spacing
   sources:
   - MS Learn set
@@ -775,6 +880,15 @@ entries:
   - syntax/w021-if-unquoted
   - syntax/p025-wildcard-star
   - integration/sec016-restart-no-limit
+  - syntax/sec002-quoted-set-valid
+  - syntax/sec003-delete-with-prompt-valid
+  - syntax/sec004-registry-query-valid
+  - syntax/sec005-privilege-checked-valid
+  - syntax/sec008-no-credentials-valid
+  - syntax/sec009-powershell-default-policy-valid
+  - syntax/sec010-plain-echo-valid
+  - syntax/sec011-no-traversal-valid
+  - syntax/sec015-taskkill-pid-valid
 - construct: 'Security: system modification and malware patterns'
   sources:
   - Security best practice
@@ -799,6 +913,14 @@ entries:
   - integration/sec023-autorun-inf
   - integration/sec024-self-copy-removable
   - syntax/e027-unc-cd
+  - syntax/sec016-bounded-retry-valid
+  - syntax/sec018-redirect-local-valid
+  - syntax/sec019-append-log-valid
+  - syntax/sec020-local-path-valid
+  - syntax/sec021-single-start-valid
+  - syntax/sec022-read-hosts-valid
+  - syntax/sec023-readme-file-valid
+  - syntax/sec024-copy-data-file-valid
 - construct: Embedded C# blocks skipped during batch linting
   sources:
   - Blinter embedded-language detection
@@ -932,3 +1054,4 @@ entries:
   - E048
   corpus:
   - syntax/e048-line-too-long
+  - syntax/e048-long-line-under-limit-valid

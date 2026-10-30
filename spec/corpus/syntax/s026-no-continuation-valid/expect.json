@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "No continuation characters at all (S026 negative)",
+  "lines": {},
+  "must_not": [
+    "S026"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

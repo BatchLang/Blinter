@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Every line ends with CRLF (S005 negative)",
+  "lines": {},
+  "must_not": [
+    "S005"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

@@ -71,7 +71,9 @@ from blinter.io.encoding import (
 )
 from blinter.parsing.context import (
     _command_segments,
+    _is_blank_or_comment,
     _is_command_in_safe_context,
+    _is_comment_line,
     _is_endlocal_command,
     _is_setlocal_command,
 )
@@ -465,12 +467,39 @@ class TestPerformanceIssueChecking:
     """Test performance issue detection edge cases."""
 
     def test_inefficient_dir_command(self) -> None:
-        """Test DIR command without /F flag."""
+        """P010 flags DIR output that is piped or redirected without /B."""
         issues = _check_performance_issues(
-            [""], 1, "dir /s", False, False, False, False, False, False, False
+            [""],
+            1,
+            "dir /s | findstr txt",
+            False,
+            False,
+            False,
+            False,
+            False,
+            False,
+            False,
         )
         assert len(issues) == 1
         assert "P010" in issues[0].rule.code
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "dir /s",
+            "dir /b > list.txt",
+            "dir /s/b | findstr txt",
+            "dirname x > y",
+            "dir /s 2>nul",
+            "dir /s 2>>err.log",
+        ],
+    )
+    def test_dir_command_not_flagged_by_p010(self, command: str) -> None:
+        """P010 stays quiet for unprocessed output, /B listings and other commands."""
+        issues = _check_performance_issues(
+            [""], 1, command, False, False, False, False, False, False, False
+        )
+        assert "P010" not in {issue.rule.code for issue in issues}
 
     def test_for_loop_without_tokens(self) -> None:
         """Test FOR loop without tokens optimization."""
@@ -4944,3 +4973,52 @@ class TestResidualFalsePositives:
         assert not _command_segments("echo a ^& setlocal")
         assert not _is_setlocal_command("echo a ^& setlocal")
         assert _command_segments('dir | find "x"') == ['dir | find "x"']
+
+
+class TestBlankOrCommentDetection:
+    """REM and :: detection must not swallow commands that merely start with rem."""
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "",
+            "   ",
+            "rem",
+            "REM text",
+            "rem\ttabbed",
+            "@rem hidden",
+            ":: note",
+            "  :: indented",
+        ],
+    )
+    def test_blank_and_comment_lines_are_detected(self, line: str) -> None:
+        """Blank lines, REM, @REM, bare REM and :: are all comments."""
+        assert _is_blank_or_comment(line)
+
+    @pytest.mark.parametrize(
+        "line",
+        ["rem", "REM text", "rem\ttabbed", "@rem hidden", ":: note", "  :: indented"],
+    )
+    def test_is_comment_line_matches_the_shared_definition(self, line: str) -> None:
+        """_is_comment_line agrees with _is_blank_or_comment for non-blank comments."""
+        assert _is_comment_line(line)
+
+    @pytest.mark.parametrize("line", ["", "remote.exe", "RENAME a b", ":label"])
+    def test_is_comment_line_rejects_non_comments(self, line: str) -> None:
+        """Blank lines, labels and rem-prefixed command names are not comments."""
+        assert not _is_comment_line(line)
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "remote.exe sync",
+            "remove_cache.cmd",
+            "REMOVE.bat arg",
+            "remark=1",
+            ":label",
+            "echo rem",
+        ],
+    )
+    def test_commands_starting_with_rem_are_not_comments(self, line: str) -> None:
+        """Executables and labels whose names begin with rem are not comments."""
+        assert not _is_blank_or_comment(line)

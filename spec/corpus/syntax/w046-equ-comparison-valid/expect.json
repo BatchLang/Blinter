@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Numeric comparison with EQU (W046 negative)",
+  "lines": {},
+  "must_not": [
+    "W046"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

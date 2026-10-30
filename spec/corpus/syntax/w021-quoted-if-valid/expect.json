@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Quoted IF operands (W021 negative)",
+  "lines": {},
+  "must_not": [
+    "W021"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

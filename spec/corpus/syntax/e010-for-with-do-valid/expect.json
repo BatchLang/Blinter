@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "A FOR loop with its DO keyword (E010 negative)",
+  "lines": {},
+  "must_not": [
+    "E010"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

@@ -30,9 +30,9 @@ try {
         Write-Host 'User PATH is empty'
         exit 0
     }
-    if ($path -like "*$binPath*") {
-        $pathArray = $path -split ';' | Where-Object { $_ -ne '' -and $_ -ne $binPath }
-        $newPath = $pathArray -join ';'
+    $pathArray = @($path -split ';' | Where-Object { $_ -ne '' })
+    if ($pathArray -contains $binPath) {
+        $newPath = (@($pathArray | Where-Object { $_ -ne $binPath }) -join ';')
         if ($kindName -eq 'ExpandString' -and $key) {
             $key.SetValue('Path', $newPath, [Microsoft.Win32.RegistryValueKind]::ExpandString)
         } else {

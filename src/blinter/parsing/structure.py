@@ -15,7 +15,11 @@ from typing import (
 from blinter.constants import BUILTIN_VARS
 from blinter.logging_config import logger
 from blinter.models import LintIssue
-from blinter.parsing.context import _is_endlocal_command, _is_setlocal_command
+from blinter.parsing.context import (
+    _is_blank_or_comment,
+    _is_endlocal_command,
+    _is_setlocal_command,
+)
 from blinter.patterns import (
     _COMPILED_SETLOCAL_DISABLE,
 )
@@ -375,6 +379,9 @@ _defined_vars_cache_var: ContextVar[
 _empty_assigned_vars_cache_var: ContextVar[
     Optional[Dict[int, tuple[object, frozenset[str]]]]
 ] = ContextVar("empty_assigned_vars_cache", default=None)
+_for_block_cache_var: ContextVar[Optional[Dict[int, tuple[object, List[bool]]]]] = (
+    ContextVar("for_block_membership", default=None)
+)
 
 
 def _identity_cached(
@@ -408,8 +415,7 @@ class _ParenScan:  # pylint: disable=too-few-public-methods
 
 def _is_paren_comment_line(line: str) -> bool:
     """Return True for blank lines and REM/:: comments."""
-    lowered = line.strip().lower()
-    return not lowered or lowered.startswith("rem") or lowered.startswith("::")
+    return _is_blank_or_comment(line)
 
 
 def _first_command_token(command: str) -> str:
@@ -538,8 +544,14 @@ def _begin_empty_assigned_vars_pass() -> None:
     _defined_vars_cache_var.set({})
 
 
+def _begin_for_block_pass() -> None:
+    """Start a per-lint FOR-block membership cache for the current context."""
+    _for_block_cache_var.set({})
+
+
 def _begin_structure_cache_pass() -> None:
     """Initialize per-lint caches used by checker modules."""
+    _begin_for_block_pass()
     _begin_invocation_prefix_pass()
     _begin_delayed_expansion_pass()
     _begin_paren_depth_pass()

@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Failure handled with || (W003 negative)",
+  "lines": {},
+  "must_not": [
+    "W003"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

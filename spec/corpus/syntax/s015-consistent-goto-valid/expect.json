@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Every GOTO uses the same colon style (S015 negative)",
+  "lines": {},
+  "must_not": [
+    "S015"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

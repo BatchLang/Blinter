@@ -481,6 +481,15 @@ def _check_code_documentation(lines: List[str]) -> List[LintIssue]:
     return issues
 
 
+def _is_comment_before_line(lines: List[str], line_number: int) -> bool:
+    """Return True when the nearest non-blank line above ``line_number`` is a comment."""
+    for index in range(line_number - 2, -1, -1):
+        previous = lines[index].strip()
+        if previous:
+            return _is_comment_line(previous)
+    return False
+
+
 def _check_missing_complex_comments(lines: List[str]) -> List[LintIssue]:
     """Flag long IF/FOR blocks that lack explanatory comments (S008)."""
     issues: List[LintIssue] = []
@@ -499,7 +508,7 @@ def _check_missing_complex_comments(lines: List[str]) -> List[LintIssue]:
             block_start = i
 
         if previous_depth > 0 and depth == 0 and (i - block_start) >= 6:
-            has_comment = any(
+            has_comment = _is_comment_before_line(lines, block_start) or any(
                 _is_comment_line(lines[j - 1]) for j in range(block_start, i + 1)
             )
             if not has_comment:

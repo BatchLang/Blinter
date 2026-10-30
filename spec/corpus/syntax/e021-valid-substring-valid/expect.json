@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Numeric substring and substitution syntax (E021 negative)",
+  "lines": {},
+  "must_not": [
+    "E021"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

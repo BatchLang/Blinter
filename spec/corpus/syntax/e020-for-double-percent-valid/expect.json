@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "FOR variable written with %% inside a batch file (E020 negative)",
+  "lines": {},
+  "must_not": [
+    "E020"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "SETX on a non-PATH variable (W008 negative)",
+  "lines": {},
+  "must_not": [
+    "W008"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

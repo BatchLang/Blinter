@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "The timeout comes from a documented variable (S023 negative)",
+  "lines": {},
+  "must_not": [
+    "S023"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

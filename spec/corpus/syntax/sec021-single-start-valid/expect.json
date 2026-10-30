@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "A one-off START of a different program (SEC021 negative)",
+  "lines": {},
+  "must_not": [
+    "SEC021"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

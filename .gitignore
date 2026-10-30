@@ -3,8 +3,9 @@ batch-script-examples/
 batch-examples-*.json
 tests/fixtures/corpus-baseline.json
 blinter-*/
-pylint-report.txt
 pylint-output.txt
+.hypothesis/
+.complexipy_cache/
 
 # Python bytecode
 __pycache__/

@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Paths come from environment variables (SEC006 negative)",
+  "lines": {},
+  "must_not": [
+    "SEC006"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

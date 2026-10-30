@@ -15,6 +15,7 @@ from blinter.engine.lines_cache import get_cached_lines
 from blinter.io.discovery import is_path_under_root
 from blinter.io.encoding import _validate_and_read_file
 from blinter.logging_config import logger
+from blinter.parsing.context import _is_blank_or_comment
 from blinter.parsing.structure import _collect_set_variables
 
 _CALL_SCRIPT_PATTERN = re.compile(
@@ -85,8 +86,7 @@ def _extract_called_scripts(
         return called_scripts
 
     for line in lines:
-        stripped = line.strip().lower()
-        if stripped.startswith("rem ") or stripped.startswith("::"):
+        if _is_blank_or_comment(line):
             continue
 
         call_match = _CALL_SCRIPT_PATTERN.search(line)
@@ -224,8 +224,7 @@ def _extract_direct_dependencies(
 
     batch_dir = batch_file.parent
     for line in file_lines:
-        stripped = line.strip().lower()
-        if stripped.startswith("rem ") or stripped.startswith("::"):
+        if _is_blank_or_comment(line):
             continue
 
         call_match = _CALL_SCRIPT_PATTERN.search(line)
@@ -534,8 +533,7 @@ def _vars_from_call_line(
     ctx: _CallLineContext,
 ) -> Set[str]:
     """Return variables defined by all resolvable CALL targets on a line."""
-    stripped = line.strip().lower()
-    if stripped.startswith("rem ") or stripped.startswith("::"):
+    if _is_blank_or_comment(line):
         return set()
 
     merged_vars: Set[str] = set()

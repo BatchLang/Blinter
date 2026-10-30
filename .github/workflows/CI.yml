@@ -10,6 +10,14 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      confirm_release:
+        description: >-
+          Re-publish the current version even though its release tag already
+          exists. Replaces the release assets, and only runs when the tag points
+          at the commit being built.
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -307,7 +315,6 @@ jobs:
       - test-windows-exe
       - test-unix-exe
       - codeql
-      - dependency-graph
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     concurrency:
@@ -327,6 +334,8 @@ jobs:
 
       - name: Decide whether to release
         id: check
+        env:
+          CONFIRM_RELEASE: ${{ inputs.confirm_release }}
         run: python scripts/ci_release.py should-release
 
   build-windows:
@@ -490,7 +499,9 @@ jobs:
 
       - name: Extract release notes
         id: release_notes
-        run: python scripts/extract_release_notes.py --github-output
+        env:
+          VERSION: ${{ needs.check-version.outputs.version }}
+        run: python scripts/extract_release_notes.py --github-output --version "$VERSION"
 
       - name: Create or update GitHub Release
         env:
@@ -522,4 +533,4 @@ jobs:
           TWINE_PASSWORD: ${{ secrets.PYPI_BLINTER }}
         run: |
           uvx --from twine==7.0.0 twine check dist/*
-          uvx --from twine==7.0.0 twine upload dist/*
+          uvx --from twine==7.0.0 twine upload --skip-existing dist/*

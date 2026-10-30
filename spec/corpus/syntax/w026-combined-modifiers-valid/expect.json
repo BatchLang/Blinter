@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Combined parameter modifiers (W026 negative)",
+  "lines": {},
+  "must_not": [
+    "W026"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

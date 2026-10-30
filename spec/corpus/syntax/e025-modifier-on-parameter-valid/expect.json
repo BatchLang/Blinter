@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Parameter modifiers applied to numbered parameters (E025 negative)",
+  "lines": {},
+  "must_not": [
+    "E025"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

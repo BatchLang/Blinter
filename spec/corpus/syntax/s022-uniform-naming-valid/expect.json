@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Consistent UPPER_CASE variable names (S022 negative)",
+  "lines": {},
+  "must_not": [
+    "S022"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

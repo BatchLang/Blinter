@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "IF EXIST used on its own and a separate string comparison (E004 negative)",
+  "lines": {},
+  "must_not": [
+    "E004"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

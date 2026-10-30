@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "A FOR loop that delegates with CALL (W039 negative)",
+  "lines": {},
+  "must_not": [
+    "W039"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

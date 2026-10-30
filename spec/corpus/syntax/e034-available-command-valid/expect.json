@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "A command that still ships with Windows (E034 negative)",
+  "lines": {},
+  "must_not": [
+    "E034"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

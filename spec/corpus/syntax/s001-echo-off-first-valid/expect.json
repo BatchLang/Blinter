@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "@ECHO OFF is the first line (S001 negative)",
+  "lines": {},
+  "must_not": [
+    "S001"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "A quoted path with no illegal characters is valid (E005 negative)",
+  "lines": {},
+  "must_not": [
+    "E005"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

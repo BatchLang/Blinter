@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Different commands are not duplicated code (P002 negative)",
+  "lines": {},
+  "must_not": [
+    "P002"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

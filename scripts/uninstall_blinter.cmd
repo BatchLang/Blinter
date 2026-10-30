@@ -286,9 +286,9 @@ echo         if ($key^) { $key.Close(^) }
 echo         Write-Host 'User PATH is empty'
 echo         exit 0
 echo     }
-echo     if ($path -like "*$binPath*"^) {
-echo         $pathArray = $path -split ';' ^| Where-Object { $_ -ne '' -and $_ -ne $binPath }
-echo         $newPath = $pathArray -join ';'
+echo     $pathArray = @($path -split ';' ^| Where-Object { $_ -ne '' }^)
+echo     if ($pathArray -contains $binPath^) {
+echo         $newPath = (@($pathArray ^| Where-Object { $_ -ne $binPath }^) -join ';'^)
 echo         if ($kindName -eq 'ExpandString' -and $key^) {
 echo             $key.SetValue('Path', $newPath, [Microsoft.Win32.RegistryValueKind]::ExpandString^)
 echo         } else {

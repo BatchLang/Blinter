@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "A specific extension wildcard instead of *.* (P025 negative)",
+  "lines": {},
+  "must_not": [
+    "P025"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

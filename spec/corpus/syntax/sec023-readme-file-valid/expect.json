@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "A normal text file rather than autorun.inf (SEC023 negative)",
+  "lines": {},
+  "must_not": [
+    "SEC023"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Blank lines separate the code block (S027 negative)",
+  "lines": {},
+  "must_not": [
+    "S027"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

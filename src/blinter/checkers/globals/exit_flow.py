@@ -10,6 +10,7 @@ from typing import (
 )
 
 from blinter.models import LintIssue
+from blinter.parsing.context import _is_blank_or_comment
 from blinter.parsing.structure import _update_paren_depth
 from blinter.rules.registry import RULES
 
@@ -31,7 +32,7 @@ def _analyze_script_layout(lines: List[str]) -> _ScriptLayout:
 
     for index, line in enumerate(lines):
         stripped = line.strip().lower()
-        if not stripped or stripped.startswith("rem") or stripped.startswith("::"):
+        if _is_blank_or_comment(stripped):
             continue
         if stripped.startswith(":") and not stripped.startswith("::"):
             if first_label_line == -1:
@@ -246,7 +247,7 @@ def _scan_line_for_reachability(
     index: int,
 ) -> Optional[bool]:
     """Process one line; return True/False to stop, or None to continue scanning."""
-    if not stripped or stripped.startswith("rem") or stripped.startswith("::"):
+    if _is_blank_or_comment(stripped):
         return None
 
     if stripped.startswith(":") and not stripped.startswith("::"):
@@ -317,7 +318,7 @@ def _check_nested_paren_mismatch(lines: List[str]) -> List[LintIssue]:
 
     for i, line in enumerate(lines, start=1):
         stripped = line.strip().lower()
-        if not stripped or stripped.startswith("rem") or stripped.startswith("::"):
+        if _is_blank_or_comment(stripped):
             continue
 
         previous_depth = depth
@@ -400,7 +401,7 @@ def _scan_for_unreachable_code(
         line = lines[j].strip().lower()
 
         # Skip empty lines and comments
-        if not line or line.startswith("rem") or line.startswith("::"):
+        if _is_blank_or_comment(line):
             continue
 
         # Check if this line makes code reachable again
@@ -451,12 +452,7 @@ def _is_truly_executable_command(line: str) -> bool:
     line = line.strip().lower()
 
     # Skip empty, comments, labels
-    if (
-        not line
-        or line.startswith("rem")
-        or line.startswith("::")
-        or line.startswith(":")
-    ):
+    if _is_blank_or_comment(line) or line.startswith(":"):
         return False
 
     # Skip pure structural elements

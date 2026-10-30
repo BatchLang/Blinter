@@ -6,6 +6,7 @@ from typing import List
 from blinter.logging_config import logger
 from blinter.models import LintIssue
 from blinter.parsing.context import (
+    _is_blank_or_comment,
     _split_command_separators,
     _split_tokens,
     _strip_if_predicate,
@@ -215,7 +216,7 @@ def _for_do_body_text(lines: list[str], line_number: int) -> str:
             return combined
         nxt = lines[idx].strip()
         idx += 1
-        if not nxt or nxt.startswith("rem ") or nxt.startswith("::"):
+        if _is_blank_or_comment(nxt):
             continue
         parts.append(nxt)
         combined = "\n".join(parts)

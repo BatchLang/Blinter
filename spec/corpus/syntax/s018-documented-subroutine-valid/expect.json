@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "A comment documents the subroutine (S018 negative)",
+  "lines": {},
+  "must_not": [
+    "S018"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

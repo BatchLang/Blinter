@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Decimal literals without a leading zero (W045 negative)",
+  "lines": {},
+  "must_not": [
+    "W045"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

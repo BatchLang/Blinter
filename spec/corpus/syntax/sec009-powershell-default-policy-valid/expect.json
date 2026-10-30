@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "PowerShell runs under the default policy (SEC009 negative)",
+  "lines": {},
+  "must_not": [
+    "SEC009"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

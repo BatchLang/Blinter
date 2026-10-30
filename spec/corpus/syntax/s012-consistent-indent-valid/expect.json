@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Spaces only for indentation (S012 negative)",
+  "lines": {},
+  "must_not": [
+    "S012"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

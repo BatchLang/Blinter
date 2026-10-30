@@ -313,8 +313,14 @@ def _build_driver(
 
 
 def _build_invocation(notifications: list[SarifNotification]) -> SarifInvocation:
-    """Build the invocation record for a finished lint run."""
-    invocation = SarifInvocation(executionSuccessful=True)
+    """Build the invocation record for a finished lint run.
+
+    The run is reported as unsuccessful when any file could not be processed, so
+    upload tools do not treat a partial analysis as a complete one.
+    """
+    invocation = SarifInvocation(
+        executionSuccessful=not any(item["level"] == "error" for item in notifications)
+    )
     if notifications:
         invocation["toolExecutionNotifications"] = notifications
     return invocation

@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Variables that may hold spaces are quoted (W005 negative)",
+  "lines": {},
+  "must_not": [
+    "W005"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

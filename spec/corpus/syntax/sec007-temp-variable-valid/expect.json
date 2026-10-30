@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "The TEMP variable is used for scratch files (SEC007 negative)",
+  "lines": {},
+  "must_not": [
+    "SEC007"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

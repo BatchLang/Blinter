@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "IF ERRORLEVEL numeric form and an EQU comparison (E016 negative)",
+  "lines": {},
+  "must_not": [
+    "E016"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

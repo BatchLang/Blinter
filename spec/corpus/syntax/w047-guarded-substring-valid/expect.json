@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Substring taken only when the variable is defined (W047 negative)",
+  "lines": {},
+  "must_not": [
+    "W047"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

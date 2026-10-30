@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "ECHO prints a harmless status line (SEC010 negative)",
+  "lines": {},
+  "must_not": [
+    "SEC010"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

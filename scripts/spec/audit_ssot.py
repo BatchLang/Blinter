@@ -390,6 +390,37 @@ def _corpus_rule_coverage() -> dict[str, list[str]]:
     return coverage
 
 
+def _corpus_negative_rule_coverage() -> dict[str, list[str]]:
+    """Map each rule code to the corpus cases asserting it in ``must_not``."""
+    coverage: dict[str, list[str]] = {}
+    for expect_path in sorted(CORPUS_DIR.glob("**/expect.json")):
+        case_id = "/".join(expect_path.parent.relative_to(CORPUS_DIR).parts)
+        expect = json.loads(expect_path.read_text(encoding="utf-8"))
+        for rule in set(expect.get("must_not", [])):
+            coverage.setdefault(rule, []).append(case_id)
+    return coverage
+
+
+def _audit_negative_rule_coverage(
+    findings: list[AuditFinding], valid_rules: set[str]
+) -> None:
+    """Require every rule to have a corpus case proving it stays quiet.
+
+    A firing case alone cannot catch a false positive, so each rule also needs a
+    case that lists it in ``must_not``.
+    """
+    missing = sorted(valid_rules - set(_corpus_negative_rule_coverage()))
+    if missing:
+        findings.append(
+            AuditFinding(
+                "error",
+                "corpus",
+                f"Negative corpus coverage incomplete ({len(missing)} rules without "
+                f"a must_not case): {', '.join(missing)}",
+            )
+        )
+
+
 def _audit_corpus_naming(findings: list[AuditFinding]) -> None:
     for expect_path in sorted(CORPUS_DIR.glob("**/expect.json")):
         case_id = expect_path.parent.name
@@ -642,6 +673,7 @@ def _audit_matrix_corpus_rule_alignment(
             if expect_path.is_file():
                 expect = json.loads(expect_path.read_text(encoding="utf-8"))
                 asserted = set(expect.get("rules", []))
+                asserted.update(expect.get("must_not", []))
                 for codes in expect.get("lines", {}).values():
                     asserted.update(codes)
             if not asserted.intersection(entry_rules):
@@ -755,6 +787,7 @@ def _audit_corpus(findings: list[AuditFinding], valid_rules: set[str]) -> None:
     coverage = _corpus_rule_coverage()
     _audit_corpus_naming(findings)
     _audit_full_rule_coverage(findings, valid_rules)
+    _audit_negative_rule_coverage(findings, valid_rules)
     target_rules = _E_RULE_COVERAGE_TARGET & valid_rules
     covered_target = target_rules & set(coverage.keys())
     missing_target = sorted(target_rules - set(coverage.keys()))

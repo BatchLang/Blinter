@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Existence checks on different files are not repeated (P017 negative)",
+  "lines": {},
+  "must_not": [
+    "P017"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "One string operation per variable (P012 negative)",
+  "lines": {},
+  "must_not": [
+    "P012"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

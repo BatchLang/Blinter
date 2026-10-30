@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Matched percent and delayed expansion delimiters (E011 negative)",
+  "lines": {},
+  "must_not": [
+    "E011"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

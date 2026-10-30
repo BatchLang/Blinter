@@ -16,6 +16,8 @@ _CHANGELOG = Path(__file__).resolve().parent.parent / "CHANGELOG.md"
 _SECTION_RE = re.compile(r"^## \[[^\]]+\].*$", re.MULTILINE)
 _NOTES_FILENAME = "release-notes.md"
 _GITHUB_OUTPUT_FLAG = "--github-output"
+_VERSION_FLAG = "--version"
+_USAGE = "usage: extract_release_notes.py [--github-output [--version VERSION]]"
 
 
 def _heading_version(heading: str) -> str:
@@ -27,11 +29,15 @@ def _heading_version(heading: str) -> str:
     return heading[start + 1 : end]
 
 
-def extract_latest_section(changelog_path: Path = _CHANGELOG) -> str:
-    """Return markdown for the most recent versioned changelog section.
+def extract_latest_section(
+    changelog_path: Path = _CHANGELOG, version: str | None = None
+) -> str:
+    """Return markdown for a versioned changelog section.
 
-    ``## [Unreleased]`` headings are skipped so GitHub Releases publish the
-    latest tagged version notes rather than in-progress work.
+    ``## [Unreleased]`` headings are skipped so GitHub Releases publish tagged
+    version notes rather than in-progress work. Without ``version`` the most
+    recent versioned section is used. With ``version`` the matching section is
+    required, so a release can never ship another version's notes.
     """
     text = changelog_path.read_text(encoding="utf-8")
     matches = list(_SECTION_RE.finditer(text))
@@ -43,6 +49,16 @@ def extract_latest_section(changelog_path: Path = _CHANGELOG) -> str:
     ]
     if not versioned:
         raise SystemExit(f"No version sections found in {changelog_path}")
+    if version is not None:
+        versioned = [
+            match
+            for match in versioned
+            if _heading_version(text[match.start() : match.end()]) == version
+        ]
+        if not versioned:
+            raise SystemExit(
+                f"No changelog section for version {version} in {changelog_path}"
+            )
 
     start = versioned[0].start()
     following = [match for match in matches if match.start() > start]
@@ -85,14 +101,15 @@ def _append_github_output(name: str, value: str) -> None:
 def write_github_release_notes(
     changelog_path: Path | None = None,
     notes_dir: Path | None = None,
+    version: str | None = None,
 ) -> Path:
-    """Write the latest changelog section and record its path for Actions.
+    """Write a changelog section and record its path for Actions.
 
     Returns the notes file path stored in ``GITHUB_OUTPUT``.
     """
     source = _CHANGELOG if changelog_path is None else changelog_path
-    logger.info("Extracting release notes from %s", source)
-    section = extract_latest_section(source)
+    logger.info("Extracting release notes from %s (version=%s)", source, version)
+    section = extract_latest_section(source, version)
     if notes_dir is None:
         raw_temp = os.environ.get("RUNNER_TEMP")
         if not raw_temp:
@@ -119,7 +136,10 @@ def main(argv: Sequence[str] | None = None) -> None:
     if args == [_GITHUB_OUTPUT_FLAG]:
         write_github_release_notes()
         return
-    raise SystemExit("usage: extract_release_notes.py [--github-output]")
+    if len(args) == 3 and args[0] == _GITHUB_OUTPUT_FLAG and args[1] == _VERSION_FLAG:
+        write_github_release_notes(version=args[2])
+        return
+    raise SystemExit(_USAGE)
 
 
 if __name__ == "__main__":

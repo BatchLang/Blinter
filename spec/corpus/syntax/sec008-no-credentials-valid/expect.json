@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "No credential literals appear (SEC008 negative)",
+  "lines": {},
+  "must_not": [
+    "SEC008"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

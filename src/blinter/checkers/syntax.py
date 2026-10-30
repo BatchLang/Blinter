@@ -15,7 +15,11 @@ from blinter.checkers.warnings import (
     _strip_double_quoted_strings,
 )
 from blinter.models import LintIssue
-from blinter.parsing.context import _split_tokens
+from blinter.parsing.context import (
+    _is_blank_or_comment,
+    _is_comment_line,
+    _split_tokens,
+)
 from blinter.parsing.structure import (
     _delayed_expansion_state_for_lines,
     _paren_depth_before_line,
@@ -192,7 +196,7 @@ def _check_if_statement_formatting(stripped: str, line_num: int) -> List[LintIss
         r"errorlevel\s+\d+",  # IF ERRORLEVEL n
         r"/i\s+",  # IF /I (case insensitive)
         r"not\s+",  # IF NOT
-        r".*\s*(==|equ|neq|lss|leq|gtr|geq)\s*",  # Comparison operators
+        r"(==|equ|neq|lss|leq|gtr|geq)",  # Comparison operators (search is unanchored)
     ]
 
     # Check if this IF statement matches any valid pattern
@@ -296,7 +300,7 @@ def _check_if_block_paren_next_line(lines: list[str], line_num: int) -> List[Lin
     next_index = line_num
     while next_index < len(lines):
         nxt = lines[next_index].strip()
-        if not nxt or nxt.startswith("rem ") or nxt.startswith("::"):
+        if _is_blank_or_comment(nxt):
             next_index += 1
             continue
         if nxt.startswith("("):
@@ -326,7 +330,7 @@ def _check_for_do_paren_next_line(lines: list[str], line_num: int) -> List[LintI
     next_index = line_num
     while next_index < len(lines):
         nxt = lines[next_index].strip()
-        if not nxt or nxt.startswith("rem ") or nxt.startswith("::"):
+        if _is_blank_or_comment(nxt):
             next_index += 1
             continue
         if nxt.startswith("("):
@@ -490,7 +494,7 @@ def _unquoted_path_has_invalid_chars(stripped: str) -> bool:
     if _line_has_script_command(stripped):
         return False
     for token in stripped.split():
-        if token.startswith(("rem", "REM")):
+        if token.lower() == "rem":
             break
         if re.search(r"[a-zA-Z]:\\[^\"']*[<>|][^\"'\s]*", token):
             return True
@@ -594,11 +598,7 @@ def _check_quotes(line: str, line_num: int) -> List[LintIssue]:
     issues: List[LintIssue] = []
 
     stripped = line.strip()
-    if (
-        stripped.lower().startswith("rem ")
-        or stripped.lower().startswith("rem\t")
-        or stripped.startswith("::")
-    ):
+    if _is_comment_line(stripped):
         return issues
 
     if re.match(r"\s*echo\s+.*\.\.\.\.", stripped, re.IGNORECASE) or re.match(
@@ -747,7 +747,7 @@ def _check_subroutine_call(
     issues: List[LintIssue] = []
 
     # Skip empty lines, comments, and label definitions
-    if not stripped or stripped.startswith(("rem ", "rem\t", "::", ":")):
+    if _is_blank_or_comment(stripped) or stripped.startswith(":"):
         return issues
 
     # Skip lines that already use CALL or GOTO

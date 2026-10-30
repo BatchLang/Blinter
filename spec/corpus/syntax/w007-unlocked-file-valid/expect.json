@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Operating on a file the script created itself (W007 negative)",
+  "lines": {},
+  "must_not": [
+    "W007"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

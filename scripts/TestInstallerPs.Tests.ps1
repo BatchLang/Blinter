@@ -382,6 +382,26 @@ Describe 'Remove-BlinterUserPath.ps1' {
         $result.UserPath | Should -Be 'C:\Alpha;C:\Beta'
     }
 
+    It 'removes a bin directory whose path contains wildcard brackets' {
+        $result = Invoke-InstallerPsPathFixture `
+            -FixturePath (Join-Path $script:InstallerPsRoot 'Remove-BlinterUserPath.ps1') `
+            -BinPath 'C:\Users\a[1]\Blinter\bin' `
+            -InitialUserPath 'C:\Alpha;C:\Users\a[1]\Blinter\bin;C:\Beta' `
+            -TempScriptPath (Join-Path $TestDrive 'remove-path-brackets.ps1')
+        $result.ExitCode | Should -Be 0
+        $result.UserPath | Should -Be 'C:\Alpha;C:\Beta'
+    }
+
+    It 'does not touch a different directory that merely contains the bin path' {
+        $result = Invoke-InstallerPsPathFixture `
+            -FixturePath (Join-Path $script:InstallerPsRoot 'Remove-BlinterUserPath.ps1') `
+            -BinPath 'C:\Test\Blinter\bin' `
+            -InitialUserPath 'C:\Alpha;C:\Test\Blinter\bin2;C:\Beta' `
+            -TempScriptPath (Join-Path $TestDrive 'remove-path-superstring.ps1')
+        $result.ExitCode | Should -Be 0
+        $result.UserPath | Should -Be 'C:\Alpha;C:\Test\Blinter\bin2;C:\Beta'
+    }
+
     It 'exits 0 when User PATH is empty' {
         $result = Invoke-InstallerPsPathFixture `
             -FixturePath (Join-Path $script:InstallerPsRoot 'Remove-BlinterUserPath.ps1') `

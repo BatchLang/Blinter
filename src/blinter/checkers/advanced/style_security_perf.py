@@ -1,6 +1,5 @@
 """Advanced style, security, and performance rules."""
 
-from contextvars import ContextVar
 import re
 from typing import (
     Dict,
@@ -17,7 +16,12 @@ from blinter.checkers.cmd_extended import (
 from blinter.constants import MAGIC_NUMBER_EXCEPTIONS
 from blinter.models import LintIssue
 from blinter.parsing.context import _is_comment_line
-from blinter.parsing.structure import _is_in_subroutine_context
+from blinter.parsing.structure import (
+    _for_block_cache_var,
+    _identity_cached,
+    _is_in_subroutine_context,
+    _update_paren_depth,
+)
 from blinter.patterns import SAFE_COMMAND_INJECTION_PATTERNS
 from blinter.rules.registry import RULES
 
@@ -272,17 +276,13 @@ def _check_advanced_performance(
     return issues
 
 
-_ForBlockSlot = Tuple[List[str], List[bool]]
-_for_block_cache_var: ContextVar[Optional[_ForBlockSlot]] = ContextVar(
-    "for_block_membership",
-    default=None,
-)
-
-
 def _next_paren_depth(depth: int, line: str) -> int:
-    """Return parenthesis depth after ``line``, never below zero."""
-    lowered = line.strip().lower()
-    return max(depth + lowered.count("(") - lowered.count(")"), 0)
+    """Return block depth after ``line``, never below zero.
+
+    Uses the quote- and caret-aware scanner so parentheses inside strings,
+    escaped parentheses and ``echo (`` text do not shift FOR-block boundaries.
+    """
+    return max(_update_paren_depth(line.strip(), depth), 0)
 
 
 def _build_inside_for_block(lines: List[str]) -> List[bool]:
@@ -316,16 +316,14 @@ def _build_inside_for_block(lines: List[str]) -> List[bool]:
 
 
 def _inside_for_block_flags(lines: List[str]) -> List[bool]:
-    """Return one scan of ``lines``, reused until a different list is checked.
+    """Return one scan of ``lines``, cached for the current lint pass.
 
-    The slot holds the list object so a recycled ``id`` cannot serve stale flags.
+    The cache keeps the list object next to its flags so a recycled ``id``
+    cannot serve stale flags, and it is reset by ``_begin_structure_cache_pass``.
     """
-    cached = _for_block_cache_var.get()
-    if cached is not None and cached[0] is lines:
-        return cached[1]
-    flags = _build_inside_for_block(lines)
-    _for_block_cache_var.set((lines, flags))
-    return flags
+    return _identity_cached(
+        _for_block_cache_var.get(), lines, lambda: _build_inside_for_block(lines)
+    )
 
 
 def _line_is_inside_for_block(lines: List[str], line_number: int) -> bool:

@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Caret escapes a metacharacter inside ECHO text (E030 negative)",
+  "lines": {},
+  "must_not": [
+    "E030"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

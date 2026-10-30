@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Variables share one naming convention (S017 negative)",
+  "lines": {},
+  "must_not": [
+    "S017"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "DIR /B keeps redirected output compact (P010 negative)",
+  "lines": {},
+  "must_not": [
+    "P010"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

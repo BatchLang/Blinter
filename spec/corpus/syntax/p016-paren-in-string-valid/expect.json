@@ -1,0 +1,9 @@
+{
+  "config": {},
+  "description": "A quoted parenthesis inside a FOR body must not extend the loop past its closing parenthesis (P016 negative)",
+  "lines": {},
+  "must_not": ["P016"],
+  "oracle": "skip",
+  "rules": [],
+  "tags": ["syntax", "performance"]
+}

@@ -200,13 +200,21 @@ class TestPublishGithubRelease:
             "scripts.publish_github_release.subprocess.run",
             side_effect=[
                 _completed(0, stdout='{"tagName":"v1.2.3"}\n'),
+                _completed(0, stdout=f"{_SHA}\n"),
                 _completed(0),
                 _completed(0),
             ],
         )
-        publish_github_release(_VERSION, notes, "", build_dir)
-        view, edit, upload = (_argv(call) for call in run.call_args_list)
+        publish_github_release(_VERSION, notes, _SHA, build_dir)
+        view, resolve, edit, upload = (_argv(call) for call in run.call_args_list)
         assert view[1:4] == ["release", "view", "v1.2.3"]
+        assert resolve == [
+            "gh",
+            "api",
+            "repos/{owner}/{repo}/commits/v1.2.3",
+            "--jq",
+            ".sha",
+        ]
         assert edit == [
             "gh",
             "release",
@@ -239,10 +247,62 @@ class TestPublishGithubRelease:
             "scripts.publish_github_release.subprocess.run",
             side_effect=[
                 _completed(0, stdout='{"tagName":"v1.2.3"}\n'),
+                _completed(0, stdout=f"{_SHA}\n"),
                 _completed(1, stderr="HTTP 422: Validation Failed\n"),
             ],
         )
         with pytest.raises(SystemExit, match="Updating release v1.2.3 failed"):
+            publish_github_release(_VERSION, notes, _SHA, build_dir)
+        assert run.call_count == 3
+
+    def test_update_refuses_a_tag_at_another_commit(
+        self,
+        mocker: MockerFixture,
+        tmp_path: Path,
+    ) -> None:
+        """Assets built from new code never replace a release tagged elsewhere."""
+        notes, build_dir = _prepare(tmp_path)
+        run = mocker.patch(
+            "scripts.publish_github_release.subprocess.run",
+            side_effect=[
+                _completed(0, stdout='{"tagName":"v1.2.3"}\n'),
+                _completed(0, stdout=f"{'b' * 40}\n"),
+            ],
+        )
+        with pytest.raises(SystemExit, match="Refusing to replace its assets"):
+            publish_github_release(_VERSION, notes, _SHA, build_dir)
+        assert run.call_count == 2
+
+    def test_update_requires_commit_sha(
+        self,
+        mocker: MockerFixture,
+        tmp_path: Path,
+    ) -> None:
+        """Updating a release needs the built commit to compare against its tag."""
+        notes, build_dir = _prepare(tmp_path)
+        run = mocker.patch(
+            "scripts.publish_github_release.subprocess.run",
+            return_value=_completed(0, stdout='{"tagName":"v1.2.3"}\n'),
+        )
+        with pytest.raises(SystemExit, match="GITHUB_SHA"):
+            publish_github_release(_VERSION, notes, "", build_dir)
+        assert run.call_count == 1
+
+    def test_update_fails_when_the_tag_cannot_be_resolved(
+        self,
+        mocker: MockerFixture,
+        tmp_path: Path,
+    ) -> None:
+        """An API error while resolving the tag stops before any upload."""
+        notes, build_dir = _prepare(tmp_path)
+        run = mocker.patch(
+            "scripts.publish_github_release.subprocess.run",
+            side_effect=[
+                _completed(0, stdout='{"tagName":"v1.2.3"}\n'),
+                _completed(1, stderr="HTTP 404: Not Found\n"),
+            ],
+        )
+        with pytest.raises(SystemExit, match="Resolving the commit of tag v1.2.3"):
             publish_github_release(_VERSION, notes, _SHA, build_dir)
         assert run.call_count == 2
 

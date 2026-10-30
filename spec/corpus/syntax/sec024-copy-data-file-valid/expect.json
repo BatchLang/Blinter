@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Copying data, not the script, to another drive (SEC024 negative)",
+  "lines": {},
+  "must_not": [
+    "SEC024"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

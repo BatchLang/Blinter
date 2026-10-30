@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "CRLF line endings with a label and GOTO (E018 negative)",
+  "lines": {},
+  "must_not": [
+    "E018"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

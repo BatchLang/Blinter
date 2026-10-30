@@ -13,6 +13,20 @@ from blinter.patterns import (
 )
 from blinter.rules.registry import RULES
 
+_DIR_COMMAND_RE = re.compile(r"dir(?:\s|$)", re.IGNORECASE)
+_DIR_BARE_SWITCH_RE = re.compile(r"/b", re.IGNORECASE)
+# A pipe, or a stdout redirect. ``2>`` and ``2>>`` only redirect stderr.
+_OUTPUT_PROCESSED_RE = re.compile(r"\||(?<![2>])>")
+
+
+def _is_dir_output_processed_without_bare(stripped: str) -> bool:
+    """Return True for a DIR line that pipes or redirects output without /B."""
+    return (
+        _DIR_COMMAND_RE.match(stripped) is not None
+        and _DIR_BARE_SWITCH_RE.search(stripped) is None
+        and _OUTPUT_PROCESSED_RE.search(stripped) is not None
+    )
+
 
 def _check_temp_file_usage(stripped: str, line_num: int) -> List[LintIssue]:
     """Check for P007: Temporary file without random name."""
@@ -205,13 +219,13 @@ def _check_performance_issues(  # pylint: disable=too-many-arguments,too-many-po
     # P009: Inefficient FOR loop pattern
     issues.extend(_check_for_loop_optimization(stripped, line_num))
 
-    # P010: Missing optimization flags for directory operations
-    if re.match(r"dir\s+(?!.*/f)", stripped, re.IGNORECASE):
+    # P010: DIR without /B when its output is redirected or piped
+    if _is_dir_output_processed_without_bare(stripped):
         issues.append(
             LintIssue(
                 line_number=line_num,
                 rule=RULES["P010"],
-                context="DIR command could be optimized with /F flag for large directories",
+                context="DIR output is processed - use /B to list bare file names",
             )
         )
 

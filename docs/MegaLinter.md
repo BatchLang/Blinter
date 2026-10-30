@@ -18,7 +18,7 @@ That URL is the one to give MegaLinter. The plugin id is `BATCH`, and the linter
 On startup MegaLinter runs the descriptor install line:
 
 ```dockerfile
-RUN pip install --no-cache-dir "Blinter==1.1.51"
+RUN pip install --no-cache-dir "Blinter==1.1.52"
 ```
 
 Plugins can only install with `dockerfile` instructions that start with `RUN`. Bump that pin in the descriptor when a new Blinter release is published.
@@ -29,11 +29,13 @@ MegaLinter calls `blinter` once per file (`cli_lint_mode: file`) and passes `--s
 
 When `blinter.ini` is in the repository root, MegaLinter passes it with `--config`. Otherwise Blinter uses its defaults.
 
-Exit code 1 (any Error or Security finding) fails the MegaLinter run. Warning, Style, and Performance findings do not. Inline suppression is unchanged: `REM LINT:IGNORE` comments in the batch file.
+Exit code 1 (any Error or Security finding with the default `fail_on = security`) fails the MegaLinter run. Warning, Style, and Performance findings do not. Inline suppression is unchanged: `REM LINT:IGNORE` comments in the batch file.
 
 ## SARIF
 
 Blinter writes SARIF 2.1.0 when MegaLinter's SARIF reporter is on. Error and Security map to `error`, Warning maps to `warning`, and Style and Performance map to `note`.
+
+In SARIF mode Blinter writes the report to a file and prints nothing to stdout, so MegaLinter's error and warning counts from the text output are empty. Pass or fail then comes from the exit code alone, which follows the `--fail-on` threshold described in the [README](../README.md#megalinter).
 
 ```yaml
 SARIF_REPORTER: true

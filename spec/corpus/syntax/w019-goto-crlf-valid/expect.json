@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "GOTO with CRLF line endings (W019 negative)",
+  "lines": {},
+  "must_not": [
+    "W019"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

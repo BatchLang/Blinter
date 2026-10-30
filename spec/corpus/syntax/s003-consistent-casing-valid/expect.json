@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "All commands use the same casing (S003 negative)",
+  "lines": {},
+  "must_not": [
+    "S003"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

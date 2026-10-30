@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Every label name appears once (W013 negative)",
+  "lines": {},
+  "must_not": [
+    "W013"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "A .cmd script is the recommended extension (S007 negative)",
+  "lines": {},
+  "must_not": [
+    "S007"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

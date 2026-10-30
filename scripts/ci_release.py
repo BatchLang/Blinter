@@ -18,6 +18,7 @@ _PYPROJECT = _REPO_ROOT / "pyproject.toml"
 _VERSION_COMMAND = "version"
 _SHOULD_RELEASE_COMMAND = "should-release"
 _WORKFLOW_DISPATCH = "workflow_dispatch"
+_CONFIRM_RELEASE_ENV = "CONFIRM_RELEASE"
 _USAGE = "usage: ci_release.py {version,should-release}"
 _GIT_SHOW_TIMEOUT_SECONDS = 30
 
@@ -114,18 +115,33 @@ def decide_release(
     previous_version: str,
     *,
     tag_exists: bool = True,
+    confirm_release: bool = False,
 ) -> bool:
-    """Return whether this CI event should publish a release."""
+    """Return whether this CI event should publish a release.
+
+    A manual ``workflow_dispatch`` publishes only when the version has no release
+    tag yet, or when the operator explicitly confirmed re-publishing an existing
+    version. Otherwise anyone able to run the workflow could replace the assets
+    of a released version.
+    """
     logger.info(
-        "Release inputs: event=%s current=%s previous=%s tag_exists=%s",
+        "Release inputs: event=%s current=%s previous=%s tag_exists=%s "
+        "confirm_release=%s",
         event_name,
         current_version,
         previous_version,
         tag_exists,
+        confirm_release,
     )
     if event_name == _WORKFLOW_DISPATCH:
-        logger.info("workflow_dispatch always releases")
-        return True
+        if confirm_release:
+            logger.info("workflow_dispatch confirmed; releasing %s", current_version)
+            return True
+        if not tag_exists:
+            logger.info("Version %s has no release tag; releasing", current_version)
+            return True
+        logger.info("workflow_dispatch without confirmation; skipping release")
+        return False
     if current_version != previous_version:
         logger.info("Version comparison release=True")
         return True
@@ -161,7 +177,12 @@ def _release_message(
 ) -> str:
     """Return the CI log line for a release decision."""
     if event_name == _WORKFLOW_DISPATCH:
-        return f"Manual workflow_dispatch; releasing version {current_version}."
+        if releasing:
+            return f"Manual workflow_dispatch; releasing version {current_version}."
+        return (
+            f"Manual workflow_dispatch for {current_version} skipped: the release "
+            "tag exists and confirm_release was not set."
+        )
     if releasing and current_version == previous_version:
         return f"Version {current_version} has no release tag; releasing."
     if releasing:
@@ -185,7 +206,10 @@ def publish_should_release() -> bool:
     current_version = read_version_file(_PYPROJECT)
     previous_version = ""
     tag_exists = True
-    if event_name != _WORKFLOW_DISPATCH:
+    confirm_release = os.environ.get(_CONFIRM_RELEASE_ENV, "").strip().lower() == "true"
+    if event_name == _WORKFLOW_DISPATCH:
+        tag_exists = release_tag_exists(current_version)
+    else:
         previous_version = read_previous_version()
         if current_version == previous_version:
             tag_exists = release_tag_exists(current_version)
@@ -194,6 +218,7 @@ def publish_should_release() -> bool:
         current_version,
         previous_version,
         tag_exists=tag_exists,
+        confirm_release=confirm_release,
     )
     message = _release_message(
         event_name,

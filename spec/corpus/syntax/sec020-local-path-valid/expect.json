@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "A local path needs no UNC elevation check (SEC020 negative)",
+  "lines": {},
+  "must_not": [
+    "SEC020"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

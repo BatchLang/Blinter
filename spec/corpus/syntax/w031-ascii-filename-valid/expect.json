@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "ASCII file names (W031 negative)",
+  "lines": {},
+  "must_not": [
+    "W031"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

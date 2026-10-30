@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "The executable is named with its extension (W033 negative)",
+  "lines": {},
+  "must_not": [
+    "W033"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

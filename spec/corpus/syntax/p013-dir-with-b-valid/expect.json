@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "DIR with /B (P013 negative)",
+  "lines": {},
+  "must_not": [
+    "P013"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

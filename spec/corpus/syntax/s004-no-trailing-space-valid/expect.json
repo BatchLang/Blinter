@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "No trailing whitespace (S004 negative)",
+  "lines": {},
+  "must_not": [
+    "S004"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

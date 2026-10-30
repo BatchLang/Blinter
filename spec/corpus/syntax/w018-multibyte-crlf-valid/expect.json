@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Multi-byte characters with CRLF endings are safe (W018 negative)",
+  "lines": {},
+  "must_not": [
+    "W018"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

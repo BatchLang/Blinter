@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Output redirected beside the script (SEC018 negative)",
+  "lines": {},
+  "must_not": [
+    "SEC018"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

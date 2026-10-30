@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Characters within code page 437 (W030 negative)",
+  "lines": {},
+  "must_not": [
+    "W030"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

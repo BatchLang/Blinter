@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "SETLOCAL nesting stays well below the limit (P027 negative)",
+  "lines": {},
+  "must_not": [
+    "P027"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}
