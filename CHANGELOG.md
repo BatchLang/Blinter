@@ -17,6 +17,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 - Standard output falls back to UTF-8 on consoles whose code page cannot encode the report, and the `--max-line-length` usage message is printed when the value is rejected
 - `uninstall_blinter.cmd` removes only the exact Blinter entry from the user PATH. A directory name that merely contained the bin path, or a path with square brackets, was previously mishandled
 - `scripts/verify.py` stops with a clear message when it runs on a non-CPython interpreter, because mypy does not support PyPy
+- The lint-time scaling tests re-measure a failing comparison before reporting it, so a single scheduler stall on a shared runner (seen on `macos-15-intel`) no longer fails the build, while a real super-linear slowdown still fails every attempt. The build-script tests no longer share the generated `_build_version.py` file, which made them fail intermittently when run in parallel
 
 ### Changed
 

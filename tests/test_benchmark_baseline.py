@@ -47,11 +47,55 @@ def test_synthetic_lint_within_baseline() -> None:
     ), f"benchmark baseline check failed:\n{result.stdout}\n{result.stderr}"
 
 
+_SCALING_ATTEMPTS = 3
+
+
 def _cpu_seconds(script: Path) -> float:
     """Return process CPU time spent linting ``script``."""
     start = time.process_time()
     lint_batch_file(str(script))
     return time.process_time() - start
+
+
+def _assert_scales_within(small_script: Path, large_script: Path, factor: int) -> None:
+    """Assert the larger input costs at most ``factor`` times the smaller one.
+
+    One scheduler stall on a shared CI runner can inflate either timing, so a
+    failing comparison is measured again. A real super-linear regression fails
+    every attempt, because each attempt keeps the least time seen so far for
+    both inputs, while a one-off spike clears on the next attempt.
+    """
+    small = large = float("inf")
+    for _ in range(_SCALING_ATTEMPTS):
+        small = min(small, _cpu_seconds(small_script))
+        large = min(large, _cpu_seconds(large_script))
+        if large <= max(small, 0.05) * factor:
+            return
+    assert large <= max(small, 0.05) * factor, (
+        f"large input took {large:.3f}s against {small:.3f}s for the small one "
+        f"(limit {factor}x) in all {_SCALING_ATTEMPTS} attempts"
+    )
+
+
+def test_scaling_check_tolerates_one_spike_but_not_a_regression(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A single slow sample is re-measured, while a consistent slowdown still fails."""
+    small, large = tmp_path / "small.bat", tmp_path / "large.bat"
+
+    def _fake(samples: dict[Path, list[float]]) -> None:
+        monkeypatch.setattr(
+            sys.modules[__name__],
+            "_cpu_seconds",
+            lambda script: samples[script].pop(0),
+        )
+
+    _fake({small: [1.0, 1.0, 1.0], large: [30.0, 5.0, 5.0]})
+    _assert_scales_within(small, large, 8)
+
+    _fake({small: [1.0, 1.0, 1.0], large: [30.0, 30.0, 30.0]})
+    with pytest.raises(AssertionError, match="in all 3 attempts"):
+        _assert_scales_within(small, large, 8)
 
 
 def test_long_whitespace_line_scales_linearly(tmp_path: Path) -> None:
@@ -74,9 +118,7 @@ def test_long_whitespace_line_scales_linearly(tmp_path: Path) -> None:
         )
         return script
 
-    small = _cpu_seconds(_write(2000))
-    large = _cpu_seconds(_write(5000))
-    assert large <= max(small, 0.05) * 8
+    _assert_scales_within(_write(2000), _write(5000), 8)
 
 
 def test_absolute_baseline_skip_is_intel_macos_only(
@@ -110,9 +152,7 @@ def test_if_chain_scales_linearly(tmp_path: Path) -> None:
         script.write_text("@echo off\r\n" + line + "\r\n", encoding="utf-8")
         return script
 
-    small = _cpu_seconds(_write(2500))
-    large = _cpu_seconds(_write(8000))
-    assert large <= max(small, 0.05) * 8
+    _assert_scales_within(_write(2500), _write(8000), 8)
 
 
 def test_line_count_scales_linearly(tmp_path: Path) -> None:
@@ -127,9 +167,7 @@ def test_line_count_scales_linearly(tmp_path: Path) -> None:
         script.write_text("\r\n".join(lines) + "\r\n", encoding="utf-8")
         return script
 
-    small = _cpu_seconds(_write_echo_file(2000))
-    large = _cpu_seconds(_write_echo_file(8000))
-    assert large <= max(small, 0.05) * 10
+    _assert_scales_within(_write_echo_file(2000), _write_echo_file(8000), 10)
 
 
 @pytest.mark.parametrize(
