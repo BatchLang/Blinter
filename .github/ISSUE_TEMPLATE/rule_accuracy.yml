@@ -1,0 +1,71 @@
+name: Rule accuracy (false positive / false negative)
+description: A rule flags valid code, or Blinter misses something it should catch
+title: "[Rule]: "
+labels: ["rule-accuracy"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Reports of wrong lint results are very valuable. A small, self-contained sample makes them quick to fix, and it can become a corpus case under `spec/corpus/`.
+
+        If you only need to silence a finding while a fix is pending, use `REM LINT:IGNORE <code>` or `REM LINT:IGNORE-LINE <code>` in your script.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of problem is this?
+      options:
+        - False positive (rule reports an issue, but the code is correct)
+        - False negative (rule should report an issue, but does not)
+        - Wrong rule, severity, line number or message
+    validations:
+      required: true
+  - type: input
+    id: rule-code
+    attributes:
+      label: Rule code(s)
+      description: The code(s) involved, for example E002, W005, S011, SEC003 or P004. For a false negative, give the rule you expected, if known.
+      placeholder: "e.g. W014"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Blinter version
+      description: Output of `blinter --version`.
+      placeholder: "e.g. 1.1.52"
+    validations:
+      required: true
+  - type: textarea
+    id: sample
+    attributes:
+      label: Minimal batch sample
+      description: The smallest `.bat` or `.cmd` that shows the problem. Mark the relevant line. Remove secrets and private paths.
+      render: batch
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Blinter output
+      description: The finding you got (or the absence of one), including line number and message.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected and why
+      description: Explain how the code behaves in cmd.exe. A link to Microsoft documentation or a short test result helps a lot.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context that may matter
+      description: Windows version if behavior differs, whether delayed expansion is enabled, whether you used `--follow-calls`, and any `blinter.ini` settings such as `enabled_rules`, `disabled_rules` or `min_severity`.
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contribution
+      options:
+        - label: I'm willing to open a pull request for this (see CONTRIBUTING.md).

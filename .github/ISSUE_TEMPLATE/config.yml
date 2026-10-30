@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/BatchLang/Blinter/security/advisories/new
+    about: Please do not report vulnerabilities in public issues. Use GitHub private vulnerability reporting.
+  - name: Ask a question or share an idea
+    url: https://github.com/BatchLang/Blinter/discussions
+    about: Usage questions, general help and open-ended discussion belong in Discussions.
+  - name: Batch language reference data problem
+    url: https://github.com/BatchLang/batch-spec
+    about: Errors in the batch language reference data (grammar, command catalog, expansion rules) belong in the batch-spec repository, which Blinter pins as a submodule.

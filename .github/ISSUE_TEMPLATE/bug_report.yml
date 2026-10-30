@@ -1,0 +1,136 @@
+name: Bug report
+description: Blinter crashes, produces wrong output, or behaves unexpectedly
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug.
+
+        - **Security issue?** Do not file it here. See the [security policy](https://github.com/BatchLang/Blinter/security/policy).
+        - **A rule fires when it shouldn't, or misses something it should catch?** Use the *Rule accuracy* template instead.
+  - type: checkboxes
+    id: prechecks
+    attributes:
+      label: Before you submit
+      options:
+        - label: I searched existing issues and found no duplicate.
+          required: true
+        - label: I am using the latest Blinter release (or `main`).
+          required: true
+        - label: This is not a security vulnerability.
+          required: true
+  - type: input
+    id: version
+    attributes:
+      label: Blinter version
+      description: Output of `blinter --version` or `python -m blinter --version`.
+      placeholder: "e.g. 1.1.52"
+    validations:
+      required: true
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: How did you install or run Blinter?
+      options:
+        - pip
+        - uv / uvx
+        - Standalone executable (one-line installer)
+        - Standalone executable (manual download)
+        - MegaLinter plugin
+        - Programmatic API (import blinter)
+        - From source / development checkout
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part of Blinter is affected?
+      options:
+        - Linting results (wrong, missing or duplicated findings)
+        - Command-line options or exit code
+        - Configuration (blinter.ini)
+        - JSON or SARIF output
+        - Baseline file (--baseline / --update-baseline)
+        - Directory scanning or --follow-calls
+        - Encoding detection or file reading
+        - Installer or uninstaller scripts
+        - MegaLinter plugin
+        - Python API
+        - Crash or traceback
+        - Performance
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: python-version
+    attributes:
+      label: Python version
+      description: Leave blank if you use the standalone executable.
+      placeholder: "e.g. 3.14.0"
+  - type: input
+    id: os
+    attributes:
+      label: Operating system and architecture
+      placeholder: "e.g. Windows 11 x64, Ubuntu 24.04 arm64, macOS 15 arm64"
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command or API call
+      description: The exact command line, including flags such as `--follow-calls`, `--fail-on` or `--format sarif`, or the Python snippet you ran.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: sample
+    attributes:
+      label: Minimal batch file that reproduces the problem
+      description: Reduce it to the smallest `.bat` or `.cmd` that still triggers the bug. Remove secrets, credentials and private paths. If the problem is not specific to a script, write "not applicable".
+      render: batch
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include the exit code if it matters.
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output, traceback or log
+      description: Paste the full output. Running again with `--verbose` gives more detail.
+      render: text
+  - type: textarea
+    id: config
+    attributes:
+      label: blinter.ini (if you use one)
+      render: ini
+  - type: dropdown
+    id: no-config
+    attributes:
+      label: Does it still happen with `--no-config`?
+      options:
+        - "Yes"
+        - "No"
+        - Not applicable or not tried
+  - type: input
+    id: encoding
+    attributes:
+      label: File encoding and line endings (if relevant)
+      description: For example UTF-8 with BOM, UTF-16, CP437, LF or CRLF.
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Anything else that might help, such as screenshots, related issues, or whether it worked in an earlier version.

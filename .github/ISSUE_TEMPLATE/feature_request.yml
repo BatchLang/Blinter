@@ -1,0 +1,56 @@
+name: Feature request
+description: Suggest an improvement to the CLI, configuration, API, reports or installer
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For a **new lint rule**, please use the *New rule proposal* template instead.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Command-line interface
+        - Configuration (blinter.ini)
+        - Output formats (text, JSON, SARIF)
+        - Baseline file
+        - Python API
+        - Standalone executable or installer
+        - MegaLinter plugin
+        - Directory scanning or file handling
+        - Performance
+        - CI or editor integration
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What are you trying to do, and what gets in the way today?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: Describe what you'd like to happen. Example flags, config keys or output are welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and workarounds
+      description: What have you tried or considered instead?
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contribution
+      options:
+        - label: I'm willing to open a pull request for this.

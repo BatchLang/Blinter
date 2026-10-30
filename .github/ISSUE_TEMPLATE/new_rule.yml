@@ -1,0 +1,72 @@
+name: New rule proposal
+description: Suggest a new lint rule
+title: "[New rule]: "
+labels: ["new-rule", "enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Rules are defined in `spec/data/rules.yaml`, and every rule needs a corpus case under `spec/corpus/` plus a `*-valid` case that must not fire. See [CONTRIBUTING.md](https://github.com/BatchLang/Blinter/blob/main/CONTRIBUTING.md) if you want to implement it yourself.
+
+        Please check the [rule catalog](https://github.com/BatchLang/Blinter/blob/main/docs/Batch-File-Linter-Requirements.md) first to make sure an existing rule doesn't already cover this.
+  - type: input
+    id: summary
+    attributes:
+      label: Rule summary
+      description: One sentence describing what the rule detects.
+    validations:
+      required: true
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - Error (E) - syntax errors that prevent execution
+        - Warning (W) - potential runtime issues and bad practices
+        - Style (S) - formatting and readability
+        - Security (SEC) - vulnerabilities and dangerous operations
+        - Performance (P) - efficiency improvements
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: rationale
+    attributes:
+      label: Why this matters
+      description: What goes wrong in practice? Include references where possible (Microsoft documentation, known pitfalls, CVEs).
+    validations:
+      required: true
+  - type: textarea
+    id: bad-example
+    attributes:
+      label: Code that should trigger the rule
+      render: batch
+    validations:
+      required: true
+  - type: textarea
+    id: good-example
+    attributes:
+      label: Compliant or fixed code that should not trigger it
+      render: batch
+    validations:
+      required: true
+  - type: textarea
+    id: recommendation
+    attributes:
+      label: Suggested message and recommendation
+      description: What should Blinter tell the user, and how should they fix it?
+  - type: textarea
+    id: false-positives
+    attributes:
+      label: Possible false positives or edge cases
+      description: Cases where the pattern is legitimate, such as delayed expansion, FOR loops, caret escaping, CALL targets, subroutines or embedded PowerShell.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Related rules or alternatives considered
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contribution
+      options:
+        - label: I'm willing to open a pull request implementing this rule.
