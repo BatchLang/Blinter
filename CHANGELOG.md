@@ -4,9 +4,15 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ## [Unreleased]
 
+## [1.1.53] - 2026-10-31
+
 ### Fixed
 
 - S026 ignores a caret on a comment line or inside double quotes, such as a `findstr` pattern
+
+### Changed
+
+- The MegaLinter install pin is 1.1.53
 
 ## [1.1.52] - 2026-10-30
 
@@ -535,6 +541,8 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 Older 1.0.x releases are available on the [GitHub Releases](https://github.com/BatchLang/Blinter/releases) page.
 
+[1.1.53]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.53
+[1.1.52]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.52
 [1.1.51]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.51
 [1.1.50]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.50
 [1.1.49]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.49
