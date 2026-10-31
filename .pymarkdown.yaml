@@ -50,3 +50,6 @@ system:
     - "dist/**"
     - "build/**"
     - "batch-script-examples/**"
+    # Import stub (@AGENTS.md), not a document. per-file-ignores stores the
+    # filename in lowercase, so it cannot match CLAUDE.md on Linux.
+    - "CLAUDE.md"
