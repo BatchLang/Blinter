@@ -8,5 +8,11 @@ echo.& @rem Set the value
 (rem Set the value
 )
 dir | rem Set the value
+dir ^^& rem SET value
+dir ^^^^& rem SET value
+set q=^" & set r=2 & dir ^"
+cmd /c "echo hi & set s=2"
+cmd /k "set s=3"
+cmd.exe /d /c "set s=4"
 echo %x% %y%
 exit /b 0

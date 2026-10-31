@@ -7,7 +7,7 @@ from typing import (
 )
 
 from blinter.models import LintIssue
-from blinter.parsing.context import _is_comment_line
+from blinter.parsing.context import _is_comment_line, _is_setlocal_command
 from blinter.patterns import DEPRECATED_COMMANDS, REMOVED_COMMANDS
 from blinter.rules.registry import RULES
 
@@ -197,7 +197,8 @@ def _check_enhanced_commands(lines: List[str]) -> List[LintIssue]:
     # Check for missing SETLOCAL EnableDelayedExpansion (W022)
     if uses_delayed_expansion:
         has_setlocal = any(
-            re.search(r"setlocal.*enabledelayedexpansion", line, re.IGNORECASE)
+            _is_setlocal_command(line)
+            and re.search(r"enabledelayedexpansion", line, re.IGNORECASE)
             for line in lines
         )
         if not has_setlocal:

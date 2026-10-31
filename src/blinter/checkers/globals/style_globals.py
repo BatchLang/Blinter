@@ -9,16 +9,23 @@ from typing import (
     Tuple,
 )
 
-from blinter.checkers.cmd_extended import _strip_double_quoted_strings
+from blinter.checkers.cmd_extended import _is_caret_escaped
 from blinter.constants import LARGE_FILE_LINE_THRESHOLD
+from blinter.logging_config import logger
 from blinter.models import LintIssue
 from blinter.parsing.context import _is_blank_or_comment, _is_comment_line
 from blinter.patterns import COMMAND_CASING_KEYWORDS
 from blinter.rules.registry import RULES
 
-# A comment after a command separator, such as ``echo.& REM Set the value``.
-_INLINE_COMMENT_RE = re.compile(
-    r"(?:^|(?<!\^)[&|])[\s(]*@?(?:rem(?:\s|$)|::).*", re.IGNORECASE
+# REM or :: at the start of a command segment, after optional ``(`` groups.
+_INLINE_REM_RE = re.compile(
+    r"[\s(]*@?(?:rem(?:\s|$)|::)",
+    re.IGNORECASE,
+)
+# Text immediately before a quote that is the command string of cmd /c or /k.
+_CMD_CK_BEFORE_QUOTE_RE = re.compile(
+    r"(?:^|[&|(])\s*@?(?:\S*[/\\])?cmd(?:\.exe)?(?:\s+/\S+)*\s+/[ck]\b\s*$",
+    re.IGNORECASE,
 )
 
 # One compiled pattern per keyword. A single separator character plus ``\s*``
@@ -373,6 +380,70 @@ def _check_missing_header_doc(lines: List[str]) -> List[LintIssue]:
     return issues
 
 
+def _closing_double_quote(text: str, start: int) -> Optional[int]:
+    """Return the index of the next double quote, or None when unclosed."""
+    index = text.find('"', start)
+    if index < 0:
+        return None
+    return index
+
+
+def _is_cmd_command_string(prefix: str) -> bool:
+    """Return True when prefix ends with a cmd /c or cmd /k command string."""
+    return _CMD_CK_BEFORE_QUOTE_RE.search(prefix) is not None
+
+
+def _strip_casing_quotes(text: str) -> str:
+    """Drop ordinary quotes and keep the text of a cmd /c or cmd /k string.
+
+    A caret-escaped quote is literal, so ``set x=^" & SET y=2 & dir ^"`` still
+    exposes ``SET``. An unescaped quote hides a PowerShell ``-Command`` string.
+    """
+    parts: List[str] = []
+    index = 0
+    length = len(text)
+    while index < length:
+        if text[index] != '"' or _is_caret_escaped(text, index):
+            parts.append(text[index])
+            index += 1
+            continue
+        closing = _closing_double_quote(text, index + 1)
+        if closing is None:
+            parts.append(text[index:])
+            break
+        inner = text[index + 1 : closing]
+        if _is_cmd_command_string(text[:index]):
+            logger.debug("Keeping cmd command string for S003: %s", inner)
+            parts.append(inner)
+        else:
+            parts.append('""')
+        index = closing + 1
+    return "".join(parts)
+
+
+def _drop_inline_comments(text: str) -> str:
+    """Remove a REM or :: comment and the separator that introduces it.
+
+    An even run of carets leaves ``&`` and ``|`` active (``^^&`` is a
+    separator). An odd run escapes the separator, so the rest stays.
+    """
+    if _INLINE_REM_RE.match(text):
+        logger.debug("Dropping leading REM/:: segment from S003 scan")
+        return ""
+    for index, char in enumerate(text):
+        if char not in "&|" or _is_caret_escaped(text, index):
+            continue
+        if _INLINE_REM_RE.match(text[index + 1 :]):
+            logger.debug("Dropping inline comment from S003 scan at %s", index)
+            return text[:index]
+    return text
+
+
+def _casing_scan_text(stripped: str) -> str:
+    """Return the text S003 should scan for command keywords."""
+    return _drop_inline_comments(_strip_casing_quotes(stripped))
+
+
 def _collect_cmd_cases(lines: List[str]) -> Dict[str, List[Tuple[int, str]]]:
     """Collect command casing patterns from file lines."""
     command_cases: Dict[str, List[Tuple[int, str]]] = {}
@@ -391,8 +462,9 @@ def _collect_cmd_cases(lines: List[str]) -> Dict[str, List[Tuple[int, str]]]:
         ):
             continue
 
-        # Quoted text and an inline comment are not commands cmd.exe runs.
-        code = _INLINE_COMMENT_RE.sub("", _strip_double_quoted_strings(stripped))
+        # Quoted text and an inline comment are not commands cmd.exe runs,
+        # except a cmd /c or cmd /k string, which cmd.exe does execute.
+        code = _casing_scan_text(stripped)
 
         # Find commands in this line - only at the start or after common batch separators
         for keyword, pattern in _COMMAND_CASE_PATTERNS:

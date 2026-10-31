@@ -1,11 +1,11 @@
 {
   "config": {},
-  "description": "p008 delayed not enabled",
+  "description": "Delayed expansion stays off when SETLOCAL is only mentioned in a comment, ECHO, or REM",
   "lines": {
     "1": [
       "W022"
     ],
-    "2": [
+    "6": [
       "E006",
       "P008",
       "W001"

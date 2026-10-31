@@ -12,6 +12,8 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 - P008, W022 and E006 ignore a `!VAR!` on a comment line
 - S003 ignores double-quoted text, such as a PowerShell `-Command` argument, and a comment after a command separator
+- W022 no longer treats SETLOCAL EnableDelayedExpansion as present when it appears only in a comment, an ECHO line, or a REM after a separator
+- S003 still sees commands inside `cmd /c` and `cmd /k` strings, a caret-escaped quote does not hide the command between the quotes, and a comment after an even number of carets (`^^&`) is still a comment
 
 ## [1.1.53] - 2026-10-31
 

@@ -1,6 +1,6 @@
 {
   "config": {},
-  "description": "No line continuation, and carets only in quotes or comments (S026 negative)",
+  "description": "No line continuation. Carets in quotes, on REM or :: lines, and after & or | on those lines are not continuations (S026 negative)",
   "lines": {},
   "must_not": [
     "S026"
