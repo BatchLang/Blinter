@@ -10,6 +10,7 @@ from typing import (
 
 from blinter.constants import BUILTIN_VARS
 from blinter.models import LintIssue
+from blinter.parsing.context import _is_comment_line
 from blinter.rules.helpers import _add_issue
 
 
@@ -107,6 +108,10 @@ def _check_undefined_variables(
     macro_temp_pattern = re.compile(r"^[A-Z]\d+$")
 
     for i, line in enumerate(lines, start=1):
+        # A comment reads no variable
+        if _is_comment_line(line):
+            continue
+
         # Skip lines with string operations like %DATE:/=-% or !VAR:"=!
         if string_op_pattern.search(line):
             continue

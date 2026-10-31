@@ -122,6 +122,19 @@ def test_p008_with_special_chars(tmp_path: pathlib.Path) -> None:
     ), "Should flag P008 when using !@variable! without ENABLEDELAYEDEXPANSION"
 
 
+def test_comment_is_not_delayed_expansion(tmp_path: pathlib.Path) -> None:
+    """A !VAR! in a comment gives no P008, W022 or E006, with no SETLOCAL at all."""
+    script = tmp_path / "test_comment.bat"
+    script.write_text(
+        '@echo off\nREM A "!VAR!" in prose.\n:: A "!VAR!" in prose.\n'
+        "REM A %NOPE% in prose.\nexit /b 0\n",
+        encoding="utf-8",
+    )
+
+    codes = {issue.rule.code for issue in lint_batch_file(str(script))}
+    assert not codes & {"P008", "W022", "E006"}
+
+
 def test_setaccounts_regression(tmp_path: pathlib.Path) -> None:
     """Test the specific case from SetAccounts.BAT that caused the bug report."""
     script = tmp_path / "test_setaccounts.bat"

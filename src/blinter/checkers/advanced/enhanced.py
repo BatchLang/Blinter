@@ -176,7 +176,7 @@ def _check_enhanced_commands(lines: List[str]) -> List[LintIssue]:
         stripped = line.strip()
 
         # Check for delayed expansion usage
-        if re.search(r"!\w+!", stripped):
+        if not _is_comment_line(stripped) and re.search(r"!\w+!", stripped):
             uses_delayed_expansion = True
 
         # Run all line-level checks

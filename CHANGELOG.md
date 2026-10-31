@@ -8,6 +8,10 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 - `pymarkdownlnt` checks every Markdown file in the repository as part of `scripts/verify.py`
 
+### Fixed
+
+- P008, W022 and E006 ignore comment lines
+
 ## [1.1.53] - 2026-10-31
 
 ### Fixed
