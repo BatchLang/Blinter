@@ -4,6 +4,10 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ## [Unreleased]
 
+### Fixed
+
+- S010 reports no label a computed jump can reach: every label for `goto %ACTION%` or `call :%~1`, and those starting with `case_` for `goto case_%1`
+
 ## [1.1.55] - 2026-11-01
 
 ### Fixed

@@ -1,0 +1,17 @@
+{
+  "config": {},
+  "description": "goto case_%1 reaches only labels with that start (S010)",
+  "lines": {
+    "5": [
+      "S010"
+    ]
+  },
+  "must_not": [],
+  "oracle": "skip",
+  "rules": [
+    "S010"
+  ],
+  "tags": [
+    "integration"
+  ]
+}

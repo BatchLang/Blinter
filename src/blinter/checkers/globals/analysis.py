@@ -16,6 +16,7 @@ from blinter.checkers.globals.for_scope import (
 from blinter.constants import LARGE_FILE_LINE_THRESHOLD
 from blinter.models import LintIssue
 from blinter.parsing.context import (
+    _command_segments,
     _goto_and_call_label_names,
     _is_comment_line,
     _is_endlocal_command,
@@ -73,11 +74,36 @@ def _check_global_style_rules(lines: List[str], file_path: str) -> List[LintIssu
     return issues
 
 
+# A FOR prefix ends at its first DO, so the command it runs is the jump or nothing.
+_COMPUTED_JUMP_RE = re.compile(
+    r"(?:for\b(?:(?!\bdo\s).)*\bdo\s+)?(?:\(\s*)?"
+    r"(?:goto(?:\s+:?|:)|call\s+:)([^\s%!]*)[%!]",
+    re.IGNORECASE,
+)
+
+
+def _computed_jump_prefixes(lines: List[str]) -> set[str]:
+    """Return the literal start of each computed GOTO or CALL target, lowercased.
+
+    ``goto %ACTION%`` can reach any label and ``goto case_%1`` any label starting
+    with ``case_``.
+    """
+    prefixes: set[str] = set()
+    for line in lines:
+        for segment in _command_segments(line):
+            match = _COMPUTED_JUMP_RE.match(segment)
+            if match:
+                prefixes.add(str(match.group(1)).lower())
+    return prefixes
+
+
 def _check_unused_labels(lines: List[str]) -> List[LintIssue]:
     """Check for labels that are never referenced by GOTO or CALL (S010)."""
     issues: List[LintIssue] = []
     labels: Dict[str, int] = {}
     referenced: set[str] = set()
+
+    computed_prefixes = _computed_jump_prefixes(lines)
 
     for i, line in enumerate(lines, start=1):
         stripped = line.strip()
@@ -89,7 +115,9 @@ def _check_unused_labels(lines: List[str]) -> List[LintIssue]:
         referenced.update(_goto_and_call_label_names(line))
 
     for label_name, line_num in labels.items():
-        if label_name not in referenced:
+        if label_name not in referenced and not label_name.startswith(
+            tuple(computed_prefixes)
+        ):
             issues.append(
                 LintIssue(
                     line_number=line_num,

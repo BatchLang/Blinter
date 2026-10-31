@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Each form of computed jump reaches the labels with its literal start (S010 negative)",
+  "lines": {},
+  "must_not": [
+    "S010"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}
