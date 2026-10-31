@@ -63,6 +63,7 @@ optional-dependencies.dev = [
   "mypy",
   "pip-audit",
   "pylint",
+  "pymarkdownlnt",
   "pyproject-fmt",
   "pytest",
   "pytest-cov",

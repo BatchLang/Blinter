@@ -1,3 +1,4 @@
+<!-- pyml disable md033 -->
 # Blinter
 
 <div align="center">
@@ -56,11 +57,13 @@
 ### 🚀 Quick Start (Recommended)
 
 **Option 1: Install via pip**
+
 ```bash
 pip install Blinter
 ```
 
 **Option 2: Install via uv**
+
 ```bash
 uv tool install Blinter
 ```
@@ -76,11 +79,16 @@ uvx blinter
 If you prefer a standalone executable over pip or uv, use the one-line installer for your system.
 
 **Windows (cmd):**
+
 ```cmd
 curl -fL --proto =https https://raw.githubusercontent.com/BatchLang/Blinter/refs/heads/main/scripts/install_blinter.cmd -o install_blinter.cmd && (call install_blinter.cmd || cd .) && del install_blinter.cmd
 ```
 
-This installs the latest `blinter.exe` for your PC's architecture to `%LOCALAPPDATA%\Programs\Blinter\bin`, adds it to your user `PATH`, and handles updates automatically. To choose the build yourself, add `x64` or `arm64` after `call install_blinter.cmd`. `arm64` is refused on a PC that is not ARM64. On ARM64, `x64` still installs and runs through emulation, but `arm64` is the native build and the default. Restart your terminal or IDE after installation for `PATH` changes to take effect.
+This installs the latest `blinter.exe` for your PC's architecture to `%LOCALAPPDATA%\Programs\Blinter\bin`, adds it to your user `PATH`, and handles updates automatically.
+To choose the build yourself, add `x64` or `arm64` after `call install_blinter.cmd`.
+`arm64` is refused on a PC that is not ARM64.
+On ARM64, `x64` still installs and runs through emulation, but `arm64` is the native build and the default.
+Restart your terminal or IDE after installation for `PATH` changes to take effect.
 
 **Linux and macOS (bash):**
 
@@ -88,9 +96,16 @@ This installs the latest `blinter.exe` for your PC's architecture to `%LOCALAPPD
 curl -fL --proto =https https://raw.githubusercontent.com/BatchLang/Blinter/refs/heads/main/scripts/install_blinter.sh -o install_blinter.sh && bash install_blinter.sh; rm -f install_blinter.sh
 ```
 
-The installer picks the build that matches your machine. To choose one yourself, add `x64` or `arm64` after `bash install_blinter.sh`. It refuses a build that cannot run on your machine. On Apple Silicon, `x64` still installs and runs through Rosetta, but `arm64` is the native build and the default. On Linux there is no x64 emulation, so ARM Linux always gets `arm64`.
+The installer picks the build that matches your machine.
+To choose one yourself, add `x64` or `arm64` after `bash install_blinter.sh`.
+It refuses a build that cannot run on your machine.
+On Apple Silicon, `x64` still installs and runs through Rosetta, but `arm64` is the native build and the default.
+On Linux there is no x64 emulation, so ARM Linux always gets `arm64`.
 
-This installs the latest `blinter` to `~/.local/share/blinter/bin` (or `$XDG_DATA_HOME/blinter/bin`), verifies its SHA-256 digest, and adds a marked block to `~/.profile` and your existing `~/.bashrc`, `~/.zshrc` and `~/.bash_profile` (plus `~/.zshrc` on macOS) so the folder is on your `PATH`. Run it again to update. Open a new terminal afterwards. fish does not read those files, so add the folder with `fish_add_path`. The script must run as a normal user, not root. Linux needs glibc 2.39 or newer.
+This installs the latest `blinter` to `~/.local/share/blinter/bin` (or `$XDG_DATA_HOME/blinter/bin`), verifies its SHA-256 digest, and adds a marked block to `~/.profile` and your existing `~/.bashrc`, `~/.zshrc` and `~/.bash_profile` (plus `~/.zshrc` on macOS) so the folder is on your `PATH`.
+Run it again to update. Open a new terminal afterwards.
+fish does not read those files, so add the folder with `fish_add_path`.
+The script must run as a normal user, not root. Linux needs glibc 2.39 or newer.
 
 **Manual download (fallback):**
 - Windows: download `Blinter-v1.x.x-Windows-x64.zip` or `Blinter-v1.x.x-Windows-arm64.zip` from [GitHub Releases](https://github.com/BatchLang/Blinter/releases). The executable is `Blinter-v1.x.x-Windows-x64\blinter.exe` or `Blinter-v1.x.x-Windows-arm64\blinter.exe`.
@@ -103,21 +118,25 @@ This installs the latest `blinter` to `~/.local/share/blinter/bin` (or `$XDG_DAT
 ### Uninstall
 
 **Standalone executable on Windows (one-line un-installer) via cmd** This removes whichever build is installed, x64 or ARM64:
+
 ```cmd
 curl -fL --proto =https https://raw.githubusercontent.com/BatchLang/Blinter/refs/heads/main/scripts/uninstall_blinter.cmd -o uninstall_blinter.cmd && (call uninstall_blinter.cmd || cd .) && del uninstall_blinter.cmd
 ```
 
 **Standalone executable on Linux and macOS (one-line un-installer) via bash** This removes the install and the Blinter block from your shell startup files, leaving every other line unchanged:
+
 ```bash
 curl -fL --proto =https https://raw.githubusercontent.com/BatchLang/Blinter/refs/heads/main/scripts/uninstall_blinter.sh -o uninstall_blinter.sh && bash uninstall_blinter.sh; rm -f uninstall_blinter.sh
 ```
 
 **pip installation:**
+
 ```bash
 pip uninstall Blinter
 ```
 
 **uv installation:**
+
 ```bash
 uv tool uninstall Blinter
 ```
@@ -131,6 +150,7 @@ uv tool uninstall Blinter
 ### Basic Usage
 
 **If installed via pip/uv:**
+
 ```bash
 # Analyze a single batch file
 blinter script.bat
@@ -166,6 +186,7 @@ python -m blinter --version
 ```
 
 **If using standalone executable (installer or manual download):**
+
 ```bash
 # After the one-line installer, use blinter on PATH.
 # Manual zip: run Blinter-v1.x.x-Windows-x64\blinter.exe or Blinter-v1.x.x-Windows-arm64\blinter.exe,
@@ -208,8 +229,15 @@ blinter script.bat --no-config
 - `--summary`: Display summary statistics of issues found
 - `--max-line-length <n>`: Set maximum line length for S011 and S020 rules (default: 100)
 - `--no-recursive`: When processing directories, only analyze files in the specified directory (not subdirectories)
-- `--follow-calls`: Automatically analyze scripts called by CALL statements and merge their variable context. When enabled, variables defined in called scripts (including transitively called scripts within depth and file limits) are recognized as "defined" in the calling script (position-aware: only after the CALL statement). This eliminates false positive undefined variable errors for configuration scripts. Each script's CALL list is walked once, including when scripts call each other in a cycle
-- `--fail-on <level>`: Exit 1 when a finding is at or above this severity. Levels, from least to most severe: `style`, `performance`, `warning`, `security`, `error`. `none` never fails because of findings. The default is `security`, so Error and Security findings are fatal; `error` fails on fewer findings and ignores Security findings. This flag overrides `fail_on` in `blinter.ini`
+- `--follow-calls`: Automatically analyze scripts called by CALL statements and merge their variable context.
+  When enabled, variables defined in called scripts (including transitively called scripts within depth and file limits) are recognized as "defined" in the calling script (position-aware: only after the CALL statement).
+  This eliminates false positive undefined variable errors for configuration scripts.
+  Each script's CALL list is walked once, including when scripts call each other in a cycle
+- `--fail-on <level>`: Exit 1 when a finding is at or above this severity.
+  Levels, from least to most severe: `style`, `performance`, `warning`, `security`, `error`.
+  `none` never fails because of findings.
+  The default is `security`, so Error and Security findings are fatal; `error` fails on fewer findings and ignores Security findings.
+  This flag overrides `fail_on` in `blinter.ini`
 - `--baseline <path>`: Accept findings recorded in a JSON file. A new finding still follows `--fail-on`. A recorded finding that no longer matches exits 1
 - `--update-baseline`: Rewrite the `--baseline` file from the current findings. Requires `--baseline`. Entries for files that were not part of this run are kept
 - `--config <path>`: Load settings from a custom configuration file instead of `blinter.ini` in the current directory
@@ -287,23 +315,27 @@ python -m blinter project/scripts --output results.sarif --format sarif
 You can suppress specific linter warnings directly in your batch files using special comments:
 
 #### Suppress Next Line
+
 ```batch
 REM LINT:IGNORE E009
 ECHO '' .... Represents a " character
 ```
 
 #### Suppress Current Line
+
 ```batch
 REM LINT:IGNORE-LINE S013
 ```
 
 #### Suppress Multiple Rules
+
 ```batch
 REM LINT:IGNORE E009, W011, S004
 ECHO Unmatched quotes "
 ```
 
 #### Suppress All Rules on Line
+
 ```batch
 REM LINT:IGNORE
 REM This line and the next will be ignored for all rules
@@ -339,7 +371,10 @@ blinter scripts --baseline blinter-baseline.json --update-baseline
 ]
 ```
 
-Paths use POSIX separators and are relative to the directory that contains the baseline file, so the same file works on Windows and on POSIX. `--update-baseline` rewrites the file from the current findings and keeps entries for files that were not scanned. A new finding exits 1 only when its severity is at or above `--fail-on` (or `fail_on`). A stale entry, one that no longer matches any finding in a file that was scanned, always exits 1.
+Paths use POSIX separators and are relative to the directory that contains the baseline file, so the same file works on Windows and on POSIX.
+`--update-baseline` rewrites the file from the current findings and keeps entries for files that were not scanned.
+A new finding exits 1 only when its severity is at or above `--fail-on` (or `fail_on`).
+A stale entry, one that no longer matches any finding in a file that was scanned, always exits 1.
 
 The JSON report adds `summary.baselined_issues` and `stale_baseline_entries`. Text output lists stale entries. SARIF lists the new findings; a stale entry still exits 1.
 
@@ -414,6 +449,7 @@ Blinter can analyze entire directories of batch files with powerful options:
 - **Progress Tracking**: Shows detailed results for each file plus combined summary statistics
 
 **Examples:**
+
 ```cmd
 # Pip installation:
 blinter ./my-batch-scripts                 # Analyze all files recursively
@@ -435,6 +471,7 @@ Blinter-v1.x.x-Windows-arm64\blinter.exe ./my-batch-scripts
 ## 🔥 **Integration Example**
 
 ### CI/CD Integration
+
 ```yaml
 # Example GitHub Actions workflow
 - name: Lint Batch Files

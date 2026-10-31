@@ -4,7 +4,7 @@ Blinter is a read-only static analyzer for Windows batch files (`.bat`, `.cmd`).
 
 ## Module map
 
-```
+```text
 src/blinter/
   __init__.py          # Public API (library and CLI entry re-exports)
   models.py            # BlinterConfig, LintIssue, Rule, RuleSeverity
@@ -108,7 +108,11 @@ Per-lint invocation-prefix data (subroutine reachability for rules such as SEC01
 
 ## `--follow-calls` and `scan_root`
 
-When `follow_calls` is enabled, Blinter resolves `CALL` targets to read variables and lint called scripts recursively. Variable context is position-aware (available only after each `CALL` line) and includes variables from transitively called scripts within `MAX_FOLLOW_CALL_DEPTH` and `MAX_FOLLOW_CALL_FILES`. The CLI sets `BlinterConfig.scan_root` to the target directory (or the parent of a single file) so paths outside the scan root are not read or processed. `lint_batch_file()` defaults `scan_root` to the batch file's parent directory when unset, matching CLI containment for library callers. Follow-call lint failures on callee scripts are best-effort (logged, no exit impact); skipped primary discovery targets exit with code 1.
+When `follow_calls` is enabled, Blinter resolves `CALL` targets to read variables and lint called scripts recursively.
+Variable context is position-aware (available only after each `CALL` line) and includes variables from transitively called scripts within `MAX_FOLLOW_CALL_DEPTH` and `MAX_FOLLOW_CALL_FILES`.
+The CLI sets `BlinterConfig.scan_root` to the target directory (or the parent of a single file) so paths outside the scan root are not read or processed.
+`lint_batch_file()` defaults `scan_root` to the batch file's parent directory when unset, matching CLI containment for library callers.
+Follow-call lint failures on callee scripts are best-effort (logged, no exit impact); skipped primary discovery targets exit with code 1.
 
 ## Configuration
 
@@ -122,7 +126,10 @@ When `follow_calls` is enabled, Blinter resolves `CALL` targets to read variable
 | 1 | A finding at or above `fail_on`, a CLI or path error, no processable files, a skipped primary file, or a stale baseline entry |
 | 2 | Unexpected internal error |
 
-The failure threshold is a severity ranking (`SEVERITY_RANK` in `models.py`: Style, Performance, Warning, Security, Error). `fail_on = error` therefore ignores Security findings, whereas `min_severity = error` keeps both Error and Security findings in the report. Only primary targets count toward the exit code; findings from scripts reached through `--follow-calls` appear in the output but do not change it. In text mode, a run where every file fails to read exits 1 without a JSON or SARIF document; `--format json` and `--format sarif` still emit one, and SARIF marks the run `executionSuccessful: false` when files were skipped.
+The failure threshold is a severity ranking (`SEVERITY_RANK` in `models.py`: Style, Performance, Warning, Security, Error).
+`fail_on = error` therefore ignores Security findings, whereas `min_severity = error` keeps both Error and Security findings in the report.
+Only primary targets count toward the exit code; findings from scripts reached through `--follow-calls` appear in the output but do not change it.
+In text mode, a run where every file fails to read exits 1 without a JSON or SARIF document; `--format json` and `--format sarif` still emit one, and SARIF marks the run `executionSuccessful: false` when files were skipped.
 
 ## SSOT split: batch-spec vs Blinter
 
@@ -136,7 +143,10 @@ The failure threshold is a severity ranking (`SEVERITY_RANK` in `models.py`: Sty
 
 Clone with `git clone --recurse-submodules` or run `git submodule update --init --recursive` after checkout.
 
-Generators live under [`scripts/spec/`](../scripts/spec/). `scripts/verify.py` is the quality gate for local runs and CI: schema validation, generator `--check`, strict SSOT audit, lockfile check, formatting, yamllint, mypy, pylint, bandit, pip-audit, the benchmark baseline, pytest, the cmd.exe oracle (Windows), and PowerShell checks (Windows). CI's quality job runs `python scripts/verify.py --skip-pytest` because pytest has its own matrix job. The Windows job runs `python scripts/verify.py --windows-only`.
+Generators live under [`scripts/spec/`](../scripts/spec/).
+`scripts/verify.py` is the quality gate for local runs and CI: schema validation, generator `--check`, strict SSOT audit, lockfile check, formatting, yamllint, pymarkdown, mypy, pylint, bandit, pip-audit, the benchmark baseline, pytest, the cmd.exe oracle (Windows), and PowerShell checks (Windows).
+CI's quality job runs `python scripts/verify.py --skip-pytest` because pytest has its own matrix job.
+The Windows job runs `python scripts/verify.py --windows-only`.
 
 `patterns.py` `BUILTIN_COMMANDS` is generated as the union of batch-spec `builtin_commands` and
 `common_external_tools` so stock Windows utilities and common dev tools both suppress E012/E014.
@@ -146,17 +156,32 @@ Deprecated/removed command tables come from batch-spec `commands.yaml` unchanged
 
 Corpus policy: every rule in `rules.yaml` must have at least one corpus assertion (see `audit_ssot.py` coverage checks).
 
-**Performance gate:** [`scripts/benchmark_lint.py`](../scripts/benchmark_lint.py) with `--check-baseline` compares the synthetic-file median against [`spec/benchmark/synthetic-baseline.json`](../spec/benchmark/synthetic-baseline.json). That absolute CPU-time ceiling is not applied on Intel macOS, which is several times slower than the hosts used to record it. The scaling checks in the same test module still run there.
+**Performance gate:** [`scripts/benchmark_lint.py`](../scripts/benchmark_lint.py) with `--check-baseline` compares the synthetic-file median against [`spec/benchmark/synthetic-baseline.json`](../spec/benchmark/synthetic-baseline.json).
+That absolute CPU-time ceiling is not applied on Intel macOS, which is several times slower than the hosts used to record it.
+The scaling checks in the same test module still run there.
 
 ## Standalone executable
 
 GitHub Actions compiles a Nuitka `--mode=onefile` binary via [`scripts/build_exe.py`](../scripts/build_exe.py). The compile jobs are `test-windows-exe` and `test-unix-exe`. Release jobs only package those smoke-tested binaries; they do not run Nuitka again.
 
-Windows uses `--msvc=latest` (Visual Studio 2022 / MSVC 14.3+, required for Python 3.14). `windows-latest` produces the **Windows x64** executable, and `windows-11-arm` produces the **Windows ARM64** executable. The x64 build also runs on Windows 11 ARM64 through Prism emulation. There is no 32-bit build. [`scripts/test_exe_smoke.py`](../scripts/test_exe_smoke.py) checks the PE Machine field (`0x8664` for x64, `0xAA64` for ARM64), the ELF `e_machine` field, and the Mach-O CPU type, so an x64 executable cannot pass an ARM64 job under emulation.
+Windows uses `--msvc=latest` (Visual Studio 2022 / MSVC 14.3+, required for Python 3.14).
+`windows-latest` produces the **Windows x64** executable, and `windows-11-arm` produces the **Windows ARM64** executable.
+The x64 build also runs on Windows 11 ARM64 through Prism emulation. There is no 32-bit build.
+[`scripts/test_exe_smoke.py`](../scripts/test_exe_smoke.py) checks the PE Machine field (`0x8664` for x64, `0xAA64` for ARM64), the ELF `e_machine` field, and the Mach-O CPU type, so an x64 executable cannot pass an ARM64 job under emulation.
 
-Linux builds on `ubuntu-24.04` and `ubuntu-24.04-arm`, the oldest GitHub-hosted Ubuntu images that are still supported. The binary needs glibc 2.39 or newer, so it does not run on Ubuntu 22.04. macOS builds on `macos-15` (arm64) and `macos-15-intel` (x64). Those binaries are not Developer ID signed or notarized. Nuitka's ad-hoc signature is enough to launch on Apple Silicon; a browser download can still be blocked by Gatekeeper until quarantine is cleared. There is no universal macOS binary.
+Linux builds on `ubuntu-24.04` and `ubuntu-24.04-arm`, the oldest GitHub-hosted Ubuntu images that are still supported.
+The binary needs glibc 2.39 or newer, so it does not run on Ubuntu 22.04.
+macOS builds on `macos-15` (arm64) and `macos-15-intel` (x64).
+Those binaries are not Developer ID signed or notarized.
+Nuitka's ad-hoc signature is enough to launch on Apple Silicon; a browser download can still be blocked by Gatekeeper until quarantine is cleared.
+There is no universal macOS binary.
 
-The exe venv installs `charset-normalizer` with `--no-binary` so Nuitka compiles the pure-Python package into the binary. CPython still ships native extensions (`python314.dll`, `unicodedata.pyd`, and similar). The bootstrap extracts them to `{CACHE_DIR}/{COMPANY}/{PRODUCT}/{VERSION}` (`%LOCALAPPDATA%\BatchLang\Blinter\<version>\` on Windows, `~/.cache/BatchLang/Blinter/<version>` on Linux, and `~/Library/Caches/BatchLang/Blinter/<version>` on macOS) and loads them from disk. `--file-version` and `--product-version` are passed on every OS so `{VERSION}` is set. The build nofollows unused `ssl`/`socket`/`wmi` modules to keep that payload smaller. The executable is unsigned, so some antivirus ML engines may still flag the extract-then-load pattern.
+The exe venv installs `charset-normalizer` with `--no-binary` so Nuitka compiles the pure-Python package into the binary.
+CPython still ships native extensions (`python314.dll`, `unicodedata.pyd`, and similar).
+The bootstrap extracts them to `{CACHE_DIR}/{COMPANY}/{PRODUCT}/{VERSION}` (`%LOCALAPPDATA%\BatchLang\Blinter\<version>\` on Windows, `~/.cache/BatchLang/Blinter/<version>` on Linux, and `~/Library/Caches/BatchLang/Blinter/<version>` on macOS) and loads them from disk.
+`--file-version` and `--product-version` are passed on every OS so `{VERSION}` is set.
+The build nofollows unused `ssl`/`socket`/`wmi` modules to keep that payload smaller.
+The executable is unsigned, so some antivirus ML engines may still flag the extract-then-load pattern.
 
 The build enables LTO, bundles the MSVC runtime DLLs on Windows with `--include-windows-runtime-dlls=yes`, uses `--onefile-cache-mode=cached` for faster relaunch and a stable path for Windows Firewall, and does **not** use UPX. The release publishes:
 
@@ -165,9 +190,16 @@ The build enables LTO, bundles the MSVC runtime DLLs on Windows with `--include-
 - `Blinter-vVERSION-macOS-arm64.tar.gz` and `Blinter-vVERSION-macOS-x64.tar.gz`
 - `SHA256SUMS` for those archives
 
-Each archive contains a folder of the same name. Windows executables are `blinter.exe`. Linux and macOS executables are `blinter`, with the executable bit stored in the tar. `install_blinter.cmd` is the Windows installer. The architecture argument is optional: with none it picks the native build from `PROCESSOR_ARCHITECTURE` (or `PROCESSOR_ARCHITEW6432` for a 32-bit or emulated shell), and `x64` or `arm64` overrides that. Any other argument downloads nothing. It downloads `Blinter-<tag>-Windows-<arch>.zip`. `arm64` is refused on a non-ARM64 PC. On ARM64, `x64` is allowed and runs through Prism emulation.
+Each archive contains a folder of the same name. Windows executables are `blinter.exe`.
+Linux and macOS executables are `blinter`, with the executable bit stored in the tar.
+`install_blinter.cmd` is the Windows installer.
+The architecture argument is optional: with none it picks the native build from `PROCESSOR_ARCHITECTURE` (or `PROCESSOR_ARCHITEW6432` for a 32-bit or emulated shell), and `x64` or `arm64` overrides that.
+Any other argument downloads nothing. It downloads `Blinter-<tag>-Windows-<arch>.zip`.
+`arm64` is refused on a non-ARM64 PC. On ARM64, `x64` is allowed and runs through Prism emulation.
 
-`install_blinter.sh` and `uninstall_blinter.sh` are the Linux and macOS companions. They follow the same rules as the Windows scripts: an optional `x64` or `arm64` argument that defaults to the native build (on Apple Silicon this is `arm64` even from a shell running under Rosetta), no root, an unverifiable download is refused, and a failed upgrade restores the previous install. They differ where the platform does:
+`install_blinter.sh` and `uninstall_blinter.sh` are the Linux and macOS companions.
+They follow the same rules as the Windows scripts: an optional `x64` or `arm64` argument that defaults to the native build (on Apple Silicon this is `arm64` even from a shell running under Rosetta), no root, an unverifiable download is refused, and a failed upgrade restores the previous install.
+They differ where the platform does:
 
 - The latest tag comes from the redirect of `releases/latest`, and the digest comes from the release `SHA256SUMS`, so the script needs no JSON parser and does not use the rate-limited GitHub API.
 - `arm64` is refused on a non-ARM host. `x64` is refused on ARM Linux, which has no emulation layer, and allowed on Apple Silicon through Rosetta. Linux also needs glibc 2.39 or newer, matching the build floor.
@@ -175,6 +207,10 @@ Each archive contains a folder of the same name. Windows executables are `blinte
 - PATH is set by a block between `# >>> blinter >>>` and `# <<< blinter <<<` in `~/.profile`, `~/.bashrc`, `~/.zshrc` and `~/.bash_profile`. Both scripts carry the same awk filter that strips the block, so the uninstaller removes exactly what the installer wrote and a block with no end marker is reported rather than truncating the file.
 - The uninstaller does not stop running processes, because deleting a running executable is safe on Linux and macOS.
 
-Both scripts stay compatible with Bash 3.2, the version macOS ships. `.shellcheckrc` configures ShellCheck, and `scripts/verify.py` runs it on every `.sh` file in `scripts/` and every stand-in command in `tests/unix_stubs/`. `tests/test_unix_installer_scripts.py` runs the scripts under bash with those stand-ins for `curl`, `uname`, `id`, `getconf`, `sysctl` and `chmod`. The `chmod` stand-in rejects options after the mode, as macOS does. `scripts/test_install_scripts.sh` installs and uninstalls the real latest release, and the `quality-unix` CI job runs it on Linux and macOS, x64 and arm64.
+Both scripts stay compatible with Bash 3.2, the version macOS ships.
+`.shellcheckrc` configures ShellCheck, and `scripts/verify.py` runs it on every `.sh` file in `scripts/` and every stand-in command in `tests/unix_stubs/`.
+`tests/test_unix_installer_scripts.py` runs the scripts under bash with those stand-ins for `curl`, `uname`, `id`, `getconf`, `sysctl` and `chmod`.
+The `chmod` stand-in rejects options after the mode, as macOS does.
+`scripts/test_install_scripts.sh` installs and uninstalls the real latest release, and the `quality-unix` CI job runs it on Linux and macOS, x64 and arm64.
 
 People who already have Python can keep using the PyPI wheel.

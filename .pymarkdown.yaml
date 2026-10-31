@@ -1,0 +1,52 @@
+# README.md disables MD033 with a file pragma. A per-file-ignores glob is
+# stored in lowercase, so README.md would not match on a case-sensitive scan.
+# Rule explanations and one-line installer commands are single long lines,
+# matching the line-length ceiling in .yamllint.yaml. Code blocks and tables
+# are excluded; prose over this limit is wrapped.
+plugins:
+  MD013:
+    line_length: 360
+    code_blocks: false
+    tables: false
+  # Each changelog release repeats Fixed, Changed, and Added.
+  MD024:
+    siblings_only: true
+  # The requirements document places a list or an example fence directly under
+  # a heading. Inserting the blank lines these rules want dedents those fences,
+  # and a leading "#" in a batch sample is then parsed as a heading.
+  MD022:
+    enabled: false
+  MD031:
+    enabled: false
+  MD032:
+    enabled: false
+  # Bold and italic lead-ins are labels (install options, catalog notes,
+  # audit "none" rows), not headings.
+  MD036:
+    enabled: false
+  # Separators are sized to the column. Compact, tight, and aligned all
+  # require exactly three dashes, which these tables do not use.
+  MD060:
+    enabled: false
+  # The pull request body is a GitHub template. Its first heading is h2
+  # because the pull request title is the h1.
+  per-file-ignores:
+    .github/pull_request_template.md:
+      - MD041
+
+extensions:
+  markdown-tables:
+    enabled: true
+  markdown-task-list-items:
+    enabled: true
+
+system:
+  exclude_path:
+    - ".git/**"
+    - ".venv/**"
+    - "venv/**"
+    - "vendor/**"
+    - "htmlcov/**"
+    - "dist/**"
+    - "build/**"
+    - "batch-script-examples/**"

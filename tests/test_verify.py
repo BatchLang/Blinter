@@ -163,6 +163,17 @@ def test_yamllint_checks_the_repository_root() -> None:
     assert command[-2:] == ("--strict", ".")
 
 
+def test_pymarkdown_checks_the_repository_root() -> None:
+    """pymarkdown scans every Markdown file from the repository root."""
+    command = _step("pymarkdown").command
+    assert "pymarkdown" in command
+    assert "--strict-config" in command
+    assert "scan" in command
+    assert "--recurse" in command
+    assert "--respect-gitignore" in command
+    assert command[-1] == "."
+
+
 def test_directory_targets_are_not_file_lists() -> None:
     """mypy, pylint, and bandit target directories rather than individual files."""
     mypy = _step("mypy")

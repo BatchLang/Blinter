@@ -42,6 +42,7 @@ Match the existing codebase style:
 | [mypy](https://mypy-lang.org/) | Static type checking (`strict` mode) |
 | [pylint](https://pylint.readthedocs.io/) | Linting (`pylintrc`) |
 | [yamllint](https://yamllint.readthedocs.io/) | YAML files in the repository (`.yamllint.yaml`) |
+| [PyMarkdown](https://pymarkdown.readthedocs.io/) | Markdown files in the repository (`.pymarkdown.yaml`) |
 | [bandit](https://bandit.readthedocs.io/) | Security linting for Python |
 | [ShellCheck](https://www.shellcheck.net/) | Every `.sh` file in `scripts/` and the stand-in commands in `tests/unix_stubs/` |
 | [PSScriptAnalyzer](https://github.com/PowerShell/PSScriptAnalyzer) | Every `.ps1` and `.psm1` file under `scripts/` and `tests/` |

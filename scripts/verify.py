@@ -380,6 +380,19 @@ def _quality_steps(*, fix: bool, uv_executable: str, root: Path) -> tuple[Step, 
         Step("pyproject-fmt", kind=StepKind.PYPROJECT_FMT, fix=fix),
         Step("black", tuple(_python_m("black", "--check", *_CHECK_DIRS))),
         Step("yamllint", tuple(_python_m("yamllint", "--strict", "."))),
+        Step(
+            "pymarkdown",
+            tuple(
+                _python_m(
+                    "pymarkdown",
+                    "--strict-config",
+                    "scan",
+                    "--recurse",
+                    "--respect-gitignore",
+                    ".",
+                )
+            ),
+        ),
         Step("shellcheck (shell scripts)", _shellcheck_command(root)),
         Step("mypy", tuple(_python_m("mypy"))),
         Step("pylint", kind=StepKind.PYLINT),

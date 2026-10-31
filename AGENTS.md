@@ -37,7 +37,8 @@ py -m blinter path\to\script.cmd      # run the linter itself
 
 On Linux and macOS use `python` or `python3` in place of `py`. Run everything inside the project virtual environment (`.venv`). A global interpreter may carry other pytest plugins (for example `pytest-asyncio`) that fail under `filterwarnings = error`, and an older installed `blinter` can shadow the source tree for `python -m blinter`.
 
-`verify.py` runs these steps in order, so the failing step name tells you which area broke: spec schema validation, corpus validation, generated-file `--check` steps, strict SSOT audit, `uv lock --check`, autopep8, isort, pyproject-fmt, black, yamllint, ShellCheck, mypy, pylint, bandit, pip-audit, benchmark baseline, pytest. On Windows it also runs the cmd.exe oracle, PSScriptAnalyzer, Pester and a blinter lint of the install scripts.
+`verify.py` runs these steps in order, so the failing step name tells you which area broke: spec schema validation, corpus validation, generated-file `--check` steps, strict SSOT audit, `uv lock --check`, autopep8, isort, pyproject-fmt, black, yamllint, pymarkdown, ShellCheck, mypy, pylint, bandit, pip-audit, benchmark baseline, pytest.
+On Windows it also runs the cmd.exe oracle, PSScriptAnalyzer, Pester and a blinter lint of the install scripts.
 
 Pytest runs with a 300 second timeout, `filterwarnings = error` (any warning fails a test), `--strict-markers`, and coverage enabled. Tests marked `needs_corpus` skip unless the local, gitignored `batch-script-examples/` folder exists.
 

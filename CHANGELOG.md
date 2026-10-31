@@ -4,6 +4,10 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ## [Unreleased]
 
+### Added
+
+- `pymarkdownlnt` checks every Markdown file in the repository as part of `scripts/verify.py`
+
 ## [1.1.53] - 2026-10-31
 
 ### Fixed
@@ -18,16 +22,19 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ### Fixed
 
-- W001 no longer treats a command whose name merely begins with `rem` (for example `remote.exe`) as a comment, so a script that ends on such a command is flagged for a missing exit code. Every checker now shares one comment test that accepts only `REM`, `@REM`, a lone `REM` and `::`, in any letter case. Several checkers previously missed `@REM`, a bare `REM`, or an upper-case `REM`
+- W001 no longer treats a command whose name merely begins with `rem` (for example `remote.exe`) as a comment, so a script that ends on such a command is flagged for a missing exit code.
+  Every checker now shares one comment test that accepts only `REM`, `@REM`, a lone `REM` and `::`, in any letter case.
+  Several checkers previously missed `@REM`, a bare `REM`, or an upper-case `REM`
 - The FOR-block scan behind the loop-scoped performance rules ignores parentheses inside quotes and after a caret, and its cache is reset at the start of every lint pass
-- Several rules took seconds to minutes on long pathological lines because of nested wildcards in their regular expressions (the `%a%` and `>echo ` command-injection patterns, FOR /F quoting in E047, the SEC009 and SEC022 to SEC024 patterns and others). They now run in linear time and return the same findings
+- Several rules took seconds to minutes on long pathological lines because of nested wildcards in their regular expressions (the `%a%` pattern, the `>echo` command-injection pattern with its trailing space, FOR /F quoting in E047, the SEC009 and SEC022 to SEC024 patterns and others). They now run in linear time and return the same findings
 - P010 flags DIR only when its output is piped or redirected to standard output and `/B` is absent, as the rule describes. It previously fired on any DIR line and suggested a `/F` switch that DIR does not have
 - S008 accepts a comment directly above a block, W025 accepts `command || exit /b` on the same line, and W033 no longer reports a quoted CALL target that carries an extension
 - The SARIF log reports `executionSuccessful: false` when a file could not be linted
 - Standard output falls back to UTF-8 on consoles whose code page cannot encode the report, and the `--max-line-length` usage message is printed when the value is rejected
 - `uninstall_blinter.cmd` removes only the exact Blinter entry from the user PATH. A directory name that merely contained the bin path, or a path with square brackets, was previously mishandled
 - `scripts/verify.py` stops with a clear message when it runs on a non-CPython interpreter, because mypy does not support PyPy
-- The lint-time scaling tests re-measure a failing comparison before reporting it, so a single scheduler stall on a shared runner (seen on `macos-15-intel`) no longer fails the build, while a real super-linear slowdown still fails every attempt. The build-script tests no longer share the generated `_build_version.py` file, which made them fail intermittently when run in parallel
+- The lint-time scaling tests re-measure a failing comparison before reporting it, so a single scheduler stall on a shared runner (seen on `macos-15-intel`) no longer fails the build, while a real super-linear slowdown still fails every attempt.
+  The build-script tests no longer share the generated `_build_version.py` file, which made them fail intermittently when run in parallel
 
 ### Changed
 
@@ -51,7 +58,8 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ### Added
 
-- `scripts/install_blinter.sh` and `scripts/uninstall_blinter.sh` install and remove the standalone executable on Linux and macOS. The installer picks the native build, accepts an optional `x64` or `arm64` argument to override it, verifies the archive against the release `SHA256SUMS`, installs to `${XDG_DATA_HOME:-$HOME/.local/share}/blinter/bin`, and adds a marked PATH block to the shell startup files, which the uninstaller removes
+- `scripts/install_blinter.sh` and `scripts/uninstall_blinter.sh` install and remove the standalone executable on Linux and macOS.
+  The installer picks the native build, accepts an optional `x64` or `arm64` argument to override it, verifies the archive against the release `SHA256SUMS`, installs to `${XDG_DATA_HOME:-$HOME/.local/share}/blinter/bin`, and adds a marked PATH block to the shell startup files, which the uninstaller removes
 - ShellCheck lints the shell scripts through `scripts/verify.py`, and the `quality-unix` CI job installs and uninstalls the real release on Linux and macOS, x64 and arm64
 - `scripts/installer_ps/Write-CrlfScriptCopy.ps1` mirrors the line-ending bootstrap embedded in `install_blinter.cmd` and `uninstall_blinter.cmd`, so it is linted and covered by the batch parity checks like the other embedded PowerShell
 
@@ -59,7 +67,9 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ### Added
 
-- Linux and macOS standalone executables. Releases include `Blinter-v1.1.50-Linux-x64.tar.gz`, `Blinter-v1.1.50-Linux-arm64.tar.gz`, `Blinter-v1.1.50-macOS-arm64.tar.gz`, and `Blinter-v1.1.50-macOS-x64.tar.gz`. Each archive contains a folder of the same name and a `blinter` binary. Linux binaries need glibc 2.39 or newer (Ubuntu 24.04 and newer). macOS binaries target macOS 15 on arm64 and x64 and are not notarized
+- Linux and macOS standalone executables. Releases include `Blinter-v1.1.50-Linux-x64.tar.gz`, `Blinter-v1.1.50-Linux-arm64.tar.gz`, `Blinter-v1.1.50-macOS-arm64.tar.gz`, and `Blinter-v1.1.50-macOS-x64.tar.gz`.
+  Each archive contains a folder of the same name and a `blinter` binary.
+  Linux binaries need glibc 2.39 or newer (Ubuntu 24.04 and newer). macOS binaries target macOS 15 on arm64 and x64 and are not notarized
 - `SHA256SUMS` lists the SHA-256 digest of every release archive
 
 ### Changed
@@ -133,7 +143,11 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 - Pinned batch-spec to v0.72.4. A CR that is not part of CRLF is not a line break, and a caret plus CRLF stays one escaped ending
 - The MegaLinter install pin is 1.1.44
-- `scripts/verify.py` is the quality gate for local runs and CI. mypy and pylint check `src`, `scripts`, and `tests` from their config instead of a hand-maintained file list. bandit checks `src` and `scripts`. `--windows-only` replaces `--powershell-only` and includes the cmd.exe corpus oracle. `--skip-pytest` leaves the test suite to CI's matrix job. On Python 3.15, pylint runs in one process because parallel jobs crash while pickling the linter.
+- `scripts/verify.py` is the quality gate for local runs and CI.
+  mypy and pylint check `src`, `scripts`, and `tests` from their config instead of a hand-maintained file list.
+  bandit checks `src` and `scripts`. `--windows-only` replaces `--powershell-only` and includes the cmd.exe corpus oracle.
+  `--skip-pytest` leaves the test suite to CI's matrix job.
+  On Python 3.15, pylint runs in one process because parallel jobs crash while pickling the linter.
 
 ## [1.1.43] - 2026-10-19
 

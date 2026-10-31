@@ -40,7 +40,7 @@ upstream's inverted list.
 
 Create `spec/corpus/<category>/<case-id>/`:
 
-```
+```text
 input.cmd      # Batch source under test
 expect.json    # Expected diagnostics
 ```

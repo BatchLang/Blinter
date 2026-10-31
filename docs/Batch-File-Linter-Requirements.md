@@ -221,19 +221,18 @@ Across 5 severity levels:
 
 > **Security rules:** SEC-prefixed findings are static heuristics over source text. They help spot risky patterns but do not prove exploitability or guarantee runtime safety.
 
-
 ## Implementation Guidelines
 *Each rule should provide clear explanations and actionable recommendations*
 
 ### Output Format
 - **Line number**: Specify exact line where issue occurs
-- **Rule code**: Unique identifier (e.g., E001, W001, S001, P001) 
+- **Rule code**: Unique identifier (e.g., E001, W001, S001, P001)
 - **Explanation**: Clear description of why this is an issue
 - **Recommendation**: Specific guidance on how to fix the problem
 - **Severity level**: Error, Warning, Style, Security, or Performance
 
 ### Example Output Structure
-```
+```text
 Line 5: Missing '@ECHO OFF' at top of file (S001)
 - Explanation: Batch scripts usually start with '@ECHO OFF' to prevent command echoing during execution
 - Recommendation: Add '@ECHO OFF' as the first line of your script
@@ -1281,7 +1280,12 @@ The directive and its rule codes match case-insensitively in ASCII only. A look-
 
 ### Baseline file
 
-`--baseline <path>` reads a JSON list of accepted findings. Each object has `code`, `file`, and `text`. `file` is a POSIX path relative to the baseline file's directory. `text` is the trimmed source line. Matching is a multiset: two identical lines need two entries. A finding the baseline does not hold is reported and exits 1 only when its severity is at or above `fail_on`. An entry whose file was scanned and that no longer matches a finding is stale and always exits 1. Entries for files that were not scanned are left unchanged.
+`--baseline <path>` reads a JSON list of accepted findings. Each object has `code`, `file`, and `text`.
+`file` is a POSIX path relative to the baseline file's directory. `text` is the trimmed source line.
+Matching is a multiset: two identical lines need two entries.
+A finding the baseline does not hold is reported and exits 1 only when its severity is at or above `fail_on`.
+An entry whose file was scanned and that no longer matches a finding is stale and always exits 1.
+Entries for files that were not scanned are left unchanged.
 
 `--update-baseline` rewrites the file from the current findings, keeps entries for files outside the scan, and exits 0 unless a file could not be processed. It requires `--baseline`.
 
