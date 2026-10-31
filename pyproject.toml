@@ -4,7 +4,7 @@ requires = [ "uv-build>=0.13.1,<0.14" ]
 
 [project]
 name = "blinter"
-version = "1.1.53"
+version = "1.1.54"
 description = """\
   Blinter is a linter for Windows batch files. It provides comprehensive static analysis to identify syntax errors, \
   security vulnerabilities, performance issues and style problems.\

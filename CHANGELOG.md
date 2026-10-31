@@ -4,6 +4,8 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ## [Unreleased]
 
+## [1.1.54] - 2026-10-31
+
 ### Added
 
 - `pymarkdownlnt` checks every Markdown file in the repository as part of `scripts/verify.py`
@@ -14,6 +16,10 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 - S003 ignores double-quoted text, such as a PowerShell `-Command` argument, and a comment after a command separator
 - W022 no longer treats SETLOCAL EnableDelayedExpansion as present when it appears only in a comment, an ECHO line, or a REM after a separator
 - S003 still sees commands inside `cmd /c` and `cmd /k` strings, a caret-escaped quote does not hide the command between the quotes, and a comment after an even number of carets (`^^&`) is still a comment
+
+### Changed
+
+- The MegaLinter install pin is 1.1.54
 
 ## [1.1.53] - 2026-10-31
 
@@ -562,6 +568,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 Older 1.0.x releases are available on the [GitHub Releases](https://github.com/BatchLang/Blinter/releases) page.
 
+[1.1.54]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.54
 [1.1.53]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.53
 [1.1.52]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.52
 [1.1.51]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.51

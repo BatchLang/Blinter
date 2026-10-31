@@ -18,7 +18,7 @@ That URL is the one to give MegaLinter. The plugin id is `BATCH`, and the linter
 On startup MegaLinter runs the descriptor install line:
 
 ```dockerfile
-RUN pip install --no-cache-dir "Blinter==1.1.53"
+RUN pip install --no-cache-dir "Blinter==1.1.54"
 ```
 
 Plugins can only install with `dockerfile` instructions that start with `RUN`. Bump that pin in the descriptor when a new Blinter release is published.
