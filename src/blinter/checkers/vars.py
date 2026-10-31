@@ -108,9 +108,8 @@ def _check_undefined_variables(
     macro_temp_pattern = re.compile(r"^[A-Z]\d+$")
 
     for i, line in enumerate(lines, start=1):
-        # A comment reads no variable
-        if _is_comment_line(line):
-            continue
+        # cmd.exe expands %VAR% on a comment line, but not !VAR!
+        is_comment = _is_comment_line(line)
 
         # Skip lines with string operations like %DATE:/=-% or !VAR:"=!
         if string_op_pattern.search(line):
@@ -123,6 +122,8 @@ def _check_undefined_variables(
         available_vars = _get_available_vars_at_line(i, set_vars, called_scripts_vars)
 
         for match in var_usage_pattern.finditer(line):
+            if is_comment and match.group(2):
+                continue
             if _is_doubled_percent_literal(line, match):
                 continue
 

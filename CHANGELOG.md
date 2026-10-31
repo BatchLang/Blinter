@@ -10,7 +10,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ### Fixed
 
-- P008, W022 and E006 ignore comment lines
+- P008, W022 and E006 ignore a `!VAR!` on a comment line
 
 ## [1.1.53] - 2026-10-31
 
