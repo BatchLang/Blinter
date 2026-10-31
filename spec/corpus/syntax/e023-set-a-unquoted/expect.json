@@ -3,6 +3,9 @@
   "description": "e023 set a unquoted",
   "lines": {
     "2": [
+      "S026"
+    ],
+    "3": [
       "E023",
       "E029",
       "S026",

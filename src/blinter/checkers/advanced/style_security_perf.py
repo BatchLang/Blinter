@@ -10,6 +10,7 @@ from typing import (
 )
 
 from blinter.checkers.cmd_extended import (
+    _strip_double_quoted_strings,
     check_sec025_unquoted_cd,
     has_unquoted_user_args,
 )
@@ -415,14 +416,16 @@ def _check_advanced_style_patterns(
             )
 
     # S026: Inconsistent continuation character usage
-    if "^" in stripped and not stripped.endswith("^"):
+    # A caret in a comment or inside double quotes continues nothing.
+    code = "" if _is_comment_line(stripped) else _strip_double_quoted_strings(stripped)
+    if "^" in code and not code.endswith("^"):
         # Check for improper continuation usage (exclude escape sequences)
         # In batch files, ^ is used for both line continuation AND escaping special chars
         # Only flag if it appears to be a continuation character, not an escape character
-        if stripped.count("^") == 1 and not re.search(r"\^\s*$", line):
+        if code.count("^") == 1:
             # Check if ^ is used as escape character (followed by special char)
             # Special chars that can be escaped: & | ( ) < > ^ " space tab
-            if not re.search(r"\^[&|()<>^\"\s]", stripped):
+            if not re.search(r"\^[&|()<>^\"\s]", code):
                 issues.append(
                     LintIssue(
                         line_number,
