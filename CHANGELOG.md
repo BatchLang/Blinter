@@ -10,6 +10,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ### Fixed
 
+- P008, W022 and E006 ignore a `!VAR!` on a comment line
 - S003 ignores double-quoted text, such as a PowerShell `-Command` argument, and a comment after a command separator
 
 ## [1.1.53] - 2026-10-31
