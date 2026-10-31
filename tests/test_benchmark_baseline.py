@@ -98,13 +98,18 @@ def test_scaling_check_tolerates_one_spike_but_not_a_regression(
         _assert_scales_within(small, large, 8)
 
 
-def test_long_whitespace_line_scales_linearly(tmp_path: Path) -> None:
-    """S003 stays near-linear between 2,000 and 5,000 spaces.
+@pytest.mark.parametrize(
+    "template",
+    ["for /f %a in ({}) do echo %a", "x &{}x"],
+)
+def test_long_whitespace_line_scales_linearly(tmp_path: Path, template: str) -> None:
+    """A run of spaces lints in near-linear time between 2,000 and 8,000 spaces.
 
-    Command-casing patterns used to backtrack on a long space run. The
-    line-length cap blanks anything over 10,000 characters, so both cases
-    stay under that cap. Five thousand spaces are 2.5 times two thousand, and
-    the time limit is 8 times the shorter run, matching the IF-chain check.
+    The S003 and W021 patterns used to rescan a long space run. S003 skips
+    a one-line file, so each script has two lines. The line-length cap blanks
+    anything over 10,000 characters, so both cases stay under that cap. Four
+    times the spaces costs sixteen times as much when the time is quadratic,
+    and the limit is 8 times the shorter run, matching the IF-chain check.
     """
     warmup = tmp_path / "warmup_spaces.bat"
     warmup.write_text("@echo off\r\necho hi\r\n", encoding="utf-8")
@@ -113,12 +118,12 @@ def test_long_whitespace_line_scales_linearly(tmp_path: Path) -> None:
     def _write(spaces: int) -> Path:
         script = tmp_path / f"spaces_{spaces}.bat"
         script.write_text(
-            "for /f %a in (" + (" " * spaces) + ") do echo %a\r\n",
+            "@echo off\r\n" + template.format(" " * spaces) + "\r\n",
             encoding="utf-8",
         )
         return script
 
-    _assert_scales_within(_write(2000), _write(5000), 8)
+    _assert_scales_within(_write(2000), _write(8000), 8)
 
 
 def test_absolute_baseline_skip_is_intel_macos_only(
