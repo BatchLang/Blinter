@@ -4,6 +4,10 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ## [Unreleased]
 
+### Fixed
+
+- S026 ignores a caret on a comment line or inside double quotes, such as a `findstr` pattern
+
 ## [1.1.52] - 2026-10-30
 
 ### Fixed

@@ -1,6 +1,6 @@
 {
   "config": {},
-  "description": "No continuation characters at all (S026 negative)",
+  "description": "No line continuation, and carets only in quotes or comments (S026 negative)",
   "lines": {},
   "must_not": [
     "S026"
