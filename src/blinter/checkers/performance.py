@@ -6,7 +6,11 @@ from typing import (
 )
 
 from blinter.models import LintIssue
-from blinter.parsing.context import _is_endlocal_command, _is_setlocal_command
+from blinter.parsing.context import (
+    _is_comment_line,
+    _is_endlocal_command,
+    _is_setlocal_command,
+)
 from blinter.parsing.structure import _delayed_expansion_active_at_line
 from blinter.patterns import (
     _COMPILED_SETLOCAL_DISABLE,
@@ -205,8 +209,10 @@ def _check_performance_issues(  # pylint: disable=too-many-arguments,too-many-po
 
     # P008: Delayed expansion without enablement
     # Match any content between exclamation marks, including special chars like @, -, #, $, etc.
-    if not _delayed_expansion_active_at_line(_lines, line_num) and re.search(
-        r"![^!]+!", stripped
+    if (
+        not _is_comment_line(stripped)
+        and not _delayed_expansion_active_at_line(_lines, line_num)
+        and re.search(r"![^!]+!", stripped)
     ):
         issues.append(
             LintIssue(

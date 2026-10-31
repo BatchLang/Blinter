@@ -3,6 +3,7 @@
   "description": "Delayed expansion is enabled before !VAR! is used (P008 negative)",
   "lines": {},
   "must_not": [
+    "E006",
     "P008"
   ],
   "oracle": "skip",
