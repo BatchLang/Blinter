@@ -9,11 +9,17 @@ from typing import (
     Tuple,
 )
 
+from blinter.checkers.cmd_extended import _strip_double_quoted_strings
 from blinter.constants import LARGE_FILE_LINE_THRESHOLD
 from blinter.models import LintIssue
 from blinter.parsing.context import _is_blank_or_comment, _is_comment_line
 from blinter.patterns import COMMAND_CASING_KEYWORDS
 from blinter.rules.registry import RULES
+
+# A comment after a command separator, such as ``echo.& REM Set the value``.
+_INLINE_COMMENT_RE = re.compile(
+    r"(?:^|(?<!\^)[&|])[\s(]*@?(?:rem(?:\s|$)|::).*", re.IGNORECASE
+)
 
 # One compiled pattern per keyword. A single separator character plus ``\s*``
 # avoids the ``\s+`` / ``\s*`` overlap that backtracks on long space runs.
@@ -385,9 +391,12 @@ def _collect_cmd_cases(lines: List[str]) -> Dict[str, List[Tuple[int, str]]]:
         ):
             continue
 
+        # Quoted text and an inline comment are not commands cmd.exe runs.
+        code = _INLINE_COMMENT_RE.sub("", _strip_double_quoted_strings(stripped))
+
         # Find commands in this line - only at the start or after common batch separators
         for keyword, pattern in _COMMAND_CASE_PATTERNS:
-            for match in pattern.finditer(stripped):
+            for match in pattern.finditer(code):
                 actual_case = match.group(2)  # Group 2 is the keyword itself
                 if keyword not in command_cases:
                     command_cases[keyword] = []
