@@ -861,6 +861,25 @@ class TestCiRelease:
         with pytest.raises(SystemExit, match="pyproject.toml not found"):
             read_version_file(missing)
 
+    def test_codeql_action_steps_share_one_version(self) -> None:
+        """CodeQL rejects a workflow whose github/codeql-action steps differ."""
+        pins: list[str] = []
+        workflow_dir = _REPO_ROOT / ".github" / "workflows"
+        for path in workflow_dir.glob("*.yml"):
+            text = path.read_text(encoding="utf-8")
+            pins.extend(
+                re.findall(
+                    r"github/codeql-action/[\w.-]+@([0-9a-f]{40})",
+                    text,
+                )
+            )
+        assert len(pins) >= 2
+        assert len(set(pins)) == 1
+        dependabot = (_REPO_ROOT / ".github" / "dependabot.yml").read_text(
+            encoding="utf-8"
+        )
+        assert "github/codeql-action*" in dependabot
+
     def test_release_gate_wiring_in_ci_workflow(self) -> None:
         """Manual releases need confirmation and the gate ignores dependency-graph."""
         ci_text = (_REPO_ROOT / ".github" / "workflows" / "CI.yml").read_text(
