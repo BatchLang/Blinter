@@ -4,10 +4,16 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ## [Unreleased]
 
+## [1.1.56] - 2026-11-01
+
 ### Fixed
 
 - S010 reports no label a computed jump can reach: every label for `goto %ACTION%` or `call :%~1`, and those starting with `case_` for `goto case_%1`
 - S010 still sees that jump after nested `IF` predicates and after `@`, and reads a `FOR` command from the `DO` after the input set. A `goto %` on a label line, or a `do` inside the set, does not hide other labels
+
+### Changed
+
+- The MegaLinter install pin is 1.1.56
 
 ## [1.1.55] - 2026-11-01
 
@@ -583,6 +589,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 Older 1.0.x releases are available on the [GitHub Releases](https://github.com/BatchLang/Blinter/releases) page.
 
+[1.1.56]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.56
 [1.1.55]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.55
 [1.1.54]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.54
 [1.1.53]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.53
