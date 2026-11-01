@@ -6,7 +6,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ### Fixed
 
-- S003 and W021 took time quadratic in the length of a run of spaces, such as `x &` followed by thousands of spaces, because their regular expressions rescanned the run from every space in it. S003 took about 7 seconds for 8,000 spaces. Both now run in linear time and return the same findings
+- S003 and W021 took time quadratic in the length of a run of spaces, such as `x &` followed by thousands of spaces, because their regular expressions rescanned the run from every space in it. S003 took about 7 seconds for 8,000 spaces. On long runs of spaces, both now run in linear time and return the same findings
 
 ## [1.1.54] - 2026-10-31
 
