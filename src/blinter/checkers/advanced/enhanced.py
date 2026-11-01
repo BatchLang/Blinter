@@ -37,7 +37,7 @@ def _check_for_f_options(stripped: str, line_number: int) -> Optional[LintIssue]
 
 def _check_if_comparison_quotes(stripped: str, line_number: int) -> Optional[LintIssue]:
     """Check IF comparisons without quotes (W021)."""
-    if_pattern = r'\s*if\s+(?:not\s+)?%\w+%\s*==\s*[^"\']\w+'
+    if_pattern = r'if\s+(?:not\s+)?%\w+%\s*==\s*[^"\']\w+'
     if re.search(if_pattern, stripped, re.IGNORECASE):
         return LintIssue(
             line_number=line_number,

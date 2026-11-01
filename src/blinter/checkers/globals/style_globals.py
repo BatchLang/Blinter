@@ -29,11 +29,12 @@ _CMD_CK_BEFORE_QUOTE_RE = re.compile(
 )
 
 # One compiled pattern per keyword. A single separator character plus ``\s*``
-# avoids the ``\s+`` / ``\s*`` overlap that backtracks on long space runs.
+# would rescan a space run from every space in it, so the keyword follows the
+# separator directly: a space before the keyword is a separator already.
 _COMMAND_CASE_PATTERNS: Tuple[Tuple[str, re.Pattern[str]], ...] = tuple(
     (
         keyword,
-        re.compile(rf"(^|[\s&|(])\s*({re.escape(keyword)})\b", re.IGNORECASE),
+        re.compile(rf"(^|[\s&|(])({re.escape(keyword)})\b", re.IGNORECASE),
     )
     for keyword in sorted(COMMAND_CASING_KEYWORDS)
 )
