@@ -4,9 +4,15 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ## [Unreleased]
 
+## [1.1.55] - 2026-11-01
+
 ### Fixed
 
 - S003 and W021 took time quadratic in the length of a run of spaces, such as `x &` followed by thousands of spaces, because their regular expressions rescanned the run from every space in it. S003 took about 7 seconds for 8,000 spaces. On long runs of spaces, both now run in linear time and return the same findings
+
+### Changed
+
+- The MegaLinter install pin is 1.1.55
 
 ## [1.1.54] - 2026-10-31
 
@@ -572,6 +578,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 Older 1.0.x releases are available on the [GitHub Releases](https://github.com/BatchLang/Blinter/releases) page.
 
+[1.1.55]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.55
 [1.1.54]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.54
 [1.1.53]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.53
 [1.1.52]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.52
