@@ -138,7 +138,7 @@ In text mode, a run where every file fails to read exits 1 without a JSON or SAR
 | ANTLR grammar, expansion rules, command catalog, cmd-help | [`vendor/batch-spec`](../vendor/batch-spec) ([`BatchLang/batch-spec`](https://github.com/BatchLang/batch-spec), pinned in [`spec/batch-spec.lock`](../spec/batch-spec.lock)) |
 | [`spec/data/rules.yaml`](../spec/data/rules.yaml) | Rule catalog (`checker: regex`; see `RULE_COUNT`) |
 | [`spec/data/commands-linter.yaml`](../spec/data/commands-linter.yaml) | Security/style command policy (merged with batch-spec `commands.yaml` for `patterns.py`; pins W009 `older_windows_commands`) |
-| [`spec/corpus/`](../spec/corpus/) | 417 committed fixtures + `expect.json` oracles |
+| [`spec/corpus/`](../spec/corpus/) | 421 committed fixtures + `expect.json` oracles |
 | [`spec/audit/`](../spec/audit/) | Reference matrix and audit baselines |
 
 Clone with `git clone --recurse-submodules` or run `git submodule update --init --recursive` after checkout.

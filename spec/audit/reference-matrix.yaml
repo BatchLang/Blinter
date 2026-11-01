@@ -263,6 +263,10 @@ entries:
   - syntax/w057-bat-without-call
   - syntax/w057-bat-with-call-valid
   - syntax/s010-if-goto-call-valid
+  - syntax/s010-computed-any-label-valid
+  - syntax/s010-computed-forms-valid
+  - integration/s010-text-is-not-a-jump
+  - integration/s010-computed-prefix-keeps-other-labels
   - syntax/e015-goto-colon-eof-valid
 - construct: Command typos and removed/deprecated commands
   sources:

@@ -1,0 +1,17 @@
+{
+  "config": {},
+  "description": "Text that only looks like a computed jump keeps S010 on (S010)",
+  "lines": {
+    "15": [
+      "S010"
+    ]
+  },
+  "must_not": [],
+  "oracle": "skip",
+  "rules": [
+    "S010"
+  ],
+  "tags": [
+    "integration"
+  ]
+}
