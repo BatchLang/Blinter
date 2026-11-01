@@ -193,12 +193,35 @@ def _strip_if_predicate(tokens: list[str]) -> list[str]:
     return rest
 
 
+def _strip_leading_if_predicates(tokens: list[str]) -> list[str]:
+    """Drop every leading IF, so ``if A if B command`` leaves ``command``.
+
+    One predicate is the common case. ``if defined A if defined B goto %1``
+    is also a command, and each pass removes exactly one predicate.
+    """
+    removed = 0
+    while tokens and tokens[0].lower() == "if":
+        remaining = _strip_if_predicate(tokens)
+        if len(remaining) >= len(tokens):
+            break
+        removed += 1
+        tokens = remaining
+    if removed > 1:
+        logger.debug(
+            "Stripped %d nested IF predicates; next token is %r",
+            removed,
+            tokens[0] if tokens else "",
+        )
+    return tokens
+
+
 def _command_segments(line: str) -> list[str]:
     """Return each command a line runs, starting at its command word.
 
     Drops ``ECHO`` output and ``REM``/``::`` segments so
     ``echo done & rem call :label`` is not a CALL, while
-    ``echo x || goto :label`` still is.
+    ``echo x || goto :label`` still is. Nested IF predicates are removed
+    before the command word is read.
     """
     body = _command_body(line)
     if not body:
@@ -208,7 +231,7 @@ def _command_segments(line: str) -> list[str]:
         tokens = _split_tokens(part.strip().lstrip("(").strip())
         while tokens and tokens[0].lower() in _SEGMENT_PREFIXES:
             tokens = tokens[1:]
-        tokens = _strip_if_predicate(tokens)
+        tokens = _strip_leading_if_predicates(tokens)
         if not tokens:
             continue
         first = tokens[0].lower()

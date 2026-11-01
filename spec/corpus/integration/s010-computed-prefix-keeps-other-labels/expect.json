@@ -1,5 +1,9 @@
 {
-  "config": {},
+  "config": {
+    "enabled_rules": [
+      "S010"
+    ]
+  },
   "description": "goto case_%1 reaches only labels with that start (S010)",
   "lines": {
     "5": [
@@ -13,5 +17,6 @@
   ],
   "tags": [
     "integration"
-  ]
+  ],
+  "total": 1
 }

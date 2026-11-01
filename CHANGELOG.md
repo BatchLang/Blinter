@@ -7,6 +7,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 ### Fixed
 
 - S010 reports no label a computed jump can reach: every label for `goto %ACTION%` or `call :%~1`, and those starting with `case_` for `goto case_%1`
+- S010 still sees that jump after nested `IF` predicates and after `@`, and reads a `FOR` command from the `DO` after the input set. A `goto %` on a label line, or a `do` inside the set, does not hide other labels
 
 ## [1.1.55] - 2026-11-01
 

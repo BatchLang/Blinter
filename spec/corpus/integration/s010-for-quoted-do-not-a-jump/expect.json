@@ -1,0 +1,22 @@
+{
+  "config": {
+    "enabled_rules": [
+      "S010"
+    ]
+  },
+  "description": "do inside a quoted FOR set is not the loop body (S010)",
+  "lines": {
+    "3": [
+      "S010"
+    ]
+  },
+  "must_not": [],
+  "oracle": "skip",
+  "rules": [
+    "S010"
+  ],
+  "tags": [
+    "integration"
+  ],
+  "total": 1
+}

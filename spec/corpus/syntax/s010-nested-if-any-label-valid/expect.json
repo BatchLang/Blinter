@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "goto %ACTION% after nested IF predicates can reach any label (S010 negative)",
+  "lines": {},
+  "must_not": [
+    "S010"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

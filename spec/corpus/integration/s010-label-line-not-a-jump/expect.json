@@ -1,0 +1,25 @@
+{
+  "config": {
+    "enabled_rules": [
+      "S010"
+    ]
+  },
+  "description": "A goto on a label line is not a computed jump (S010)",
+  "lines": {
+    "2": [
+      "S010"
+    ],
+    "4": [
+      "S010"
+    ]
+  },
+  "must_not": [],
+  "oracle": "skip",
+  "rules": [
+    "S010"
+  ],
+  "tags": [
+    "integration"
+  ],
+  "total": 2
+}

@@ -1,0 +1,22 @@
+{
+  "config": {
+    "enabled_rules": [
+      "S010"
+    ]
+  },
+  "description": "@goto is a computed jump (S010)",
+  "lines": {
+    "6": [
+      "S010"
+    ]
+  },
+  "must_not": [],
+  "oracle": "skip",
+  "rules": [
+    "S010"
+  ],
+  "tags": [
+    "integration"
+  ],
+  "total": 1
+}

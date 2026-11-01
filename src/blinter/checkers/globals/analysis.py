@@ -14,11 +14,13 @@ from blinter.checkers.globals.for_scope import (
     _check_for_var_case_mismatch,
 )
 from blinter.constants import LARGE_FILE_LINE_THRESHOLD
+from blinter.logging_config import logger
 from blinter.models import LintIssue
 from blinter.parsing.context import (
     _command_segments,
     _goto_and_call_label_names,
     _is_comment_line,
+    _is_comment_or_label,
     _is_endlocal_command,
     _is_setlocal_command,
     _iter_goto_label_refs,
@@ -74,26 +76,151 @@ def _check_global_style_rules(lines: List[str], file_path: str) -> List[LintIssu
     return issues
 
 
-# A FOR prefix ends at its first DO, so the command it runs is the jump or nothing.
+# Optional "(" and "@" sit on the command. The group is the literal prefix
+# before the first % or ! expansion, so "goto case_%1" yields "case_".
 _COMPUTED_JUMP_RE = re.compile(
-    r"(?:for\b(?:(?!\bdo\s).)*\bdo\s+)?(?:\(\s*)?"
-    r"(?:goto(?:\s+:?|:)|call\s+:)([^\s%!]*)[%!]",
+    r"^(?:\(\s*)?@?(?:goto(?:\s+:?|:)|call\s+:)([^\s%!]*)[%!]",
     re.IGNORECASE,
 )
+_FOR_COMMAND_RE = re.compile(r"^for\b", re.IGNORECASE)
+
+
+def _is_name_char(char: str) -> bool:
+    """Return True for characters that continue a batch command word."""
+    return char.isalnum() or char == "_"
+
+
+def _word_at(text: str, index: int, word: str) -> bool:
+    """Return True when ``word`` sits at ``index`` as a whole word."""
+    end = index + len(word)
+    if text[index:end].lower() != word:
+        return False
+    before_ok = index == 0 or not _is_name_char(text[index - 1])
+    after_ok = end >= len(text) or not _is_name_char(text[end])
+    return before_ok and after_ok
+
+
+def _skip_quoted_or_caret(text: str, index: int, quote: str) -> tuple[int, str] | None:
+    """Advance past a quote, quoted character, or caret escape.
+
+    Returns None when ``index`` is ordinary command text. A caret outside
+    quotes swallows the next character, matching the separator splitter.
+    """
+    char = text[index]
+    if quote:
+        if char == quote:
+            return index + 1, ""
+        return index + 1, quote
+    if char in "'\"":
+        return index + 1, char
+    if char == "^":
+        return min(index + 2, len(text)), ""
+    return None
+
+
+def _for_in_set_open(text: str) -> int | None:
+    """Return the index of '(' that opens a FOR IN set, outside quotes."""
+    quote = ""
+    index = 0
+    length = len(text)
+    while index < length:
+        skipped = _skip_quoted_or_caret(text, index, quote)
+        if skipped is not None:
+            index, quote = skipped
+            continue
+        if _word_at(text, index, "in"):
+            cursor = index + 2
+            while cursor < length and text[cursor].isspace():
+                cursor += 1
+            if cursor < length and text[cursor] == "(":
+                return cursor
+        index += 1
+    return None
+
+
+def _paren_group_end(text: str, open_index: int) -> int | None:
+    """Return the index after the ')' matching '(' at ``open_index``."""
+    depth = 0
+    quote = ""
+    index = open_index
+    length = len(text)
+    while index < length:
+        skipped = _skip_quoted_or_caret(text, index, quote)
+        if skipped is not None:
+            index, quote = skipped
+            continue
+        char = text[index]
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth == 0:
+                return index + 1
+        index += 1
+    return None
+
+
+def _for_do_body(segment: str) -> str:
+    """Return the command after FOR's DO, or empty when that DO is absent.
+
+    The DO keyword follows the IN set. ``do`` inside the set, including
+    ``in ("do goto %1")``, is data and is not the keyword.
+    """
+    open_paren = _for_in_set_open(segment)
+    if open_paren is None:
+        return ""
+    after_set = _paren_group_end(segment, open_paren)
+    if after_set is None:
+        return ""
+    cursor = after_set
+    while cursor < len(segment) and segment[cursor].isspace():
+        cursor += 1
+    if not _word_at(segment, cursor, "do"):
+        return ""
+    return segment[cursor + 2 :].lstrip()
+
+
+def _computed_jump_command(segment: str) -> str:
+    """Return the GOTO or CALL text a segment can run."""
+    if _FOR_COMMAND_RE.match(segment) is None:
+        return segment
+    return _for_do_body(segment)
+
+
+def _prefix_of_computed_jump(segment: str) -> str | None:
+    """Return the literal label prefix of a computed jump, or None."""
+    match = _COMPUTED_JUMP_RE.match(_computed_jump_command(segment))
+    if match is None:
+        return None
+    return str(match.group(1)).lower()
 
 
 def _computed_jump_prefixes(lines: List[str]) -> set[str]:
     """Return the literal start of each computed GOTO or CALL target, lowercased.
 
     ``goto %ACTION%`` can reach any label and ``goto case_%1`` any label starting
-    with ``case_``.
+    with ``case_``. A line that is itself a label is not a jump: cmd ignores
+    the rest of that line. ``@goto`` is the same jump as ``goto``.
     """
     prefixes: set[str] = set()
     for line in lines:
+        if _is_comment_or_label(line):
+            if "goto" in line.lower() or "call" in line.lower():
+                logger.debug(
+                    "Ignoring computed jump on a label or comment line: %s",
+                    line.strip(),
+                )
+            continue
         for segment in _command_segments(line):
-            match = _COMPUTED_JUMP_RE.match(segment)
-            if match:
-                prefixes.add(str(match.group(1)).lower())
+            prefix = _prefix_of_computed_jump(segment)
+            if prefix is None:
+                continue
+            logger.debug(
+                "Computed jump can reach labels starting with %r in %r",
+                prefix,
+                segment,
+            )
+            prefixes.add(prefix)
     return prefixes
 
 

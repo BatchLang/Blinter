@@ -4933,9 +4933,16 @@ class TestResidualFalsePositives:
         assert not [issue for issue in issues if issue.rule.code == "S010"]
 
     def test_setlocal_after_an_if_predicate_is_counted(self) -> None:
-        """#40: ``if defined FLAG setlocal`` runs a SETLOCAL."""
+        """#40: ``if defined FLAG setlocal`` runs a SETLOCAL.
+
+        A second IF predicate still leaves that command, including a jump.
+        """
 
         assert _is_setlocal_command("if defined FLAG setlocal")
+        assert _is_setlocal_command("if defined A if defined B setlocal")
+        assert _command_segments("if defined A if defined B goto %ACTION%") == [
+            "goto %ACTION%"
+        ]
         assert _is_setlocal_command("echo step & setlocal")
         assert _is_setlocal_command('if /i "%a%"=="b" setlocal enabledelayedexpansion')
         assert _is_endlocal_command("if not exist out.txt endlocal")

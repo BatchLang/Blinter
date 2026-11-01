@@ -267,6 +267,13 @@ entries:
   - syntax/s010-computed-forms-valid
   - integration/s010-text-is-not-a-jump
   - integration/s010-computed-prefix-keeps-other-labels
+  - integration/s010-label-line-not-a-jump
+  - integration/s010-for-quoted-do-not-a-jump
+  - integration/s010-for-body-computed-prefix
+  - integration/s010-for-set-contains-do
+  - integration/s010-at-goto-prefix
+  - integration/s010-nested-if-prefix
+  - syntax/s010-nested-if-any-label-valid
   - syntax/e015-goto-colon-eof-valid
 - construct: Command typos and removed/deprecated commands
   sources:

@@ -1,0 +1,22 @@
+{
+  "config": {
+    "enabled_rules": [
+      "S010"
+    ]
+  },
+  "description": "goto after a FOR set that contains do reaches case_ labels (S010)",
+  "lines": {
+    "5": [
+      "S010"
+    ]
+  },
+  "must_not": [],
+  "oracle": "skip",
+  "rules": [
+    "S010"
+  ],
+  "tags": [
+    "integration"
+  ],
+  "total": 1
+}
