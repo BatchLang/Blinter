@@ -4,6 +4,10 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ## [Unreleased]
 
+### Fixed
+
+- S003 took time quadratic in the number of double quotes on a line, because before each quote it searched the line from its start for `cmd /c`. On its own, S003 took about 0.1 seconds for 8,000 characters of `"a"` pairs and about 1.7 seconds for 32,000. It now takes linear time and returns the same findings
+
 ## [1.1.57] - 2026-11-02
 
 ### Fixed

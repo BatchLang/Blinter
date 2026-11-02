@@ -395,9 +395,65 @@ def _closing_double_quote(text: str, start: int) -> Optional[int]:
     return index
 
 
-def _is_cmd_command_string(prefix: str) -> bool:
-    """Return True when prefix ends with a cmd /c or cmd /k command string."""
-    return _CMD_CK_BEFORE_QUOTE_RE.search(prefix) is not None
+def _token_start(text: str, index: int) -> int:
+    """Return where the token ending at or before index starts."""
+    while index > 0 and text[index - 1].isspace():
+        index -= 1
+    while index > 0 and not text[index - 1].isspace():
+        index -= 1
+    return index
+
+
+def _ends_like_cmd(text: str, start: int) -> bool:
+    """Return True when the token at start ends with ``cmd`` or ``cmd.exe``."""
+    end = start
+    while end < len(text) and not text[end].isspace():
+        end += 1
+    token = text[start:end].casefold()
+    return token.endswith("cmd") or token.endswith("cmd.exe")
+
+
+def _is_cmd_command_string(text: str, quote: int, seen: Dict[int, bool]) -> bool:
+    """Return True when the quote at ``quote`` opens a cmd /c or cmd /k string.
+
+    A match ends with ``/c`` or ``/k`` and any whitespace before the quote.
+    Before that come only switches, tokens of ``/`` and at least one more
+    character, and the cmd token, which ends with ``cmd`` or ``cmd.exe``.
+    The walk back over the switches stops at a ``/c`` already seen on this
+    line: if that quote matched, this one does too, and if not, only the
+    tokens after it can hold the cmd token. So each token is walked once,
+    and the regex scans from the earliest new cmd token only.
+    ``seen`` maps the start of each ``/c`` checked on the line to its result.
+    """
+    end = quote
+    while end > 0 and text[end - 1].isspace():
+        end -= 1
+    if end < 3 or not text[end - 3].isspace() or text[end - 2] != "/":
+        return False
+    if text[end - 1].lower() not in ("c", "k"):
+        return False
+    switch = token = end - 2
+    candidate: Optional[int] = None
+    while True:
+        if _ends_like_cmd(text, token):
+            candidate = token
+        if token != switch and token in seen:
+            if seen[token]:
+                seen[switch] = True
+                return True
+            break
+        before = _token_start(text, token)
+        if token == 0 or text[before] != "/" or text[before + 1].isspace():
+            if token > 0 and _ends_like_cmd(text, before):
+                candidate = before
+            break
+        token = before
+    matched = candidate is not None and (
+        _CMD_CK_BEFORE_QUOTE_RE.search(text, _token_start(text, candidate), quote)
+        is not None
+    )
+    seen[switch] = matched
+    return matched
 
 
 def _percent_name_is_stray(name: str) -> bool:
@@ -458,6 +514,7 @@ def _strip_casing_quotes(text: str) -> str:
     """
     text = _hide_expansion_quotes(text)
     parts: List[str] = []
+    seen: Dict[int, bool] = {}
     index = 0
     length = len(text)
     while index < length:
@@ -469,7 +526,7 @@ def _strip_casing_quotes(text: str) -> str:
         if closing is None:
             closing = length
         inner = text[index + 1 : closing]
-        if _is_cmd_command_string(text[:index]):
+        if _is_cmd_command_string(text, index, seen):
             logger.debug("Keeping cmd command string for S003: %s", inner)
             parts.append(inner)
         else:

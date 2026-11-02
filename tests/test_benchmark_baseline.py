@@ -10,6 +10,7 @@ import time
 
 import pytest
 
+from blinter.checkers.globals import _check_cmd_case_consistency
 from blinter import lint_batch_file
 
 _REPO = Path(__file__).resolve().parent.parent
@@ -173,6 +174,29 @@ def test_line_count_scales_linearly(tmp_path: Path) -> None:
         return script
 
     _assert_scales_within(_write_echo_file(2000), _write_echo_file(8000), 10)
+
+
+@pytest.mark.parametrize("fragment", ['"a" ', '/c "x" ', '/c" ', 'x /c"', 'cmd /c" '])
+def test_s003_quotes_scale_linearly(fragment: str) -> None:
+    """S003 stays near-linear between 8,000 and 64,000 characters of quotes.
+
+    It once searched the whole prefix for ``cmd /c`` at every quote. The check
+    is timed on its own, since the line-length cap blanks such a line before
+    the linter sees it. Quadratic time costs 64 times as much, against a
+    limit of 16.
+    """
+
+    def _seconds(length: int) -> float:
+        lines = ["@echo off", fragment * (length // len(fragment))]
+        best = float("inf")
+        for _ in range(_SCALING_ATTEMPTS):
+            start = time.process_time()
+            _check_cmd_case_consistency(lines)
+            best = min(best, time.process_time() - start)
+        return best
+
+    small, large = _seconds(8000), _seconds(64000)
+    assert large <= max(small, 0.05) * 16, f"{large:.3f}s against {small:.3f}s"
 
 
 @pytest.mark.parametrize(
