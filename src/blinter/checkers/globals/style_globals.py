@@ -419,11 +419,14 @@ def _is_cmd_command_string(text: str, quote: int, seen: Dict[int, bool]) -> bool
     A match ends with ``/c`` or ``/k`` and any whitespace before the quote.
     Before that come only switches, tokens of ``/`` and at least one more
     character, and the cmd token, which ends with ``cmd`` or ``cmd.exe``.
-    The walk back over the switches stops at a ``/c`` already seen on this
-    line: if that quote matched, this one does too, and if not, only the
-    tokens after it can hold the cmd token. So each token is walked once,
-    and the regex scans from the earliest new cmd token only.
-    ``seen`` maps the start of each ``/c`` checked on the line to its result.
+    The walk back over the switches stops at a ``/c`` or ``/k`` already seen
+    on this line: if that quote matched, this one does too, and if not, only
+    the tokens after it can hold the cmd token. So each token is walked once.
+    The regex then starts on the token before that cmd token. ``^`` matches
+    only the real start of the string, so a preceding ``&``, ``|`` or ``(``
+    has to sit inside the window.
+    ``seen`` maps the start of each ``/c`` or ``/k`` checked on the line to
+    its result.
     """
     end = quote
     while end > 0 and text[end - 1].isspace():

@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "Ordinary quotes and a non-cmd /c do not change S003 casing",
+  "lines": {},
+  "must_not": [
+    "S003"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

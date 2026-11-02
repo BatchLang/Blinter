@@ -615,6 +615,7 @@ entries:
   - syntax/s001-missing-echo-off
   - syntax/s002-echo-off-no-at
   - integration/s003-command-casing
+  - integration/s003-cmd-after-separator
   - integration/s007-bat-extension
   - integration/s008-missing-complex-comment
   - syntax/s009-magic-number
@@ -646,6 +647,7 @@ entries:
   - syntax/s001-echo-off-first-valid
   - syntax/s002-echo-off-with-at-valid
   - syntax/s003-consistent-casing-valid
+  - syntax/s003-cmd-after-separator-valid
   - syntax/s004-no-trailing-space-valid
   - syntax/s007-cmd-extension-valid
   - syntax/s008-commented-block-valid

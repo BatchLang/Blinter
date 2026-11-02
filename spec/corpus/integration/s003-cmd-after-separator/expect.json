@@ -1,0 +1,43 @@
+{
+  "config": {},
+  "description": "S003 still sees a command inside cmd /c or cmd /k after a separator",
+  "lines": {
+    "14": [
+      "S003"
+    ],
+    "15": [
+      "S003"
+    ],
+    "16": [
+      "S003"
+    ],
+    "17": [
+      "S003"
+    ],
+    "18": [
+      "S003"
+    ],
+    "19": [
+      "S003"
+    ],
+    "20": [
+      "S003"
+    ],
+    "21": [
+      "S003"
+    ],
+    "22": [
+      "S003"
+    ],
+    "23": [
+      "S003"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "S003"
+  ],
+  "tags": [
+    "integration"
+  ]
+}
