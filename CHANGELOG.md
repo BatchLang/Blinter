@@ -2,11 +2,15 @@
 
 All notable changes to Blinter are documented in this file. Release tags follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.1.58] - 2026-11-02
 
 ### Fixed
 
 - S003 took time quadratic in the number of double quotes on a line, because before each quote it searched the line from its start for `cmd /c`. On its own, S003 took about 0.1 seconds for 8,000 characters of `"a"` pairs and about 1.7 seconds for 32,000. It now takes linear time and returns the same findings
+
+### Changed
+
+- The MegaLinter install pin is 1.1.58
 
 ## [1.1.57] - 2026-11-02
 
@@ -604,6 +608,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 Older 1.0.x releases are available on the [GitHub Releases](https://github.com/BatchLang/Blinter/releases) page.
 
+[1.1.58]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.58
 [1.1.57]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.57
 [1.1.56]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.56
 [1.1.55]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.55
