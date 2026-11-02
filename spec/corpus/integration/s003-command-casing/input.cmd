@@ -18,4 +18,7 @@ cmd.exe /d /c "SET p=4"
 dir ^^& rem SET ignored
 set p=%p:"=% & SET q=1
 set p=%p:"=% & SET q="x"
+set x=%my var:"=% & SET y=1
+set p=50% & dir c: & SET a=1 %
+set x=^%p:a="% & SET q=1
 SET y=2

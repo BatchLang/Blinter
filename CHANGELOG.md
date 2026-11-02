@@ -6,7 +6,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ### Fixed
 
-- S003 treats an unclosed double quote as running to the end of the line, so `call :x "a & SET y=2` no longer counts `SET`. A quote inside `%name:...%`, such as `set p=%p:"=% & SET q=1`, is not a quote, since `%` expansion of a defined variable removes it first
+- S003 treats an unclosed double quote as running to the end of the line, so `call :x "a & SET y=2` no longer counts `SET`. A quote in `%name:...%`, such as `set p=%p:"=% & SET q=1`, is not a quote: expanding a defined variable removes it, along with the search text of `%name:search=replace%`; a quote in the replacement stays. Names may hold spaces
 
 ## [1.1.56] - 2026-11-01
 

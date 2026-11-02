@@ -399,17 +399,28 @@ def _is_cmd_command_string(prefix: str) -> bool:
 
 
 def _hide_expansion_quotes(text: str) -> str:
-    """Blank the quotes inside ``%name:...%``.
+    """Blank the quotes in ``%name:...%``, drop its search text, keep its replacement.
 
     Phase 1 expands a defined ``name`` before phase 2 reads quotes, so with ``p``
-    defined ``SET`` runs in ``set p=%p:"=% & SET q=1``.
+    defined ``SET`` runs in ``set p=%p:"=% & SET q=1``. The name may hold
+    spaces, but not lead with one or hold ``&``, ``|``, ``<`` or ``>``: those
+    mark a stray ``%``, as in ``set p=50% & dir c: & SET a=1 %``. When ``name``
+    is defined, the search text of ``%name:search=replace%`` never reaches
+    phase 2, so ``SET`` does not run in ``set x=%p:" & SET y "=%``. A quote in
+    the replacement reaches phase 2 wherever the search text matched, so it
+    stays a quote. S003 reads the value as the search text alone, so a caret
+    right before the token escapes that quote, as it does in cmd.exe when the
+    value starts with the search text. An undefined ``name`` has only
+    ``%name:`` removed.
     """
 
     def _blank(match: re.Match[str]) -> str:
         token = match.group(0)
-        name, colon, _ = token[1:].partition(":")
-        if not colon or not name or '"' in name or any(c.isspace() for c in name):
+        name, colon, edit = token[1:-1].partition(":")
+        if not colon or not name or name[0].isspace() or set(name) & set('"&|<>'):
             return token
+        if not edit.startswith("~") and "=" in edit:
+            return edit.partition("=")[2]
         return token.replace('"', "'")
 
     return _PERCENT_TOKEN_RE.sub(_blank, text)

@@ -16,5 +16,7 @@ cmd /k "set s=3"
 cmd.exe /d /c "set s=4"
 set z="unclosed & SET hidden
 set t=^"a" & SET u=2
+set x=%p:" & SET fake "=%
+set x=%p:a="% & SET q="x"
 echo %x% %y%
 exit /b 0
