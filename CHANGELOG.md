@@ -4,10 +4,16 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ## [Unreleased]
 
+## [1.1.57] - 2026-11-02
+
 ### Fixed
 
 - S003 treats an unclosed double quote as running to the end of the line, so `call :x "a & SET y=2` no longer counts `SET`. A quote in `%name:...%`, such as `set p=%p:"=% & SET q=1`, is not a quote: expanding a defined variable removes it, along with the search text of `%name:search=replace%`; a quote in the replacement stays. Names may hold spaces
 - S003 no longer lets a quote inside a finished `%name%` token hide a later command. That includes a quote written with `%%`, as in `%p:%%"=Y%`. A `%` still ends the token, so the quote in `%p:%"=Y%` stays and that later command is not counted
+
+### Changed
+
+- The MegaLinter install pin is 1.1.57
 
 ## [1.1.56] - 2026-11-01
 
@@ -594,6 +600,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 Older 1.0.x releases are available on the [GitHub Releases](https://github.com/BatchLang/Blinter/releases) page.
 
+[1.1.57]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.57
 [1.1.56]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.56
 [1.1.55]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.55
 [1.1.54]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.54
