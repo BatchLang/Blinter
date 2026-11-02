@@ -1,0 +1,51 @@
+name: dill Python 3.15 check
+
+# Tripwire for the pylint "-j 1" workaround in scripts/verify.py. Python 3.15
+# removed code.co_lnotab and released dill still reads it, so pylint's parallel
+# mode crashes (pylint-dev/pylint#11528, uqfoundation/dill#753). This job fails
+# once the latest released dill can pickle code objects on 3.15 again. That is
+# the signal to remove the workaround and this workflow.
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/dill-py315-check.yml
+      - scripts/check_dill_py315.py
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dill-py315-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-dill:
+    name: Is dill fixed on Python 3.15?
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install uv and Python 3.15
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: "3.15"
+          activate-environment: true
+          enable-cache: false
+
+      - name: Install latest released dill
+        run: uv pip install --upgrade dill
+
+      - name: Check whether dill pickles code objects
+        # Exit 0: still broken, keep the workaround. Exit 1: fixed, remove it.
+        # Exit 2: dill failed in an unexpected way.
+        run: python scripts/check_dill_py315.py
