@@ -14,5 +14,7 @@ set q=^" & set r=2 & dir ^"
 cmd /c "echo hi & set s=2"
 cmd /k "set s=3"
 cmd.exe /d /c "set s=4"
+set z="unclosed & SET hidden
+set t=^"a" & SET u=2
 echo %x% %y%
 exit /b 0
