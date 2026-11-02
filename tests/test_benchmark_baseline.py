@@ -7,6 +7,7 @@ import platform
 import subprocess
 import sys
 import time
+from typing import Callable, Optional
 
 import pytest
 
@@ -58,7 +59,20 @@ def _cpu_seconds(script: Path) -> float:
     return time.process_time() - start
 
 
-def _assert_scales_within(small_script: Path, large_script: Path, factor: int) -> None:
+def _s003_cpu_seconds(script: Path) -> float:
+    """Return CPU time S003 alone spends on ``script``, past the line-length cap."""
+    lines = script.read_text(encoding="utf-8").splitlines()
+    start = time.process_time()
+    _check_cmd_case_consistency(lines)
+    return time.process_time() - start
+
+
+def _assert_scales_within(
+    small_script: Path,
+    large_script: Path,
+    factor: int,
+    measure: Optional[Callable[[Path], float]] = None,
+) -> None:
     """Assert the larger input costs at most ``factor`` times the smaller one.
 
     One scheduler stall on a shared CI runner can inflate either timing, so a
@@ -66,10 +80,11 @@ def _assert_scales_within(small_script: Path, large_script: Path, factor: int) -
     every attempt, because each attempt keeps the least time seen so far for
     both inputs, while a one-off spike clears on the next attempt.
     """
+    cpu_seconds = measure or _cpu_seconds
     small = large = float("inf")
     for _ in range(_SCALING_ATTEMPTS):
-        small = min(small, _cpu_seconds(small_script))
-        large = min(large, _cpu_seconds(large_script))
+        small = min(small, cpu_seconds(small_script))
+        large = min(large, cpu_seconds(large_script))
         if large <= max(small, 0.05) * factor:
             return
     assert large <= max(small, 0.05) * factor, (
@@ -125,6 +140,24 @@ def test_long_whitespace_line_scales_linearly(tmp_path: Path, template: str) -> 
         return script
 
     _assert_scales_within(_write(2000), _write(8000), 8)
+
+
+def test_search_text_percent_line_scales_linearly(tmp_path: Path) -> None:
+    """S003 reads a line of ``%p:a%`` tokens in near-linear time.
+
+    The search text of ``%name:search=replace%`` may hold ``%``, and trying
+    that from every ``%`` once rescanned the rest of the line. The line-length
+    cap hides most of that cost from a whole-file lint, so S003 is timed alone,
+    between 8,000 and 64,000 characters.
+    """
+
+    def _write(length: int) -> Path:
+        script = tmp_path / f"search_text_{length}.bat"
+        line = ("set x=" + "%p:a% " * length)[:length]
+        script.write_text("@echo off\r\n" + line + "\r\n", encoding="utf-8")
+        return script
+
+    _assert_scales_within(_write(8000), _write(64000), 8, _s003_cpu_seconds)
 
 
 def test_absolute_baseline_skip_is_intel_macos_only(

@@ -24,3 +24,5 @@ set x=^%p:a="% & SET q=1
 SET y=2
 set x=%"=Y% & SET q=1
 set x=%p:%%"=Y% & SET q=1
+set x=%p:a%"=Y% & SET q=1
+set x=%p:a%"=Y"% & SET q=1

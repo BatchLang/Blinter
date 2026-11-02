@@ -30,7 +30,13 @@ _CMD_CK_BEFORE_QUOTE_RE = re.compile(
 
 # What phase 1 expands before phase 2 reads quotes: ``%%``, an argument such as
 # ``%1`` or ``%~dp0``, or a ``%name%`` span, which may hold ``:`` edits.
-_PERCENT_TOKEN_RE = re.compile(r"%%|%~[^%\s]*?[0-9*]|%[0-9*]|%[^%\r\n]+%")
+_ARGUMENT_TOKEN = r"%%|%~[^%\s]*?[0-9*]|%[0-9*]"
+_NAME_TOKEN = r"%[^%\r\n]+%"
+_PERCENT_TOKEN_RE = re.compile(f"{_ARGUMENT_TOKEN}|{_NAME_TOKEN}")
+# The search text of ``%name:search=replace%`` may also hold ``%`` after its
+# first character; ``%p:%`` is the variable ``p:``.
+_SEARCH_TOKEN = r"%[^\s%:&|<>][^%:&|<>\r\n]*:[^%~=\r\n][^=\r\n]*=[^%\r\n]*%"
+_SEARCH_TOKEN_RE = re.compile(f"{_ARGUMENT_TOKEN}|{_SEARCH_TOKEN}|{_NAME_TOKEN}")
 # These end a percent scan. A quote does not: ``%"=Y%`` is one token.
 _STRAY_PERCENT_NAME_CHARS = frozenset("&|<>")
 
@@ -494,8 +500,10 @@ def _hide_expansion_quotes(text: str) -> str:
 
     Phase 1 expands a defined ``name`` before phase 2 reads quotes, so with ``p``
     defined ``SET`` runs in ``set p=%p:"=% & SET q=1``. The name may hold
-    spaces, but not lead with one or hold ``&``, ``|``, ``<`` or ``>``: those
-    mark a stray ``%``, as in ``set p=50% & dir c: & SET a=1 %``. When ``name``
+    spaces. A name that leads with one or holds ``&``, ``|``, ``<`` or ``>`` is
+    almost never defined, so it is left alone: in
+    ``set p=50% & dir c: & SET a=1 %`` cmd.exe removes ``% & dir c:`` as an
+    undefined ``%name:`` and runs ``SET``. When ``name``
     is defined, the search text of ``%name:search=replace%`` never reaches
     phase 2, so ``SET`` does not run in ``set x=%p:" & SET y "=%``. A quote in
     the replacement reaches phase 2 wherever the search text matched, so it
@@ -503,8 +511,32 @@ def _hide_expansion_quotes(text: str) -> str:
     right before the token escapes that quote, as it does in cmd.exe when the
     value starts with the search text. An undefined ``name`` has only
     ``%name:`` removed. A quote inside a finished token is not a quote either.
+    The search text may hold ``%`` after its first character, so with ``p``
+    defined or not ``SET`` runs in ``set x=%p:a%"=Y% & SET q=1``. A quote in the
+    replacement of such a token is not a quote.
     """
-    return _PERCENT_TOKEN_RE.sub(_percent_token_for_casing, text)
+    # A search text needs an ``=`` with a ``%`` after it, so past the last such
+    # ``=`` only the plain pattern can match. Trying the search-text pattern
+    # there would rescan the rest of the line from every ``%``.
+    last_equals = text.rfind("=", 0, text.rfind("%"))
+    parts: List[str] = []
+    index = 0
+    while True:
+        pattern = _SEARCH_TOKEN_RE if index < last_equals else _PERCENT_TOKEN_RE
+        match = pattern.search(text, index)
+        if match is None:
+            break
+        parts.append(text[index : match.start()])
+        token = _percent_token_for_casing(match)
+        if "%" in match.group(0)[1:-1]:
+            # A search text holding ``%`` is almost never in the value, and with
+            # ``name`` undefined cmd.exe removes its ``%`` up to the closing ``%``
+            # as a variable, so the replacement does not reach phase 2.
+            token = token.replace('"', "'")
+        parts.append(token)
+        index = match.end()
+    parts.append(text[index:])
+    return "".join(parts)
 
 
 def _strip_casing_quotes(text: str) -> str:

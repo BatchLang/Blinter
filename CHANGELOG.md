@@ -2,6 +2,12 @@
 
 All notable changes to Blinter are documented in this file. Release tags follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- S003 lets the search text of `%name:search=replace%` hold a `%` after its first character, so it counts `SET` in `set x=%p:a%"=Y% & SET q=1`, which cmd.exe runs whether `p` is defined or not. A quote in the replacement of such a token no longer hides a later command. A `%` right after the colon still ends the token, as in `%p:%"=Y%`
+
 ## [1.1.58] - 2026-11-02
 
 ### Fixed
