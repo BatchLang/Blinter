@@ -28,6 +28,10 @@ _CMD_CK_BEFORE_QUOTE_RE = re.compile(
     re.IGNORECASE,
 )
 
+# What phase 1 expands before phase 2 reads quotes: ``%%``, an argument such as
+# ``%1`` or ``%~dp0``, or a ``%name%`` span, which may hold ``:`` edits.
+_PERCENT_TOKEN_RE = re.compile(r"%%|%~[^%\s]*?[0-9*]|%[0-9*]|%[^%\r\n]+%")
+
 # One compiled pattern per keyword. A single separator character plus ``\s*``
 # would rescan a space run from every space in it, so the keyword follows the
 # separator directly: a space before the keyword is a separator already.
@@ -394,12 +398,43 @@ def _is_cmd_command_string(prefix: str) -> bool:
     return _CMD_CK_BEFORE_QUOTE_RE.search(prefix) is not None
 
 
+def _hide_expansion_quotes(text: str) -> str:
+    """Blank the quotes in ``%name:...%``, drop its search text, keep its replacement.
+
+    Phase 1 expands a defined ``name`` before phase 2 reads quotes, so with ``p``
+    defined ``SET`` runs in ``set p=%p:"=% & SET q=1``. The name may hold
+    spaces, but not lead with one or hold ``&``, ``|``, ``<`` or ``>``: those
+    mark a stray ``%``, as in ``set p=50% & dir c: & SET a=1 %``. When ``name``
+    is defined, the search text of ``%name:search=replace%`` never reaches
+    phase 2, so ``SET`` does not run in ``set x=%p:" & SET y "=%``. A quote in
+    the replacement reaches phase 2 wherever the search text matched, so it
+    stays a quote. S003 reads the value as the search text alone, so a caret
+    right before the token escapes that quote, as it does in cmd.exe when the
+    value starts with the search text. An undefined ``name`` has only
+    ``%name:`` removed.
+    """
+
+    def _blank(match: re.Match[str]) -> str:
+        token = match.group(0)
+        name, colon, edit = token[1:-1].partition(":")
+        if not colon or not name or name[0].isspace() or set(name) & set('"&|<>'):
+            return token
+        if not edit.startswith("~") and "=" in edit:
+            return edit.partition("=")[2]
+        return token.replace('"', "'")
+
+    return _PERCENT_TOKEN_RE.sub(_blank, text)
+
+
 def _strip_casing_quotes(text: str) -> str:
     """Drop ordinary quotes and keep the text of a cmd /c or cmd /k string.
 
     A caret-escaped quote is literal, so ``set x=^" & SET y=2 & dir ^"`` still
     exposes ``SET``. An unescaped quote hides a PowerShell ``-Command`` string.
+    An unclosed quote runs to the end of the line, so ``call :x "a & SET y=2``
+    hides ``SET``. A quote inside ``%name:...%`` is not a quote.
     """
+    text = _hide_expansion_quotes(text)
     parts: List[str] = []
     index = 0
     length = len(text)
@@ -410,8 +445,7 @@ def _strip_casing_quotes(text: str) -> str:
             continue
         closing = _closing_double_quote(text, index + 1)
         if closing is None:
-            parts.append(text[index:])
-            break
+            closing = length
         inner = text[index + 1 : closing]
         if _is_cmd_command_string(text[:index]):
             logger.debug("Keeping cmd command string for S003: %s", inner)
