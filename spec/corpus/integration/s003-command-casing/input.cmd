@@ -22,3 +22,5 @@ set x=%my var:"=% & SET y=1
 set p=50% & dir c: & SET a=1 %
 set x=^%p:a="% & SET q=1
 SET y=2
+set x=%"=Y% & SET q=1
+set x=%p:%%"=Y% & SET q=1

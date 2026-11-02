@@ -18,5 +18,7 @@ set z="unclosed & SET hidden
 set t=^"a" & SET u=2
 set x=%p:" & SET fake "=%
 set x=%p:a="% & SET q="x"
+set x=%p:%"=Y% & SET q=1
+set x=%" & SET hidden=1%
 echo %x% %y%
 exit /b 0

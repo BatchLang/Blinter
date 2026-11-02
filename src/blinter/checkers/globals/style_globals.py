@@ -31,6 +31,8 @@ _CMD_CK_BEFORE_QUOTE_RE = re.compile(
 # What phase 1 expands before phase 2 reads quotes: ``%%``, an argument such as
 # ``%1`` or ``%~dp0``, or a ``%name%`` span, which may hold ``:`` edits.
 _PERCENT_TOKEN_RE = re.compile(r"%%|%~[^%\s]*?[0-9*]|%[0-9*]|%[^%\r\n]+%")
+# These end a percent scan. A quote does not: ``%"=Y%`` is one token.
+_STRAY_PERCENT_NAME_CHARS = frozenset("&|<>")
 
 # One compiled pattern per keyword. A single separator character plus ``\s*``
 # would rescan a space run from every space in it, so the keyword follows the
@@ -398,8 +400,38 @@ def _is_cmd_command_string(prefix: str) -> bool:
     return _CMD_CK_BEFORE_QUOTE_RE.search(prefix) is not None
 
 
+def _percent_name_is_stray(name: str) -> bool:
+    """Return True when ``name`` is a stray ``%``, not a variable name.
+
+    A leading space or ``&``, ``|``, ``<`` or ``>`` ends the scan, as in
+    ``set p=50% & dir c: & SET a=1 %``. A quote does not end it.
+    """
+    if not name or name[0].isspace():
+        return True
+    return bool(set(name) & _STRAY_PERCENT_NAME_CHARS)
+
+
+def _percent_token_for_casing(match: re.Match[str]) -> str:
+    """Return the token with the quotes phase 2 will not see removed.
+
+    A finished ``%name%`` is expanded before quotes are read, so ``%"=Y%`` and
+    the ``%%`` in ``%p:%%"=Y%`` do not hide a later command. ``%`` still closes
+    the token, so the quote in ``%p:%"=Y%`` stays. Search text of
+    ``%name:search=replace%`` is dropped and a replacement quote is kept.
+    """
+    token = match.group(0)
+    name, colon, edit = token[1:-1].partition(":")
+    if _percent_name_is_stray(name):
+        return token
+    if not colon:
+        return token.replace('"', "'")
+    if not edit.startswith("~") and "=" in edit:
+        return edit.partition("=")[2]
+    return token.replace('"', "'")
+
+
 def _hide_expansion_quotes(text: str) -> str:
-    """Blank the quotes in ``%name:...%``, drop its search text, keep its replacement.
+    """Blank quotes that percent expansion removes before phase 2.
 
     Phase 1 expands a defined ``name`` before phase 2 reads quotes, so with ``p``
     defined ``SET`` runs in ``set p=%p:"=% & SET q=1``. The name may hold
@@ -411,19 +443,9 @@ def _hide_expansion_quotes(text: str) -> str:
     stays a quote. S003 reads the value as the search text alone, so a caret
     right before the token escapes that quote, as it does in cmd.exe when the
     value starts with the search text. An undefined ``name`` has only
-    ``%name:`` removed.
+    ``%name:`` removed. A quote inside a finished token is not a quote either.
     """
-
-    def _blank(match: re.Match[str]) -> str:
-        token = match.group(0)
-        name, colon, edit = token[1:-1].partition(":")
-        if not colon or not name or name[0].isspace() or set(name) & set('"&|<>'):
-            return token
-        if not edit.startswith("~") and "=" in edit:
-            return edit.partition("=")[2]
-        return token.replace('"', "'")
-
-    return _PERCENT_TOKEN_RE.sub(_blank, text)
+    return _PERCENT_TOKEN_RE.sub(_percent_token_for_casing, text)
 
 
 def _strip_casing_quotes(text: str) -> str:
@@ -432,7 +454,7 @@ def _strip_casing_quotes(text: str) -> str:
     A caret-escaped quote is literal, so ``set x=^" & SET y=2 & dir ^"`` still
     exposes ``SET``. An unescaped quote hides a PowerShell ``-Command`` string.
     An unclosed quote runs to the end of the line, so ``call :x "a & SET y=2``
-    hides ``SET``. A quote inside ``%name:...%`` is not a quote.
+    hides ``SET``. A quote inside a finished ``%name%`` token is not a quote.
     """
     text = _hide_expansion_quotes(text)
     parts: List[str] = []
