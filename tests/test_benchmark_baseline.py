@@ -148,7 +148,8 @@ def test_search_text_percent_line_scales_linearly(tmp_path: Path) -> None:
     The search text of ``%name:search=replace%`` may hold ``%``, and trying
     that from every ``%`` once rescanned the rest of the line. The line-length
     cap hides most of that cost from a whole-file lint, so S003 is timed alone,
-    between 8,000 and 64,000 characters.
+    between 8,000 and 64,000 characters. Quadratic time costs 64 times as much,
+    against a limit of 16.
     """
 
     def _write(length: int) -> Path:
@@ -157,7 +158,7 @@ def test_search_text_percent_line_scales_linearly(tmp_path: Path) -> None:
         script.write_text("@echo off\r\n" + line + "\r\n", encoding="utf-8")
         return script
 
-    _assert_scales_within(_write(8000), _write(64000), 8, _s003_cpu_seconds)
+    _assert_scales_within(_write(8000), _write(64000), 16, _s003_cpu_seconds)
 
 
 def test_absolute_baseline_skip_is_intel_macos_only(

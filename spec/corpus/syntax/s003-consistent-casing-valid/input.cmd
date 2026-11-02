@@ -19,6 +19,8 @@ set t=^"a" & SET u=2
 set x=%p:" & SET fake "=%
 set x=%p:a="% & SET q="x"
 set x=%p:%"=Y% & SET q=1
+set x=%p:a% & SET q=1 & echo %y%
+set x=%p:a%y% & SET q=1 & set z=%w%
 set x=%" & SET hidden=1%
 echo %x% %y%
 exit /b 0
