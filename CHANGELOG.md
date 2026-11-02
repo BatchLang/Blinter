@@ -2,11 +2,15 @@
 
 All notable changes to Blinter are documented in this file. Release tags follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.1.59] - 2026-11-02
 
 ### Fixed
 
 - S003 lets the search text of `%name:search=replace%` hold a `%` after its first character, so it counts `SET` in `set x=%p:a%"=Y% & SET q=1`, which cmd.exe runs whether `p` is defined or not. A quote in the replacement of such a token no longer hides a later command. A `%` right after the colon still ends the token, as in `%p:%"=Y%`
+
+### Changed
+
+- The MegaLinter install pin is 1.1.59
 
 ## [1.1.58] - 2026-11-02
 
@@ -614,6 +618,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 Older 1.0.x releases are available on the [GitHub Releases](https://github.com/BatchLang/Blinter/releases) page.
 
+[1.1.59]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.59
 [1.1.58]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.58
 [1.1.57]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.57
 [1.1.56]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.56
