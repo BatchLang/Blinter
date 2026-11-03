@@ -61,8 +61,9 @@ _LEADING_CARET_SEPARATOR_RE = re.compile(r"(?:\^\^)*\^[&|]")
 # START switches that take a value, such as ``/d c:\x``.
 _START_VALUE_SWITCHES = frozenset({"/d", "/node", "/affinity"})
 _CMD_NAMES = ("cmd", "cmd.exe", "%comspec%", "!comspec!")
+_QUOTED_CMD_NAMES = frozenset(f'"{name}"' for name in _CMD_NAMES)
 # Prefixes that may have a switch glued to them, as in ``start/b``.
-_GLUED_PREFIXES = frozenset({"if", "call", "start", '""', *_CMD_NAMES})
+_GLUED_PREFIXES = frozenset({"if", "call", "start", *_CMD_NAMES, *_QUOTED_CMD_NAMES})
 # IF conditions with one operand; any other condition compares two.
 _IF_UNARY = frozenset({"exist", "defined", "errorlevel", "cmdextversion"})
 _IF_OPERATORS = frozenset({"==", "equ", "neq", "lss", "leq", "gtr", "geq"})
@@ -583,8 +584,9 @@ def _strip_casing_quotes(text: str) -> str:
         if _is_cmd_command_string(text, index, seen):
             logger.debug("Keeping cmd command string for S003: %s", inner)
             parts.append(inner)
-        else:
-            parts.append('""')
+        else:  # A quoted path to cmd keeps its name (_after_command_word).
+            name = inner.replace("/", "\\").rsplit("\\", 1)[-1]
+            parts.append(f'"{name}"' if name.casefold() in _CMD_NAMES else '""')
         index = closing + 1
     return "".join(parts)
 
@@ -718,9 +720,12 @@ def _skip_cmd_switches(code: str, pos: int, depth: int) -> Optional[int]:
 
 def _skip_start_options(code: str, pos: int, depth: int) -> int:
     """Return the position of the command START runs, after its title and switches."""
+    title = True  # Only the first quoted word is the title; a later one is the program.
     while True:
         text, _, end = _read_token(code, pos, "&|()", depth=depth)
-        if text != '""' and not text.startswith("/"):
+        if title and (text == '""' or text.casefold() in _QUOTED_CMD_NAMES):
+            title = False
+        elif not text.startswith("/"):
             return pos
         pos = end
         if text.casefold() in _START_VALUE_SWITCHES:
@@ -751,21 +756,16 @@ def _skip_for_f_options(code: str, pos: int, depth: int) -> Optional[int]:
     return pos + 1 if code.startswith(("'", "`"), pos) else None
 
 
-def _start_runs_cmd(code: str, pos: int, depth: int) -> bool:
-    name = _read_token(code, pos, "&|()", depth=depth)[0].casefold().lstrip("@")
-    return re.split(r"[/\\]", name)[-1] in _CMD_NAMES
-
-
 def _after_command_word(
     code: str, lowered: str, pos: int, offset: int, depth: int
 ) -> Optional[Tuple[int, int]]:
     """Return where the next command starts after a prefix, and its depth.
 
     Return None after a command. cmd.exe ends a command name at ``/``, so
-    ``start/b`` is START and ``/b``. A quoted program, ``""`` once its quotes
-    are dropped, may be cmd. The command string of ``cmd /c``, ``/k`` or
-    ``/r``, that of FOR /F and the command START runs are one level deeper
-    (``_separator_level``). START of cmd lets that cmd's switch add the level.
+    ``start/b`` is START and ``/b``. A quoted path to cmd keeps only its last
+    component, as ``"cmd.exe"`` (``_strip_casing_quotes``). The command string
+    of ``cmd /c``, ``/k`` or ``/r``, that of FOR /F and an internal command
+    START runs are one level deeper (``_separator_level``).
     """
     head = lowered.split("/", 1)[0]
     if head != lowered and head in _GLUED_PREFIXES:
@@ -773,15 +773,21 @@ def _after_command_word(
     after: Optional[int]
     if lowered == "if":
         return _skip_if_condition(code, pos, depth), depth
-    if lowered == '""' or re.split(r"[/\\]", lowered)[-1] in _CMD_NAMES:
+    if lowered in _QUOTED_CMD_NAMES or re.split(r"[/\\]", lowered)[-1] in _CMD_NAMES:
         after = _skip_cmd_switches(code, pos, depth)
         return None if after is None else (after, depth + 1)
     if lowered == "for":
         after = _skip_for_f_options(code, pos, depth)
         return None if after is None else (after, depth + 1)
     if lowered == "start":
+        # START runs an internal command in a child cmd.exe, as ``cmd /k``, but
+        # a program directly, so ``start cmd /c`` is one level deeper, not two.
         after = _skip_start_options(code, pos, depth)
-        return after, depth if _start_runs_cmd(code, after, depth) else depth + 1
+        program = _read_token(code, after, "&|()", depth=depth)[0].casefold()
+        head = program.lstrip("@").split("/", 1)[0]
+        last = re.split(r"[/\\]", program)[-1]
+        cmd = head in _CMD_NAMES or head in _QUOTED_CMD_NAMES or last in _CMD_NAMES
+        return after, depth if cmd else depth + 1
     return (pos, depth) if lowered == "call" else None
 
 
@@ -847,22 +853,15 @@ def _command_words(code: str) -> List[str]:
     """Return the keywords in code where a command starts, as this scan reads it.
 
     A command starts the line, or follows ``&`` or ``|`` where they split
-    commands, any unescaped ``(`` or ``)``, ``@``, ``ELSE``, ``DO``, a ``<`` or ``2<``
-    redirection, an IF condition, ``CALL``, ``START`` with its quoted words and
-    switches, ``cmd``, ``%comspec%``, ``!comspec!`` or a quoted program with
-    ``/c``, ``/k`` or ``/r``, or the opening quote of a FOR /F command string.
-    In the command strings of the last two, a separator escaped once more
-    splits commands too (``_separator_level``). The FOR /F one ends at the
-    first unescaped ``)`` in its set, even after an unescaped ``(``; a ``)``
-    closing any other parenthesis does not end a command string, and after
-    the ``)`` of a block ``^&`` splits commands. Commas, semicolons and equals
-    signs standing alone before a command are skipped. Any other word is an
-    argument. The keyword's own pattern must still match, so a keyword is
-    dropped where it was counted before but never added, and a word glued to
-    ``@``, ``)``, ``,``, ``;``, ``=`` or a quote does not count. Argument
-    keywords are counted apart. Commands still missed include one after
-    ``if (a b) == x``, ``if 1==1(`` or ``if defined=x``, or after a
-    ``%debug%`` prefix.
+    commands, any unescaped ``(`` or ``)``, ``@``, ``ELSE``, ``DO``, a ``<``
+    or ``2<`` redirection, or a prefix such as IF, CALL, START, cmd /c or the
+    quote opening a FOR /F string (``_after_command_word``, and
+    ``_depth_after_separator`` for parentheses). Any other word is an
+    argument. The keyword's own pattern must still match (``_command_keyword``),
+    so a keyword is dropped where it was counted before but never added, and a
+    word glued to ``@``, ``)``, ``,``, ``;``, ``=`` or a quote does not count.
+    Still missed: a command after ``if (a b) == x``, ``if 1==1(`` or ``if
+    defined=x``, or after a ``%debug%`` prefix.
     """
     words: List[str] = []
     pos = 0

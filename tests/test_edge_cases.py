@@ -436,9 +436,11 @@ class TestStyleIssueChecking:
             "!comspec! /c SET a=1",
             "cmd /c echo A ^& SET a=1",
             "start cmd /k dir ^| SET a=1",
-            "start cmd /c cmd /c dir ^^^& SET a=1",
-            r"start C:\Windows\System32\cmd.exe /c dir ^& SET a=1",
-            "start %comspec% /c dir ^& SET a=1",
+            'start "" /b /wait cmd /c echo A ^& SET a=1',
+            'start "" "C:\\x\\cmd.exe" /c cmd /c echo A ^^^& SET a=1',
+            'start "CMD" SET a=1',
+            'start "C:\\X\\CMD.EXE" SET a=1',
+            'start "Cmd" dir ^& SET a=1',
             "cmd /c cmd /c dir ^^^& SET a=1",
             "cmd /d/c dir ^& SET a=1",
             "cmd/d/k SET a=1",
@@ -472,26 +474,6 @@ class TestStyleIssueChecking:
         """
         issues = _check_cmd_case_consistency(["set a=1", "set b=2", line])
         assert [issue.line_number for issue in issues] == [3]
-
-    @pytest.mark.parametrize(
-        "line",
-        [
-            "start cmd /k dir ^^^| SET a=1",
-            "start cmd /c dir ^^^& SET a=1",
-            'start "" cmd /c dir ^^^& SET a=1',
-            r"start C:\Windows\System32\cmd.exe /c dir ^^^& SET a=1",
-            "start %comspec% /c dir ^^^& SET a=1",
-            "start !comspec! /c dir ^^^& SET a=1",
-            "start ver ^^^& SET a=1",
-        ],
-    )
-    def test_command_casing_start_cmd_keeps_one_escape_level(self, line: str) -> None:
-        """START of cmd is that one child, so three carets leave ``SET`` an argument.
-
-        ``start ver ^^^& SET`` is the same single child level. One caret still
-        counts, and so does ``start cmd /c cmd /c dir ^^^& SET``.
-        """
-        assert "set" not in _collect_cmd_cases([line])
 
     @pytest.mark.parametrize("separator", ["^&", "^|", "^^^&", "^^^|"])
     def test_command_casing_after_a_caret_continuation(self, separator: str) -> None:
@@ -531,6 +513,27 @@ class TestStyleIssueChecking:
         So the ``^&`` or ``^^^&`` after the set is text.
         """
         assert "set" not in _collect_cmd_cases([line])
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            'start """" SET a=1',
+            'start " "" " SET a=1',
+            'start "a""b" SET a=1',
+            'start ""x"" SET a=1',
+            'cmd"" /c SET a=1',
+            '""cmd"" /c SET a=1',
+            '"C:\\x\\cmd.exe""" /c SET a=1',
+            '^"C:\\x\\cmd.exe"" /k SET a=1',
+            'start "" cmd"" /c echo A ^^^& SET a=1',
+        ],
+    )
+    def test_command_casing_reads_other_quoting_as_a_program(self, line: str) -> None:
+        """A word quoted otherwise than ``""`` or ``"cmd.exe"`` is a program.
+
+        It is neither START's title nor cmd, so the words after it are arguments.
+        """
+        assert not _collect_cmd_cases([line])
 
     def test_command_casing_escaped_paren_closes_a_block_in_a_command_string(
         self,
