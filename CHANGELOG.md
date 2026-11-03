@@ -2,6 +2,12 @@
 
 All notable changes to Blinter are documented in this file. Release tags follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- An `&` right after `>` or `<`, as in `2>&1`, `>&2` and `<&2`, belongs to the redirection and no longer splits the line into two commands. S010 now reports a label named only in ECHO text such as `echo see 2>&1 call :x`, and S015 and W004 no longer read `echo see 1>&2 goto x` as a GOTO. W071 no longer counts `>&2 echo %errorlevel%` in a block as two commands
+
 ## [1.1.59] - 2026-11-02
 
 ### Fixed
