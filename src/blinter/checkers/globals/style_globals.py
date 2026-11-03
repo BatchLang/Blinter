@@ -23,8 +23,9 @@ _INLINE_REM_RE = re.compile(
     re.IGNORECASE,
 )
 # Text immediately before a quote that is the command string of cmd /c or /k.
+# The cmd token may itself be quoted, as in ``"cmd.exe" /c "SET a=1"``.
 _CMD_CK_BEFORE_QUOTE_RE = re.compile(
-    r"(?:^|[&|(])\s*@?(?:\S*[/\\])?cmd(?:\.exe)?(?:\s+/\S+)*\s+/[ck]\b\s*$",
+    r"(?:^|[&|(])\s*@?\"?(?:\S*[/\\])?cmd(?:\.exe)?\"?(?:\s+/\S+)*\s+/[ck]\b\s*$",
     re.IGNORECASE,
 )
 
@@ -435,7 +436,7 @@ def _ends_like_cmd(text: str, start: int) -> bool:
     end = start
     while end < len(text) and not text[end].isspace():
         end += 1
-    token = text[start:end].casefold()
+    token = text[start:end].casefold().strip('"')
     return token.endswith("cmd") or token.endswith("cmd.exe")
 
 

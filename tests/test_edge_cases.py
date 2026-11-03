@@ -441,6 +441,11 @@ class TestStyleIssueChecking:
             'start "CMD" SET a=1',
             'start "C:\\X\\CMD.EXE" SET a=1',
             'start "Cmd" dir ^& SET a=1',
+            "start cmd /c cmd /c dir ^^^& SET a=1",
+            r"start C:\Windows\System32\cmd.exe /c dir ^& SET a=1",
+            "start %comspec% /c dir ^& SET a=1",
+            '"cmd.exe" /c "SET a=1"',
+            r'"C:\Windows\System32\cmd.exe" /c "SET a=1"',
             "cmd /c cmd /c dir ^^^& SET a=1",
             "cmd /d/c dir ^& SET a=1",
             "cmd/d/k SET a=1",
@@ -517,6 +522,19 @@ class TestStyleIssueChecking:
     @pytest.mark.parametrize(
         "line",
         [
+            r"start C:\Windows\System32\cmd.exe /c dir ^^^& SET a=1",
+            "start %comspec% /c dir ^^^& SET a=1",
+            "start !comspec! /c dir ^^^& SET a=1",
+            "start ver ^^^& SET a=1",
+        ],
+    )
+    def test_command_casing_start_of_cmd_is_one_child(self, line: str) -> None:
+        """START of cmd is one child, so three carets leave ``SET`` an argument."""
+        assert "set" not in _collect_cmd_cases([line])
+
+    @pytest.mark.parametrize(
+        "line",
+        [
             'start """" SET a=1',
             'start " "" " SET a=1',
             'start "a""b" SET a=1',
@@ -526,6 +544,7 @@ class TestStyleIssueChecking:
             '"C:\\x\\cmd.exe""" /c SET a=1',
             '^"C:\\x\\cmd.exe"" /k SET a=1',
             'start "" cmd"" /c echo A ^^^& SET a=1',
+            '"C:\\x\\app.exe" /c "SET a=1"',
         ],
     )
     def test_command_casing_reads_other_quoting_as_a_program(self, line: str) -> None:

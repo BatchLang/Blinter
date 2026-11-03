@@ -13,6 +13,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 - After a line that ends in `^`, S003 reads the next line's first caret as escaped where that line starts with an odd run of carets and `&` or `|`, so it counts `SET` in `^& SET` and `^^^& SET`
 - S003 now misses a command after `if (a b) == x`, `if 1==1(` or `if defined=x`, or after a `%debug%` prefix, among others. A word glued to `@`, as in `@SET`, is not counted, as before
 - Where START runs cmd, S003 reads one child cmd.exe, not two, so it no longer counts `SET` in `start cmd /k dir ^^^| SET a=1`. A quoted word after START's title is the program. cmd without `/c`, `/k` or `/r` runs none of its words, as in `start /b cmd ^& SET a=1`
+- S003 keeps the command string after a quoted cmd, so `"cmd.exe" /c "SET a=1"` counts `SET`. `"C:\x\app.exe" /c "SET a=1"` still does not
 
 ## [1.1.60] - 2026-11-03
 
