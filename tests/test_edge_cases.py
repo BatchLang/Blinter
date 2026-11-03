@@ -4984,16 +4984,29 @@ class TestResidualFalsePositives:
     def test_ampersand_after_a_redirection_is_not_a_separator(self) -> None:
         """``>&`` and ``<&`` name a handle, so that ``&`` does not split the line.
 
-        Text after the redirection still belongs to the same command. A caret
-        before ``>`` makes it data, so the ``&`` after it is a separator.
+        Text after the redirection still belongs to the same command, including
+        when the operator is ``>>`` or the handle is not 1 or 2. A later
+        ``&``, ``&&`` or ``||`` is still a separator. A caret before ``>``
+        makes it data, so the ``&`` after it is a separator.
         """
 
         assert _command_segments("2>&1 >nul call :show") == ["2>&1 >nul call :show"]
         assert not _command_segments("echo see 2>&1 call :x")
         assert not _command_segments("echo see >&2 call :x")
         assert not _command_segments("echo see <&2 call :x")
+        assert not _command_segments("echo see 3>&1 call :x")
+        assert not _command_segments("echo see 1>>&2 call :x")
+        assert not _command_segments("echo see >>&1 call :x")
         assert not _command_segments("echo a %v%>&1")
         assert _command_segments("dir >nul 2>&1 & call :x") == [
+            "dir >nul 2>&1",
+            "call :x",
+        ]
+        assert _command_segments("dir >nul 2>&1 && call :x") == [
+            "dir >nul 2>&1",
+            "call :x",
+        ]
+        assert _command_segments("dir >nul 2>&1 || call :x") == [
             "dir >nul 2>&1",
             "call :x",
         ]

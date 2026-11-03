@@ -1,9 +1,10 @@
 {
   "config": {},
-  "description": "Every GOTO uses the same colon style (S015 negative)",
+  "description": "Every GOTO uses the same colon style, and echo text after 1>&2 is not a backward GOTO (S015, W004 negative)",
   "lines": {},
   "must_not": [
-    "S015"
+    "S015",
+    "W004"
   ],
   "oracle": "skip",
   "rules": [],
