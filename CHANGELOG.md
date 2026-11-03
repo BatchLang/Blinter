@@ -2,7 +2,7 @@
 
 All notable changes to Blinter are documented in this file. Release tags follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.1.61] - 2026-11-03
 
 ### Fixed
 
@@ -14,6 +14,10 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 - S003 now misses a command after `if (a b) == x`, `if 1==1(` or `if defined=x`, or after a `%debug%` prefix, among others. A word glued to `@`, as in `@SET`, is not counted, as before
 - Where START runs cmd, S003 reads one child cmd.exe, not two, so it no longer counts `SET` in `start cmd /k dir ^^^| SET a=1`. A quoted word after START's title is the program. cmd without `/c`, `/k` or `/r` runs none of its words, as in `start /b cmd ^& SET a=1`
 - S003 keeps the command string after a quoted cmd, so `"cmd.exe" /c "SET a=1"` counts `SET`. `"C:\x\app.exe" /c "SET a=1"` still does not
+
+### Changed
+
+- The MegaLinter install pin is 1.1.61
 
 ## [1.1.60] - 2026-11-03
 
@@ -641,6 +645,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 Older 1.0.x releases are available on the [GitHub Releases](https://github.com/BatchLang/Blinter/releases) page.
 
+[1.1.61]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.61
 [1.1.60]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.60
 [1.1.59]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.59
 [1.1.58]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.58
