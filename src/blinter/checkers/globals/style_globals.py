@@ -751,6 +751,11 @@ def _skip_for_f_options(code: str, pos: int, depth: int) -> Optional[int]:
     return pos + 1 if code.startswith(("'", "`"), pos) else None
 
 
+def _start_runs_cmd(code: str, pos: int, depth: int) -> bool:
+    name = _read_token(code, pos, "&|()", depth=depth)[0].casefold().lstrip("@")
+    return re.split(r"[/\\]", name)[-1] in _CMD_NAMES
+
+
 def _after_command_word(
     code: str, lowered: str, pos: int, offset: int, depth: int
 ) -> Optional[Tuple[int, int]]:
@@ -760,7 +765,7 @@ def _after_command_word(
     ``start/b`` is START and ``/b``. A quoted program, ``""`` once its quotes
     are dropped, may be cmd. The command string of ``cmd /c``, ``/k`` or
     ``/r``, that of FOR /F and the command START runs are one level deeper
-    (``_separator_level``).
+    (``_separator_level``). START of cmd lets that cmd's switch add the level.
     """
     head = lowered.split("/", 1)[0]
     if head != lowered and head in _GLUED_PREFIXES:
@@ -775,8 +780,8 @@ def _after_command_word(
         after = _skip_for_f_options(code, pos, depth)
         return None if after is None else (after, depth + 1)
     if lowered == "start":
-        # START runs an internal command in a child cmd.exe, as ``cmd /k``.
-        return _skip_start_options(code, pos, depth), depth + 1
+        after = _skip_start_options(code, pos, depth)
+        return after, depth if _start_runs_cmd(code, after, depth) else depth + 1
     return (pos, depth) if lowered == "call" else None
 
 

@@ -16,6 +16,10 @@ dir ^^^& SET value
 call :x SET value
 if exist x dir SET value
 cmd /c dir ^^^& SET value
+start cmd /k dir ^^^| SET value
+start C:\Windows\System32\cmd.exe /c dir ^^^& SET value
+start "" cmd /c dir ^^^& SET value
+start ver ^^^& SET value
 for %%i in ('ver ^& SET value') do echo %%i
 for /f %%a in (f.txt) do dir SET value
 if exist C:\Program^ Files SET value
