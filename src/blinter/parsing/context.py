@@ -64,43 +64,12 @@ def _command_body(line: str) -> str:
 def _split_command_separators(body: str) -> list[str]:
     """Split on unescaped ``&``, ``&&`` and ``||`` outside quoting.
 
-    A caret escapes the next character (``^&`` is data). A lone ``|`` is a
-    pipe whose right-hand side runs in another ``cmd``, so it is not a
-    separator for SETLOCAL or GOTO/CALL on this line.
+    A caret escapes the next character (``^&`` is data), and ``&`` right
+    after ``>`` or ``<`` belongs to a redirection such as ``2>&1``. A lone
+    ``|`` is a pipe whose right-hand side runs in another ``cmd``, so it is
+    not a separator for SETLOCAL or GOTO/CALL on this line.
     """
-    parts: list[str] = []
-    current: list[str] = []
-    quote = ""
-    index = 0
-    while index < len(body):
-        char = body[index]
-        if quote:
-            current.append(char)
-            if char == quote:
-                quote = ""
-            index += 1
-            continue
-        if char == "^":
-            current.append(char)
-            if index + 1 < len(body):
-                current.append(body[index + 1])
-            index += 2
-            continue
-        if char in '"`':
-            quote = char
-            current.append(char)
-            index += 1
-            continue
-        two = body[index : index + 2]
-        if char == "&" or two == "||":
-            parts.append("".join(current))
-            current = []
-            index += 2 if two in ("&&", "||") else 1
-            continue
-        current.append(char)
-        index += 1
-    parts.append("".join(current))
-    return parts
+    return _split_unquoted(body, andand_only=False)
 
 
 def _split_pipe_stages(body: str) -> list[str]:
@@ -448,17 +417,6 @@ def _consume_quote_open(
     return index + 1, text[index]
 
 
-def _consume_redir(text: str, index: int, current: List[str]) -> Optional[int]:
-    """Consume ``1>&`` / ``2>&`` so the ampersand is not a separator."""
-    if text[index] not in "12" or index + 2 >= len(text):
-        return None
-    if text[index + 1 : index + 3] != ">&":
-        return None
-    span = 4 if index + 3 < len(text) else len(text) - index
-    current.append(text[index : index + span])
-    return index + span
-
-
 def _consume_separator(text: str, index: int, *, andand_only: bool) -> Optional[int]:
     """Return the index after an unquoted command separator."""
     two = text[index : index + 2]
@@ -470,13 +428,19 @@ def _consume_separator(text: str, index: int, *, andand_only: bool) -> Optional[
 
 
 def _split_unquoted(text: str, *, andand_only: bool) -> List[str]:
-    """Split on unquoted separators without breaking ``2>&1``."""
+    """Split on unquoted separators without breaking ``2>&1``.
+
+    An ``&`` right after an unescaped ``>`` or ``<`` names a handle, as in
+    ``2>&1``, ``>&2`` and ``<&3``, so it is not a separator.
+    """
     parts: List[str] = []
     current: List[str] = []
     quote = ""
+    redirect = False
     index = 0
     length = len(text)
     while index < length:
+        after_redirect, redirect = redirect, False
         if quote:
             index, quote = _consume_quote_body(text, index, quote, current)
             continue
@@ -488,16 +452,15 @@ def _split_unquoted(text: str, *, andand_only: bool) -> List[str]:
         if opened is not None:
             index, quote = opened
             continue
-        redir_index = _consume_redir(text, index, current)
-        if redir_index is not None:
-            index = redir_index
-            continue
-        separator_index = _consume_separator(text, index, andand_only=andand_only)
+        separator_index = None
+        if not (after_redirect and text[index] == "&"):
+            separator_index = _consume_separator(text, index, andand_only=andand_only)
         if separator_index is not None:
             parts.append("".join(current))
             current = []
             index = separator_index
             continue
+        redirect = text[index] in "<>"
         current.append(text[index])
         index += 1
     parts.append("".join(current))

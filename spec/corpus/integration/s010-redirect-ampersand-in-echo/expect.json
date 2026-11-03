@@ -1,0 +1,22 @@
+{
+  "config": {},
+  "description": "ECHO text after a 2>&1, 1>&2 or >&2 redirection is not a jump (S010)",
+  "lines": {
+    "6": [
+      "S010"
+    ],
+    "8": [
+      "S010"
+    ],
+    "10": [
+      "S010"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "S010"
+  ],
+  "tags": [
+    "integration"
+  ]
+}

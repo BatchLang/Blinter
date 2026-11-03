@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "CALL after a leading redirection and jumps after a redirection and & are not dead (S010)",
+  "lines": {},
+  "must_not": [
+    "S010"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

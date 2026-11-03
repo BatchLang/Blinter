@@ -273,7 +273,9 @@ entries:
   - integration/s010-for-set-contains-do
   - integration/s010-at-goto-prefix
   - integration/s010-nested-if-prefix
+  - integration/s010-redirect-ampersand-in-echo
   - syntax/s010-nested-if-any-label-valid
+  - syntax/s010-redirect-ampersand-valid
   - syntax/e015-goto-colon-eof-valid
 - construct: Command typos and removed/deprecated commands
   sources:

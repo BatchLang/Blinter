@@ -4981,6 +4981,25 @@ class TestResidualFalsePositives:
         assert not _is_setlocal_command("echo a ^& setlocal")
         assert _command_segments('dir | find "x"') == ['dir | find "x"']
 
+    def test_ampersand_after_a_redirection_is_not_a_separator(self) -> None:
+        """``>&`` and ``<&`` name a handle, so that ``&`` does not split the line.
+
+        Text after the redirection still belongs to the same command. A caret
+        before ``>`` makes it data, so the ``&`` after it is a separator.
+        """
+
+        assert _command_segments("2>&1 >nul call :show") == ["2>&1 >nul call :show"]
+        assert not _command_segments("echo see 2>&1 call :x")
+        assert not _command_segments("echo see >&2 call :x")
+        assert not _command_segments("echo see <&2 call :x")
+        assert not _command_segments("echo a %v%>&1")
+        assert _command_segments("dir >nul 2>&1 & call :x") == [
+            "dir >nul 2>&1",
+            "call :x",
+        ]
+        assert _command_segments("echo a ^>& call :x") == ["call :x"]
+        assert _command_segments('echo a >"x"& call :x') == ["call :x"]
+
 
 class TestBlankOrCommentDetection:
     """REM and :: detection must not swallow commands that merely start with rem."""
