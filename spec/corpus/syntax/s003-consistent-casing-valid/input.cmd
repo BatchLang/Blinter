@@ -10,6 +10,18 @@ echo.& @rem Set the value
 dir | rem Set the value
 dir ^^& rem SET value
 dir ^^^^& rem SET value
+dir SET value
+dir ^& SET value
+dir ^^^& SET value
+call :x SET value
+if exist x dir SET value
+cmd /c dir ^^^& SET value
+for %%i in ('ver ^& SET value') do echo %%i
+for /f %%a in (f.txt) do dir SET value
+if exist C:\Program^ Files SET value
+if x==y (dir ^& SET value)
+dir (x) ^& SET value
+for /f %%a in ('ver') do dir ^& SET value
 set q=^" & set r=2 & dir ^"
 cmd /c "echo hi & set s=2"
 cmd /k "set s=3"

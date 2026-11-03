@@ -57,6 +57,7 @@ from blinter.checkers.globals import (
     _check_unreachable_code,
 )
 from blinter.checkers.globals.exit_flow import _check_missing_exit_statement
+from blinter.checkers.globals.style_globals import _collect_cmd_cases
 from blinter.checkers.line_endings import _check_line_ending_rules
 from blinter.checkers.performance import _check_performance_issues
 from blinter.checkers.security import _check_security_issues
@@ -403,6 +404,126 @@ class TestStyleIssueChecking:
 
         assert len(consistency_issues) >= 1
         assert "S003" in consistency_issues[0].rule.code
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "if exist x SET a=1",
+            "if /i not %a% == b SET a=1",
+            "if %a% equ 1 SET a=1",
+            "if a==b if defined c SET a=1",
+            "if (a) == b SET a=1",
+            "if (a)==b SET a=1",
+            "@if errorlevel 1 SET a=1",
+            ") else SET a=1",
+            "<nul SET /p =x",
+            "2<nul SET /p =x",
+            "call SET a=1",
+            'start "" /d c:\\x SET a=1',
+            "start /affinity 1 /node 0 SET a=1",
+            "cmd.exe /d /k SET a=1",
+            "%comspec% /c SET a=1",
+            '"%comspec%" /c SET a=1',
+            '"C:\\Windows\\System32\\cmd.exe" /c SET a=1',
+            "start/b SET a=1",
+            "if exist,x SET a=1",
+            "if exist x, SET a=1",
+            "if a==b; SET a=1",
+            "dir & , SET a=1",
+            "if %my var% == x SET a=1",
+            "if 50% & SET a=1 %",
+            "if 1% == 1 SET a=1",
+            "!comspec! /c SET a=1",
+            "cmd /c echo A ^& SET a=1",
+            "start cmd /k dir ^| SET a=1",
+            "cmd /c cmd /c dir ^^^& SET a=1",
+            "cmd /d/c dir ^& SET a=1",
+            "cmd/d/k SET a=1",
+            "for /f %%a in ('cmd /c SET a') do echo %%a",
+            "for /f %%a in (`ver ^& SET a`) do echo %%a",
+            "for /f x & SET a=1",
+            "for /f %%a in x & SET a=1",
+            "cmd /c (dir) ^& SET a=1",
+            "cmd /c (dir) ^^^& SET a=1",
+            "%comspec% /c (dir) ^& SET a=1",
+            "cmd /c if 1==1 (dir) ^& SET a=1",
+            "cmd /c (dir ^& SET a=1)",
+            "(cmd /c echo A) ^& SET a=1",
+            "(for /f %%a in ('ver') do @echo X) ^& SET a=1",
+            "for /f %%a in ('echo a^) ^& SET b') do echo",
+            "for /f %%a in ('(ver^) ^^^& SET b') do echo",
+            "if 1==1 (cmd /c echo A) ^& SET a=1",
+            "cmd /r SET a=1",
+            'start "" /b /wait set x=1 ^& SET a=1',
+            "cmd /cset x=1 ^& SET a=1",
+        ],
+    )
+    def test_command_casing_after_a_prefix(self, line: str) -> None:
+        """S003 still counts a command after a prefix such as IF, CALL or START.
+
+        In a ``cmd /c`` or FOR /F command string, a separator escaped once more
+        than on the line itself splits commands in the child cmd.exe.
+
+        The lines where a keyword is only an argument are in the corpus case
+        ``s003-consistent-casing-valid``.
+        """
+        issues = _check_cmd_case_consistency(["set a=1", "set b=2", line])
+        assert [issue.line_number for issue in issues] == [3]
+
+    @pytest.mark.parametrize("separator", ["^&", "^|", "^^^&", "^^^|"])
+    def test_command_casing_after_a_caret_continuation(self, separator: str) -> None:
+        """The caret ending ``cmd /c echo A ^`` escapes the next line's first character.
+
+        So ``^&`` or ``^^^&`` at the start of the next line leaves a live ``&``
+        after its carets, and the ``SET`` after it runs.
+        """
+        lines = ["set a=1", "set b=2", "cmd /c echo A ^", f"{separator} SET a=1"]
+        issues = _check_cmd_case_consistency(lines)
+        assert [issue.line_number for issue in issues] == [4]
+
+    @pytest.mark.parametrize("first", ["echo x ^", "rem x ^", 'echo "a^'])
+    @pytest.mark.parametrize(
+        "second", ['^""& SET a=1', '^"" ENABLEDELAYEDEXPANSION', "^^& SET a=1"]
+    )
+    def test_command_casing_reads_other_continuation_lines_as_they_are(
+        self, first: str, second: str
+    ) -> None:
+        """After a trailing caret, a line is scanned alone unless it starts as ``^^^&``.
+
+        That is an odd run of carets, then ``&`` or ``|``.
+        """
+        assert _collect_cmd_cases([first, second]) == _collect_cmd_cases(["", second])
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "for /f %%a in ('echo (x') do echo ^& SET y=1",
+            "for /f %%a in ('(ver') do echo ^& SET y=1",
+            "for /f %%a in ('(ver) ^^^& SET b') do echo",
+        ],
+    )
+    def test_command_casing_first_paren_closes_a_for_f_set(self, line: str) -> None:
+        """The first unescaped ``)`` closes a FOR /F set, even after a ``(`` in it.
+
+        So the ``^&`` or ``^^^&`` after the set is text.
+        """
+        assert "set" not in _collect_cmd_cases([line])
+
+    def test_command_casing_escaped_paren_closes_a_block_in_a_command_string(
+        self,
+    ) -> None:
+        """``^)`` closes the block opened in the FOR /F string, not the FOR /F set.
+
+        So the ``^&`` after the set is text again, and only ``SET b`` counts.
+        """
+        line = "for /f %%a in ('cmd /c (echo a^) ^& SET b') do dir ^& SET a=1"
+        assert _collect_cmd_cases([line])["set"] == [(1, "SET")]
+
+    def test_command_casing_counts_an_argument_keyword_once(self) -> None:
+        """ENABLEDELAYEDEXPANSION counts once in command position, so this is a tie."""
+        lines = ["setlocal enabledelayedexpansion", "(ENABLEDELAYEDEXPANSION)"]
+        issues = _check_cmd_case_consistency(lines)
+        assert [issue.line_number for issue in issues] == [2]
 
 
 class TestSecurityIssueChecking:

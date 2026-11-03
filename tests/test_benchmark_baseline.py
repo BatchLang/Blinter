@@ -161,6 +161,25 @@ def test_search_text_percent_line_scales_linearly(tmp_path: Path) -> None:
     _assert_scales_within(_write(8000), _write(64000), 16, _s003_cpu_seconds)
 
 
+@pytest.mark.parametrize("prefix", ["", "dir "])
+def test_s003_nested_parentheses_scale_linearly(tmp_path: Path, prefix: str) -> None:
+    """S003 reads a line of nested parentheses in near-linear time.
+
+    At each ``)`` S003 finds the FOR /F set to close without searching every
+    open parenthesis. It is timed alone, between 8,000 and 64,000 characters,
+    since the line-length cap hides most of that cost from a whole-file lint.
+    Quadratic time costs 64 times as much, against a limit of 16.
+    """
+
+    def _write(length: int) -> Path:
+        script = tmp_path / f"nested_{length}.bat"
+        line = prefix + "(" * (length // 2) + ")" * (length // 2)
+        script.write_text("@echo off\r\n" + line + "\r\n", encoding="utf-8")
+        return script
+
+    _assert_scales_within(_write(8000), _write(64000), 16, _s003_cpu_seconds)
+
+
 def test_absolute_baseline_skip_is_intel_macos_only(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
