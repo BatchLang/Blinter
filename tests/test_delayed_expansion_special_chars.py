@@ -7,7 +7,10 @@ used in batch script variable naming conventions.
 
 import pathlib
 
+import pytest
+
 from blinter import lint_batch_file
+from blinter.parsing.structure import _build_delayed_expansion_state, _ExitScan
 
 
 def test_delayed_expand_at_symbol(tmp_path: pathlib.Path) -> None:
@@ -120,6 +123,298 @@ def test_p008_with_special_chars(tmp_path: pathlib.Path) -> None:
     assert (
         len(p008_issues) >= 1
     ), "Should flag P008 when using !@variable! without ENABLEDELAYEDEXPANSION"
+
+
+@pytest.mark.parametrize(
+    ("last", "still_enabled"),
+    [
+        ("exit /b 1", True),
+        ("EXIT", True),
+        ("echo Failed. & exit/b 1", True),
+        ("goto:eof", True),
+        ("goto fail", True),
+        ("exit.bat", False),
+        ("call :check || exit /b 1", False),
+        ("if errorlevel 1 exit /b 1", False),
+        ("echo done | exit", False),
+    ],
+)
+def test_p008_scope_below_block_ending_in(last: str, still_enabled: bool) -> None:
+    """ENDLOCAL in a block that always ends in EXIT or GOTO keeps the scope below.
+
+    ``exit.bat`` names a batch file, and ``||``, IF and a pipe may go on.
+    """
+    lines = [
+        "setlocal enabledelayedexpansion",
+        'if "!A!"=="1" (',
+        "    endlocal",
+        f"    {last}",
+        ")",
+        "echo !A!",
+        "endlocal",
+        ":fail",
+        "exit /b 1",
+    ]
+    assert _build_delayed_expansion_state(lines)[5] is still_enabled
+
+
+@pytest.mark.parametrize(
+    "lines",
+    [
+        [
+            'if "%A%"=="1" (',
+            "    setlocal enabledelayedexpansion",
+            "    endlocal",
+            "    exit /b 1",
+            ")",
+            "echo !A!",
+        ],
+        [
+            "setlocal enabledelayedexpansion",
+            'if "!A!"=="1" (',
+            "    endlocal",
+            "    exit /b 1",
+            "echo !A!",
+        ],
+        [
+            "setlocal enabledelayedexpansion",
+            "if defined A endlocal & goto :show",
+            "echo !A!",
+            ":show",
+            "echo !A!",
+        ],
+        [
+            'if "%A%"=="1" (',
+            '    if "%B%"=="2" (',
+            "        setlocal enabledelayedexpansion",
+            "    )",
+            "    endlocal",
+            "    exit /b 1",
+            ")",
+            "echo !A!",
+        ],
+        [
+            "setlocal enabledelayedexpansion",
+            'if "%A%"=="1" (',
+            "    endlocal",
+            "    exit /b 1",
+            ")",
+            "goto main",
+            ":sub",
+            "echo !A!",
+            "exit /b 0",
+            ":main",
+            "endlocal",
+            "call :sub",
+        ],
+    ],
+)
+def test_p008_scope_closed_below_block(lines: list[str]) -> None:
+    """ENDLOCAL still closes the scope below where the rule cannot tell it leaves.
+
+    The cases are a block's own SETLOCAL, a block with no ``)``, a GOTO to
+    a label that reads ``!VAR!``, a SETLOCAL in a nested block and a label
+    below the block that a CALL reaches after the scope closed.
+    """
+    assert _build_delayed_expansion_state(lines)[lines.index("echo !A!")] is False
+
+
+@pytest.mark.parametrize(
+    ("before", "target", "after"),
+    [
+        ([":again"], "again", []),
+        ([], "out", [":out", "exit /b 0", ":out", "exit /b 1"]),
+        ([], "%T%", [":x", "exit /b 1"]),
+        ([], "fail", [":fail", "if defined L (", "    exit /b 1", ")", "echo !B!"]),
+        ([], "fail", [":fail", "goto :again", ":again", "exit /b 1"]),
+        ([], "fail", [":fail", "call :log", "exit /b 1", ":log", "echo !B!"]),
+        ([], "fail", [":fail", "setlocal", "echo !B!", "exit /b 1"]),
+    ],
+)
+def test_p008_scope_closed_below_goto(
+    before: list[str], target: str, after: list[str]
+) -> None:
+    """A GOTO that may lead back to the lines below the block does not count.
+
+    The cases are a label above the GOTO, a label written twice, a computed
+    target, and a label whose lines may read ``!VAR!``, jump again or call a
+    label.
+    """
+    lines = [
+        "setlocal enabledelayedexpansion",
+        *before,
+        'if "%A%"=="1" (',
+        "    endlocal",
+        f"    goto {target}",
+        ")",
+        "echo !A!",
+        *after,
+    ]
+    assert _build_delayed_expansion_state(lines)[lines.index("echo !A!")] is False
+
+
+@pytest.mark.parametrize(
+    ("lines", "still_enabled"),
+    [
+        (
+            [
+                "setlocal enabledelayedexpansion",
+                "setlocal disabledelayedexpansion",
+                "setlocal disabledelayedexpansion",
+                "(",
+                "    endlocal",
+                "    if 1==1 goto cont",
+                "    exit /b",
+                ")",
+                ":cont",
+                "endlocal",
+                "echo !V!",
+            ],
+            True,
+        ),
+        (
+            [
+                "setlocal enabledelayedexpansion",
+                "setlocal enabledelayedexpansion",
+                'if "%1"=="a" (',
+                "    endlocal",
+                '    if "%2"=="b" goto cont',
+                "    exit /b",
+                ")",
+                ":cont",
+                "endlocal",
+                "echo !V!",
+            ],
+            False,
+        ),
+        (
+            [
+                "setlocal enabledelayedexpansion",
+                "setlocal enabledelayedexpansion",
+                'if "%1"=="a" (',
+                "    endlocal",
+                '    if "%2"=="b" call :cont',
+                "    exit /b",
+                ")",
+                ":cont",
+                "endlocal",
+                "echo !V!",
+            ],
+            False,
+        ),
+        (
+            [
+                "setlocal enabledelayedexpansion",
+                'if "%1"=="" (',
+                "    endlocal",
+                "    echo bye ^",
+                "    exit /b 1",
+                ")",
+                "echo !V!",
+            ],
+            False,
+        ),
+    ],
+)
+def test_p008_endlocal_kept_in_block_that_may_go_on(
+    lines: list[str], still_enabled: bool
+) -> None:
+    """ENDLOCAL counts where the block may go on before its last line.
+
+    The cases are a GOTO that would add a report, a GOTO and a CALL that would
+    drop one, and a last line that a caret makes part of an ECHO.
+    """
+    assert _build_delayed_expansion_state(lines)[-1] is still_enabled
+
+
+@pytest.mark.parametrize(
+    "lines",
+    [
+        [
+            "setlocal enabledelayedexpansion",
+            'if "%1"=="" (',
+            "    endlocal",
+            "    exit /b 1 | more",
+            ")",
+            "echo !A!",
+        ],
+        [
+            "setlocal enabledelayedexpansion",
+            'if "%1"=="" (',
+            "    endlocal",
+            "    echo a & goto sub & exit /b",
+            ")",
+            ":sub",
+        ],
+        [
+            "setlocal enabledelayedexpansion",
+            'if "%1"=="" endlocal & goto sub & exit /b',
+            ":sub",
+        ],
+        [
+            "setlocal enabledelayedexpansion",
+            'if "%1"=="" endlocal & exit /b 1 ^',
+            "| more",
+            "echo !A!",
+        ],
+        [
+            "setlocal enabledelayedexpansion",
+            'if "%1"=="" (',
+            "    endlocal",
+            "    g^oto sub",
+            "    exit /b 1",
+            ")",
+            ":sub",
+        ],
+        [
+            "setlocal enabledelayedexpansion",
+            'if "%1"=="" (',
+            "    endlocal",
+            "    call:sub",
+            "    exit /b 1",
+            ")",
+            ":sub",
+        ],
+    ],
+)
+def test_p008_endlocal_kept_before_jump_or_pipe(lines: list[str]) -> None:
+    """No ENDLOCAL is skipped where the block may jump or its EXIT is piped.
+
+    The cases are a piped EXIT, a GOTO earlier on the last line of a block or
+    of an IF, an IF line that a caret joins to a pipe, ``g^oto`` and
+    ``call:sub``.
+    """
+    assert not _ExitScan(lines).skipped()
+
+
+def test_p008_scope_below_block_with_goto_eof() -> None:
+    """``goto :eof``, an escaped caret and a blank line before EXIT still leave."""
+    lines = [
+        "setlocal enabledelayedexpansion",
+        'if "%1"=="" (',
+        "    endlocal",
+        '    if "%2"=="" goto :eof',
+        "    echo bye ^^",
+        "",
+        "    exit /b 1",
+        ")",
+        "echo !V!",
+    ]
+    assert _build_delayed_expansion_state(lines)[-1] is True
+
+
+def test_p008_disabled_scope_open_below_block() -> None:
+    """A skipped ENDLOCAL leaves an inner disabled scope open below the block."""
+    lines = [
+        "setlocal enabledelayedexpansion",
+        "setlocal disabledelayedexpansion",
+        'if "%A%"=="1" (',
+        "    endlocal",
+        "    exit /b 1",
+        ")",
+        "echo !A!",
+    ]
+    assert _build_delayed_expansion_state(lines)[6] is False
 
 
 def test_comment_is_not_delayed_expansion(tmp_path: pathlib.Path) -> None:

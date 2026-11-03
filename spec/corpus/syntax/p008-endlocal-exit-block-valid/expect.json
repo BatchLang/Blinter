@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "ENDLOCAL in a block or IF line that ends in EXIT /B leaves the scope open below it (P008 negative)",
+  "lines": {},
+  "must_not": [
+    "P008"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

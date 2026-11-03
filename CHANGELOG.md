@@ -2,6 +2,13 @@
 
 All notable changes to Blinter are documented in this file. Release tags follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- P008 no longer reports `!VAR!` below a block that runs ENDLOCAL and ends in EXIT or GOTO, nor below `if ... endlocal & exit /b`: those lines run only when the ENDLOCAL did not. Where a `setlocal disabledelayedexpansion` is open at such an ENDLOCAL, it now stays open below the block, so P008 can report `!VAR!` there
+- P008 keeps that ENDLOCAL, as before, in the cases the docstrings of `_ExitScan` and `_build_delayed_expansion_state` in `src/blinter/parsing/structure.py` give, such as a block that holds a SETLOCAL or a GOTO before its last command, or a piped EXIT
+
 ## [1.1.61] - 2026-11-03
 
 ### Fixed

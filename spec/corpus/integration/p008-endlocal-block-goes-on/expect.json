@@ -1,0 +1,26 @@
+{
+  "config": {},
+  "description": "ENDLOCAL closes the scope below a block that can fall through, closes its own SETLOCAL, or jumps to a label that reads !VAR! (P008)",
+  "lines": {
+    "8": [
+      "P008"
+    ],
+    "14": [
+      "P008"
+    ],
+    "21": [
+      "P008"
+    ],
+    "29": [
+      "P008"
+    ]
+  },
+  "must_not": [],
+  "oracle": "skip",
+  "rules": [
+    "P008"
+  ],
+  "tags": [
+    "integration"
+  ]
+}
