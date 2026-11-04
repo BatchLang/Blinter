@@ -2,7 +2,7 @@
 
 All notable changes to Blinter are documented in this file. Release tags follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.1.62] - 2026-11-04
 
 ### Changed
 
@@ -12,6 +12,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 - The GitHub release `FOR /F` states that the helper's URL, tag, and digest are separated by spaces
 - The version-probe temporary name uses `!RANDOM!` inside its parenthesized block
 - The registry helpers split two lines that were longer than 120 characters, in both the PowerShell fixtures and the echo blocks
+- The MegaLinter install pin is 1.1.62
 
 ### Fixed
 
@@ -665,6 +666,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 Older 1.0.x releases are available on the [GitHub Releases](https://github.com/BatchLang/Blinter/releases) page.
 
+[1.1.62]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.62
 [1.1.61]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.61
 [1.1.60]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.60
 [1.1.59]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.59
