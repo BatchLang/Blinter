@@ -551,6 +551,8 @@ entries:
   - syntax/p021-tasklist-no-fi
   - syntax/p022-redir-in-loop
   - syntax/p022-redir-after-loop-valid
+  - syntax/p022-for-in-redir-valid
+  - syntax/p022-redir-on-do-line
   - syntax/p023-seta-in-loop
   - syntax/p023-seta-after-loop-valid
   - syntax/p025-wildcard-star
@@ -565,6 +567,7 @@ entries:
   - syntax/p014-output-silenced-valid
   - syntax/p015-timeout-delay-valid
   - syntax/p016-paren-in-string-valid
+  - syntax/p016-for-var-assign-valid
   - syntax/p018-for-r-with-mask-valid
   - syntax/p019-light-expansion-in-loop-valid
   - syntax/p020-single-echo-off-valid
@@ -588,8 +591,10 @@ entries:
   - integration/p024-conditional-setlocal
   - syntax/p024-p006-setlocal-in-comment-valid
   - syntax/p001-single-exist-check-valid
+  - syntax/p001-else-exist-valid
   - syntax/p002-distinct-commands-valid
   - syntax/p017-distinct-exist-checks-valid
+  - syntax/p017-prefix-exist-valid
 - construct: Global style conventions and readability
   sources:
   - Community batch style
@@ -760,6 +765,7 @@ entries:
   - syntax/w005-quoted-variables-valid
   - syntax/w006-curl-timeout-valid
   - syntax/w007-unlocked-file-valid
+  - syntax/w007-user-exe-valid
   - syntax/w008-setx-other-variable-valid
   - syntax/w009-portable-command-valid
   - syntax/w010-arch-neutral-valid
@@ -1061,6 +1067,7 @@ entries:
   - syntax/w066-redir-at-end-valid
   - syntax/w067-set-system-var
   - syntax/w067-set-custom-valid
+  - syntax/w067-path-append-valid
   - syntax/w068-block-percent
   - syntax/w068-delayed-valid
   - syntax/w069-time-space

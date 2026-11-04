@@ -378,6 +378,8 @@ set "PATH=%PATH%;%BLINTER_BIN%"
 
 REM The install folder is appended. Warn when an earlier PATH entry still wins.
 set "WHERE_TEMP=%TEMP%\blinter_where_%RANDOM%_%RANDOM%.txt"
+REM where.exe is how this installer sees which blinter.exe PATH will run.
+REM LINT:IGNORE W009
 where blinter > "!WHERE_TEMP!" 2>nul
 set "FIRST_BLINTER="
 for /f "usebackq delims=" %%p in ("!WHERE_TEMP!") do (

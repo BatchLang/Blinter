@@ -1,5 +1,8 @@
 """Extra cmd.exe checks kept out of syntax.py and warnings.py so those stay smaller."""
 
+# The PATH value scan puts this spillover module a few lines over the cap.
+# pylint: disable=too-many-lines
+
 from __future__ import annotations
 
 from functools import lru_cache
@@ -11,13 +14,17 @@ from blinter.logging_config import logger
 from blinter.models import LintIssue
 from blinter.parsing.context import (
     _command_body,
+    _command_segments,
     _is_comment_line,
     _is_echo_statement,
     _split_pipe_stages,
     _split_tokens,
     _split_unquoted,
 )
-from blinter.parsing.structure import _paren_depth_before_line
+from blinter.parsing.structure import (
+    _delayed_expansion_active_at_line,
+    _paren_depth_before_line,
+)
 from blinter.rules.registry import RULES
 
 _USER_ARG_PERCENT_RE = re.compile(
@@ -76,6 +83,10 @@ _SET_SYSTEM_RE = re.compile(
     rf'set\s+(?:/[a-z]\s+)*"?({_SYSTEM_VAR_ALT})\s*=',
     re.IGNORECASE,
 )
+# A slice such as ``%PATH:~0,5%`` is not a full expansion. A reference
+# keeps the search path only when it is a whole PATH entry.
+_PATH_ENTRY_RE = re.compile(r"(?:^|;)%PATH%(?:;|$)", re.IGNORECASE)
+_PATH_DELAYED_ENTRY_RE = re.compile(r"(?:^|;)!PATH!(?:;|$)", re.IGNORECASE)
 
 _ALLOWED_SWITCHES: Dict[str, Optional[frozenset[str]]] = {
     "if": frozenset({"i"}),
@@ -485,7 +496,7 @@ def check_extended_warning_line(
     issues.extend(_check_w064_alluserprofile(stripped, line_num))
     issues.extend(_check_w065_if_wildcard(stripped, line_num))
     issues.extend(_check_w066_redir_not_at_end(stripped, line_num))
-    issues.extend(_check_w067_set_system_var(stripped, line_num))
+    issues.extend(_check_w067_set_system_var(stripped, line_num, lines))
     issues.extend(_check_w069_time_leading_space(stripped, line_num, lines))
     issues.extend(_check_w070_set_andand(stripped, line_num, file_path))
     return issues
@@ -656,19 +667,97 @@ def _regex_group(match: re.Match[str], index: int = 1) -> str:
     return "" if captured is None else str(captured)
 
 
-def _check_w067_set_system_var(stripped: str, line_num: int) -> List[LintIssue]:
-    """W067: SET of a real system environment variable."""
-    match = _SET_SYSTEM_RE.search(stripped)
-    if match is None:
+def _set_value_text(rest: str, *, quote_open: bool) -> str:
+    """Return the SET value, stopping at an unquoted ``&`` or ``|``.
+
+    The opening quote of ``set "NAME=value"`` is already consumed, and its
+    closer is not part of the value. A quote after ``=`` is part of the value:
+    ``set PATH="%PATH%";C:\\new`` does not preserve the original search path.
+    """
+    parts: List[str] = []
+    quoted = quote_open
+    wrapper = quote_open
+    index = 0
+    length = len(rest)
+    while index < length:
+        char = rest[index]
+        if char == '"':
+            if wrapper and quoted:
+                quoted = False
+                wrapper = False
+            else:
+                parts.append(char)
+                quoted = not quoted
+            index += 1
+            continue
+        if char == "^" and not quoted and index + 1 < length:
+            parts.append(rest[index + 1])
+            index += 2
+            continue
+        if not quoted and char in "&|":
+            break
+        parts.append(char)
+        index += 1
+    return "".join(parts)
+
+
+def _path_assignment_keeps_value(
+    name: str, value: str, *, delayed_expansion: bool
+) -> bool:
+    """True when SET PATH includes the existing PATH instead of replacing it."""
+    if name != "PATH":
+        return False
+    if _PATH_ENTRY_RE.search(value) is not None:
+        return True
+    return delayed_expansion and _PATH_DELAYED_ENTRY_RE.search(value) is not None
+
+
+def _executed_commands(segment: str) -> List[str]:
+    """Return commands ``segment`` runs, using a FOR loop's DO body.
+
+    ``_for_do_body`` is imported here because this module is still loading
+    when ``checkers.globals`` initializes and imports it back.
+    """
+    from blinter.checkers.globals.label_flow import (  # isort: skip  # pylint: disable=import-outside-toplevel
+        _for_do_body,
+    )
+
+    if segment[:3].lower() == "for" and (len(segment) == 3 or segment[3].isspace()):
+        segment = _for_do_body(segment)
+    if not segment:
         return []
-    name = _regex_group(match).upper()
-    return [
-        _issue(
-            line_num,
-            "W067",
-            f"SET {name}= overwrites a system environment variable",
-        )
-    ]
+    return _command_segments(segment)
+
+
+def _check_w067_set_system_var(
+    stripped: str, line_num: int, lines: Optional[List[str]] = None
+) -> List[LintIssue]:
+    """W067: SET of a real system environment variable."""
+    delayed = lines is not None and _delayed_expansion_active_at_line(lines, line_num)
+    for segment in _command_segments(stripped):
+        for command in _executed_commands(segment):
+            command = command.lstrip()
+            match = _SET_SYSTEM_RE.match(command)
+            if match is None:
+                continue
+            name = _regex_group(match).upper()
+            name_at = match.start(1)
+            quote_open = name_at > 0 and command[name_at - 1] == '"'
+            value = _set_value_text(command[match.end() :], quote_open=quote_open)
+            between = command[match.start() : name_at].lower()
+            plain_set = "/a" not in between and "/p" not in between
+            if plain_set and _path_assignment_keeps_value(
+                name, value, delayed_expansion=delayed
+            ):
+                continue
+            return [
+                _issue(
+                    line_num,
+                    "W067",
+                    f"SET {name}= overwrites a system environment variable",
+                )
+            ]
+    return []
 
 
 def _check_w069_time_leading_space(

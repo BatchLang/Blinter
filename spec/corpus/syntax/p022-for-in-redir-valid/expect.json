@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "A caret-escaped redirect in FOR /F IN is not per-iteration I/O (P022 negative)",
+  "lines": {},
+  "must_not": [
+    "P022"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

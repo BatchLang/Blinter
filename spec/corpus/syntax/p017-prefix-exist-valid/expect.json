@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "IF EXIST of a longer path is not a repeat of its prefix (P017 negative)",
+  "lines": {},
+  "must_not": [
+    "P017"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

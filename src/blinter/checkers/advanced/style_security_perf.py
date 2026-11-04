@@ -21,6 +21,11 @@ from blinter.checkers.globals.label_flow import (  # pylint: disable=useless-imp
     _called_subroutine_names,
     _check_function_docs as _check_function_docs,
 )
+from blinter.checkers.performance import (
+    _loop_body_redirects_to_nul,
+    _repeated_exist_issue,
+    _set_concatenates_in_loop,
+)
 from blinter.constants import MAGIC_NUMBER_EXCEPTIONS
 from blinter.models import LintIssue
 from blinter.parsing.context import _is_comment_line
@@ -172,7 +177,7 @@ def _check_for_block_performance(
     if not _line_is_inside_for_block(lines, line_number):
         return issues
 
-    if re.search(r"set\s+\w+=.*%", stripped) and "set /a" not in stripped:
+    if _set_concatenates_in_loop(stripped):
         issues.append(
             LintIssue(
                 line_number,
@@ -188,7 +193,7 @@ def _check_for_block_performance(
                 context="Excessive delayed expansion inside FOR loop",
             )
         )
-    if re.search(r">\s*nul", stripped) or re.search(r"2>\s*nul", stripped):
+    if _loop_body_redirects_to_nul(stripped):
         issues.append(
             LintIssue(
                 line_number,
@@ -214,25 +219,9 @@ def _check_advanced_performance(
     issues: List[LintIssue] = []
     stripped = line.strip().lower()
 
-    # P017: Repeated file existence checks
-    if stripped.startswith("if exist"):
-        filename_match = re.search(r'if exist\s+(["\']?)([^"\'\s]+)\1', stripped)
-        if filename_match:
-            filename = filename_match.group(2)
-            # Count occurrences of the same file check in surrounding lines
-            check_range = max(0, line_number - 5), min(len(lines), line_number + 5)
-            same_checks = 0
-            for i in range(check_range[0], check_range[1]):
-                if i != line_number - 1 and filename in lines[i].lower():
-                    same_checks += 1
-            if same_checks >= 2:
-                issues.append(
-                    LintIssue(
-                        line_number,
-                        RULES["P017"],
-                        context=f"File '{filename}' checked multiple times",
-                    )
-                )
+    repeated_exist = _repeated_exist_issue(lines, line_number, stripped)
+    if repeated_exist is not None:
+        issues.append(repeated_exist)
 
     # P020: Redundant command echoing suppression
     if stripped.startswith("@echo off") and line_number > 1:

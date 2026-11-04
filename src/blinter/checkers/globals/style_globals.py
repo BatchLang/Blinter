@@ -10,6 +10,10 @@ from typing import (
 )
 
 from blinter.checkers.cmd_extended import _is_caret_escaped
+from blinter.checkers.performance import (
+    _exist_filename,
+    _line_repeats_exist,
+)
 from blinter.constants import LARGE_FILE_LINE_THRESHOLD
 from blinter.logging_config import logger
 from blinter.models import LintIssue
@@ -78,26 +82,22 @@ def _check_redundant_operations(lines: List[str]) -> List[LintIssue]:
     issues: List[LintIssue] = []
 
     for i, line in enumerate(lines):
-        stripped = line.strip().lower()
-        # Look for repeated IF EXIST checks on the same file
-        exist_match = re.search(r"if\s+exist\s+(\S+)", stripped)
-        if exist_match:
-            filename_result = exist_match.group(1)
-            if filename_result is not None:
-                filename: str = filename_result
-                # Check subsequent lines for same file
-                for j in range(i + 1, min(i + 5, len(lines))):
-                    next_stripped = lines[j].strip().lower()
-                    if f"if exist {filename}" in next_stripped:
-                        issues.append(
-                            LintIssue(
-                                line_number=j + 1,
-                                rule=RULES["P001"],
-                                context=f"Redundant existence check for {filename} "
-                                f"(first check on line {i + 1})",
-                            )
-                        )
-                        break
+        filename = _exist_filename(line.strip().lower())
+        if not filename:
+            continue
+        # Check subsequent lines for same file
+        for j in range(i + 1, min(i + 5, len(lines))):
+            if not _line_repeats_exist(lines, i, j, filename):
+                continue
+            issues.append(
+                LintIssue(
+                    line_number=j + 1,
+                    rule=RULES["P001"],
+                    context=f"Redundant existence check for {filename} "
+                    f"(first check on line {i + 1})",
+                )
+            )
+            break
 
     return issues
 

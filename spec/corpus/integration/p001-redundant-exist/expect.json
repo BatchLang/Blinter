@@ -3,6 +3,12 @@
   "description": "p001 redundant exist",
   "lines": {
     "3": [
+      "P001"
+    ],
+    "5": [
+      "P001"
+    ],
+    "7": [
       "P001",
       "W001"
     ]

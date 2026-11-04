@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "IF EXIST on the other side of ELSE is not a second check (P001 negative)",
+  "lines": {},
+  "must_not": [
+    "P001"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

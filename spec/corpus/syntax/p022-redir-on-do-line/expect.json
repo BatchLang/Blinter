@@ -1,0 +1,16 @@
+{
+  "config": {},
+  "description": "An unescaped redirect in a one-line FOR DO clause is still inside the loop (P022)",
+  "lines": {
+    "2": [
+      "P022"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "P022"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}

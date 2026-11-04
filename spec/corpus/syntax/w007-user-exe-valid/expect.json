@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Copying or deleting a user .exe or .dll is not a locked system file (W007 negative)",
+  "lines": {},
+  "must_not": [
+    "W007"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "SET PATH that keeps the existing value is not an overwrite (W067 negative)",
+  "lines": {},
+  "must_not": [
+    "W067"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

@@ -204,7 +204,7 @@ def _command_segments(line: str) -> list[str]:
         if not tokens:
             continue
         first = tokens[0].lower()
-        if first in _NON_COMMAND_STARTERS or first.startswith("::"):
+        if first in _NON_COMMAND_STARTERS or first.startswith(("echo.", "::")):
             logger.debug(
                 "Ignoring non-command segment %r on line: %s", first, line.strip()
             )

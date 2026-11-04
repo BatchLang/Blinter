@@ -744,14 +744,24 @@ def _check_infinite_loop_warnings(lines: List[str]) -> List[LintIssue]:
 
 
 def _check_locked_file_operations(lines: List[str]) -> List[LintIssue]:
-    """Check file operations on potentially locked targets (W007)."""
+    """Check file operations on system paths that may be locked (W007).
+
+    A ``.exe`` or ``.dll`` name is not enough. Installers replace user-profile
+    executables, and a static check cannot see whether that file is open.
+    """
     issues: List[LintIssue] = []
     locked_patterns = (
         r"\\windows\\",
         r"\\system32\\",
         r"\\program files",
-        r"\.exe\b",
-        r"\.dll\b",
+        r"%windir%\\",
+        r"%systemroot%\\",
+        r"%programfiles%\\",
+        r"%programfiles\(x86\)%\\",
+        r"!windir!\\",
+        r"!systemroot!\\",
+        r"!programfiles!\\",
+        r"!programfiles\(x86\)!\\",
     )
 
     for i, line in enumerate(lines, start=1):

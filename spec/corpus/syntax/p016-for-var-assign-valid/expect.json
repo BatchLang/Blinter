@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "Assigning a FOR variable or another variable is not concatenation (P016 negative)",
+  "lines": {},
+  "must_not": [
+    "P016"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}
