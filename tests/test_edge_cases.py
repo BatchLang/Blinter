@@ -2481,6 +2481,25 @@ class TestGlobalChecks:
                 ":done",
                 "exit /b 0",
             ],
+            [
+                "@echo off",
+                "if defined FLAG ^",
+                "(",
+                "echo inside",
+                ")",
+                "exit /b 0",
+                ":unused_label",
+                "exit /b 1",
+            ],
+            [
+                "@echo off",
+                "echo hi ^",
+                "(",
+                "exit /b 0",
+                ")",
+                ":unused_label",
+                "exit /b 1",
+            ],
         ):
             issues = _check_global_style_rules(lines, "test.cmd")
             s010_issues = [issue for issue in issues if issue.rule.code == "S010"]
@@ -2497,6 +2516,23 @@ class TestGlobalChecks:
             ["@echo off", "exit.bat", ":section", "echo after"],
             ["@echo off", "echo bye ^", "exit /b 1", ":section", "echo after"],
             ["@echo off", "echo hi & ^", "goto %ACTION%", ":section", "echo after"],
+            [
+                "@echo off",
+                'if "%~1"=="" ^',
+                "goto :done",
+                "exit /b 0",
+                ":done",
+                "exit /b 1",
+            ],
+            [
+                "@echo off",
+                "if defined FLAG ^",
+                "(",
+                "exit /b 0",
+                ")",
+                ":section",
+                "echo after",
+            ],
         ]
         for lines in samples:
             issues = _check_global_style_rules(lines, "test.cmd")

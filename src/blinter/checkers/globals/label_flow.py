@@ -295,11 +295,12 @@ def _step_fallthrough(
 ) -> tuple[int, bool]:
     """Advance parenthesis depth and whether the next line can be fallen into.
 
-    Parentheses are counted on the physical line. ``command`` is that line
-    with any caret continuation joined, so ``echo hi & ^`` plus ``exit /b``
-    leaves and ``echo bye ^`` plus ``exit /b`` does not.
+    Depth uses the caret-joined command. An IF that continues onto ``(`` still
+    opens the block, so ``exit`` inside it does not kill the label after the
+    block. ``echo hi ^`` followed by ``(`` does not open a block. ``echo hi & ^``
+    plus ``exit /b`` leaves, and ``echo bye ^`` plus ``exit /b`` does not.
     """
-    new_depth = max(_update_paren_depth(line.strip(), depth), 0)
+    new_depth = max(_update_paren_depth(command.strip(), depth), 0)
     delta = new_depth - depth
     if delta > 0:
         entered.extend([reachable] * delta)

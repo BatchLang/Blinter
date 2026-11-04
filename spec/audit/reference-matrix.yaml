@@ -278,6 +278,8 @@ entries:
   - syntax/s010-fallthrough-label-valid
   - integration/s010-unreachable-label
   - integration/s010-caret-joined-exit
+  - syntax/s010-caret-if-block-valid
+  - integration/s010-caret-echo-paren-leaves
   - syntax/e015-goto-colon-eof-valid
 - construct: Command typos and removed/deprecated commands
   sources:
