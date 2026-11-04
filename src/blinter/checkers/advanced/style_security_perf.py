@@ -14,9 +14,12 @@ from blinter.checkers.cmd_extended import (
     check_sec025_unquoted_cd,
     has_unquoted_user_args,
 )
-from blinter.checkers.globals.label_flow import (
+
+# Same-name alias is the explicit re-export mypy requires. advanced/__init__.py
+# imports this name from this module, and no_implicit_reexport is enabled.
+from blinter.checkers.globals.label_flow import (  # pylint: disable=useless-import-alias
     _called_subroutine_names,
-    _check_function_docs,
+    _check_function_docs as _check_function_docs,
 )
 from blinter.constants import MAGIC_NUMBER_EXCEPTIONS
 from blinter.models import LintIssue
