@@ -2,11 +2,12 @@
 
 All notable changes to Blinter are documented in this file. Release tags follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.1.63] - 2026-11-04
 
 ### Changed
 
 - The install and uninstall script lint fails on every severity. A finding that should remain is suppressed on that line with `REM LINT:IGNORE`, or for both scripts with `disabled_rules` in `scripts/blinter.ini`. `where blinter` ignores W009 because that command is how the installer sees which copy PATH will run
+- The MegaLinter install pin is 1.1.63
 
 ### Fixed
 
@@ -686,6 +687,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 Older 1.0.x releases are available on the [GitHub Releases](https://github.com/BatchLang/Blinter/releases) page.
 
+[1.1.63]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.63
 [1.1.62]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.62
 [1.1.61]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.61
 [1.1.60]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.60
