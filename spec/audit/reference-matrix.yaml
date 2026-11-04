@@ -466,12 +466,15 @@ entries:
   - integration/p008-delayed-not-enabled
   - integration/setlocal-delayed-expansion
   - integration/delayed-expansion-no-p026
+  - integration/p008-endlocal-block-goes-on
   - syntax/p026-redundant-disable-delayed
   - integration/p006-missing-endlocal
   - integration/p027-setlocal-nesting
   - syntax/p003-setlocal-with-set-valid
   - syntax/p004-delayed-used-valid
   - syntax/p008-delayed-enabled-valid
+  - syntax/p008-endlocal-exit-block-valid
+  - syntax/p008-endlocal-goto-block-valid
   - syntax/w022-delayed-enabled-valid
 - construct: SETLOCAL/ENDLOCAL pairing and nesting limit
   sources:

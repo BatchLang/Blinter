@@ -1,6 +1,7 @@
 """Label collection, script structure, and subroutine detection."""
 
 from contextvars import ContextVar
+from dataclasses import dataclass, field
 import re
 from typing import (
     Callable,
@@ -16,9 +17,14 @@ from blinter.constants import BUILTIN_VARS
 from blinter.logging_config import logger
 from blinter.models import LintIssue
 from blinter.parsing.context import (
+    _command_body,
     _is_blank_or_comment,
     _is_endlocal_command,
     _is_setlocal_command,
+    _split_command_separators,
+    _split_pipe_stages,
+    _split_tokens,
+    _strip_leading_if_predicates,
 )
 from blinter.patterns import (
     _COMPILED_SETLOCAL_DISABLE,
@@ -597,12 +603,163 @@ def _begin_delayed_expansion_pass() -> None:
     _delayed_expansion_cache_var.set({})
 
 
-def _build_delayed_expansion_state(lines: List[str]) -> List[bool]:
-    """Return delayed-expansion active state at each 1-based line (after that line)."""
+_LEAVES_RE = re.compile(r"exit(?:[\s/)]|$)|goto[\s:]+(?P<label>[^\s&|()]+)", re.I)
+_MAY_RUN_NOTHING_RE = re.compile(r"(?:if|for)\s", re.IGNORECASE)
+_JUMPS = r"\bgoto[\s:]+(?![\s:]|eof\b)|\bcall\s*:"
+_JUMPS_RE = re.compile(_JUMPS, re.I)
+_READS_OR_JUMPS_RE = re.compile(r"![^!]+!|" + _JUMPS, re.I)
+
+
+def _leaving_command(body: str) -> Optional[re.Match[str]]:
+    """Match the EXIT or GOTO that a command line always ends in, if any.
+
+    The last command must follow a plain ``&``: ``x || exit /b`` goes on when
+    ``x`` succeeds. A line starting with IF or FOR may run nothing at all.
+    The commands before it must not jump, and it must not be piped: a piped
+    EXIT runs in another cmd.exe.
+    """
+    parts = _split_command_separators(body)
+    head = body[: len(body) - len(parts[-1])]
+    if (
+        head.endswith(("&&", "||"))
+        or _MAY_RUN_NOTHING_RE.match(body)
+        or _JUMPS_RE.search(head.replace("^", ""))
+        or len(_split_pipe_stages(parts[-1])) > 1
+    ):
+        return None
+    return _LEAVES_RE.match(parts[-1].strip().lstrip("(@").lstrip())
+
+
+def _continues(line: str) -> bool:
+    """Return True where a line ends in an odd run of carets, so goes on below."""
+    line = line.rstrip("\r\n")
+    return (len(line) - len(line.rstrip("^"))) % 2 == 1
+
+
+@dataclass
+class _Block:
+    """A parenthesized block: its first and last lines, ENDLOCAL lines, any SETLOCAL."""
+
+    first: int
+    last: int
+    endlocals: List[int] = field(default_factory=list)
+    setlocal: bool = False
+
+
+class _ExitScan:
+    """Find the ENDLOCAL lines that close no scope for the lines below them.
+
+    A block whose last command is an EXIT or GOTO, not piped, never falls
+    through: the lines after it run only when it did not. So an ENDLOCAL in
+    such a block does not close the scope they see, unless the block holds a
+    SETLOCAL at any depth, or, at any depth before its last command, a
+    ``call :label``, a GOTO but ``goto :eof``, or a line that ends in an odd
+    run of carets. Carets are dropped before looking for a jump. Neither does
+    an ENDLOCAL in ``if ... endlocal & exit /b`` on one line, unless that line
+    or the one above it ends in an odd run of carets.
+
+    A GOTO counts only where its label appears once, below the GOTO, and the
+    lines from the label read no ``!VAR!`` and hold no ``call :label`` and no
+    GOTO but ``goto :eof`` before an EXIT or ``goto :eof`` outside any block
+    and IF or FOR. Otherwise the closed scope is still reported there. A block
+    runs from a line ending in ``(`` to a line starting with ``)``; where
+    these do not balance, no line is skipped.
+    """
+
+    def __init__(self, lines: List[str]) -> None:
+        self.bodies = [_command_body(line) for line in lines]
+        flat = [body.replace("^", "") for body in self.bodies]
+        self.goes_on = [_continues(line) for line in lines]
+        self.sets = [_is_setlocal_command(line) for line in lines]
+        self.ends = [_is_endlocal_command(line) for line in lines]
+        self.labels: Dict[str, List[int]] = {}
+        self.jumps = [0]  # jump lines before each line
+        depths: List[int] = []
+        depth = 0
+        for index, body in enumerate(self.bodies):
+            depth -= body.startswith(")")
+            depths.append(depth)
+            depth += body.endswith("(")
+            jumps = self.goes_on[index] or bool(_JUMPS_RE.search(flat[index]))
+            self.jumps.append(self.jumps[-1] + jumps)
+            if body.startswith(":"):
+                self.labels.setdefault(body.split()[0].lower(), []).append(index)
+        self.reads = [False] * (len(lines) + 1)
+        for index in range(len(lines) - 1, -1, -1):
+            body = self.bodies[index]
+            stops = depths[index] == 0 and _leaving_command(body) is not None
+            self.reads[index] = (
+                self.goes_on[index]
+                or bool(_READS_OR_JUMPS_RE.search(flat[index]))
+                or (not stops and self.reads[index + 1])
+            )
+
+    def leaves_for_good(self, index: int, body: str) -> bool:
+        """Return True when line ``index`` ends in EXIT, or in a GOTO as above."""
+        leaving = _leaving_command(body)
+        if leaving is None:
+            return False
+        name = str(leaving.group("label") or "eof").lower()
+        if name == "eof":
+            return True
+        targets = self.labels.get(":" + name, [])
+        if len(targets) != 1 or targets[0] < index:
+            return False
+        return not self.reads[targets[0] + 1]
+
+    def skipped(self) -> Set[int]:
+        """Return the 0-based ENDLOCAL lines described above."""
+        found: Set[int] = set()
+        blocks: List[_Block] = []
+        for index, body in enumerate(self.bodies):
+            if not body:
+                continue
+            if body.startswith(")"):
+                if not blocks:
+                    return set()
+                block = blocks.pop()
+                if blocks:
+                    blocks[-1].setlocal |= block.setlocal
+                if self.block_leaves(block):
+                    found.update(block.endlocals)
+            ends = self.ends[index]
+            if ends and self.is_if_exit(index, body):
+                found.add(index)
+                ends = False
+            if blocks:
+                block = blocks[-1]
+                block.last = index
+                block.setlocal |= self.sets[index]
+                if ends:
+                    block.endlocals.append(index)
+            if body.endswith("("):
+                blocks.append(_Block(index, index))
+        return set() if blocks else found
+
+    def block_leaves(self, block: _Block) -> bool:
+        """Return True when a block always leaves at its last line, as above."""
+        if block.setlocal or self.jumps[block.last] > self.jumps[block.first + 1]:
+            return False
+        return self.leaves_for_good(block.last, self.bodies[block.last])
+
+    def is_if_exit(self, index: int, body: str) -> bool:
+        """Return True for an IF line whose command leaves for good, as above."""
+        if (
+            not body.lower().startswith("if ")
+            or self.goes_on[index]
+            or (index and self.goes_on[index - 1])
+        ):
+            return False
+        command = " ".join(_strip_leading_if_predicates(_split_tokens(body)))
+        return self.leaves_for_good(index, command)
+
+
+def _read_scopes(lines: List[str], scan: _ExitScan, skipped: Set[int]) -> List[bool]:
+    """Return the state after each line, reading SETLOCAL and ENDLOCAL in order."""
     stack: List[bool] = []
     state: List[bool] = []
-    for line in lines:
-        if _is_setlocal_command(line):
+    for index, line in enumerate(lines):
+        if scan.sets[index]:
             stripped = line.strip().lstrip("@").strip().lower()
             if "enabledelayedexpansion" in stripped:
                 stack.append(True)
@@ -610,10 +767,28 @@ def _build_delayed_expansion_state(lines: List[str]) -> List[bool]:
                 stack.append(False)
             else:
                 stack.append(stack[-1] if stack else False)
-        elif _is_endlocal_command(line):
+        elif scan.ends[index] and index not in skipped:
             if stack:
                 stack.pop()
         state.append(stack[-1] if stack else False)
+    return state
+
+
+def _build_delayed_expansion_state(lines: List[str]) -> List[bool]:
+    """Return delayed-expansion active state at each 1-based line (after that line).
+
+    SETLOCAL and ENDLOCAL are read in file order, except the ENDLOCAL lines
+    ``_ExitScan`` skips. Where a label then sees another state than with none
+    skipped, a GOTO or CALL may reach it with the scope closed, so none is.
+    """
+    scan = _ExitScan(lines)
+    state = _read_scopes(lines, scan, set())
+    skipped = scan.skipped()
+    if skipped:
+        kept = _read_scopes(lines, scan, skipped)
+        labels = [index for found in scan.labels.values() for index in found]
+        if all(kept[index] == state[index] for index in labels):
+            return kept
     return state
 
 
