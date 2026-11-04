@@ -1,5 +1,6 @@
 """File encoding detection and line-ending analysis."""
 
+import codecs
 from io import StringIO
 from pathlib import Path
 from typing import (
@@ -180,6 +181,18 @@ def _has_multibyte_chars(lines: List[str]) -> Tuple[bool, List[int]]:
     return has_multibyte, affected_lines
 
 
+def _canonical_encoding_name(encoding: str) -> str:
+    """Return the codec's standard name.
+
+    charset_normalizer reports Python's underscore aliases, such as ``utf_8``.
+    Those are the same codecs as ``utf-8`` and must not be treated as a fallback.
+    """
+    try:
+        return codecs.lookup(encoding).name
+    except LookupError:
+        return encoding.lower()
+
+
 def _charset_norm_match_encoding(detected_match: object) -> Optional[str]:
     """Return a validated lowercase encoding name from a charset_normalizer match."""
     if detected_match is None:
@@ -194,7 +207,7 @@ def _charset_norm_match_encoding(detected_match: object) -> Optional[str]:
     if detected_coherence_raw <= 0.7:
         return None
 
-    detected_encoding: str = detected_encoding_raw.lower()
+    detected_encoding = _canonical_encoding_name(detected_encoding_raw)
     logger.debug(
         "charset_normalizer detected encoding: %s (coherence: %.2f)",
         detected_encoding,

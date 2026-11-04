@@ -4,8 +4,18 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ## [Unreleased]
 
+### Changed
+
+- `scripts/blinter.ini` no longer disables rules. It only raises the line-length limit to 120 and hides the summary
+- Install and uninstall PowerShell helpers run with `-ExecutionPolicy RemoteSigned`. The batch file writes those helpers itself, so Bypass is not required
+- The installer probes curl with `curl --version` before downloading
+- The GitHub release `FOR /F` states that the helper's URL, tag, and digest are separated by spaces
+- The version-probe temporary name uses `!RANDOM!` inside its parenthesized block
+- The registry helpers split two lines that were longer than 120 characters, in both the PowerShell fixtures and the echo blocks
+
 ### Fixed
 
+- charset_normalizer's `utf_8` name is recognized as UTF-8. An ASCII script whose detection crosses the coherence threshold no longer logs that it was read as a non-UTF-8 encoding
 - S010 no longer reports a label that execution falls through. The label is dead only when nothing names it with GOTO or CALL and no path falls into it, such as a label after a top-level EXIT or GOTO. `if ... goto` and `|| goto` still count as references
 - A line ending in `^` is one command with the next physical line. `echo bye ^` followed by `exit` or `goto` does not leave. `echo hi & ^` followed by `exit` or `goto` does. An IF that continues onto `(` still owns that block
 - S018 now asks for a parameter and return comment only on a label that an executable `call :name` invokes, including `call :name` after IF or `||`. A GOTO target or a fall-through label is not a subroutine. `call :name` on the continuation of `echo bye ^` is not a call; `call :name` after `echo hi & ^` is

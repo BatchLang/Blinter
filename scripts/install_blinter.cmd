@@ -7,6 +7,7 @@ set "BLINTER_CRLF_REEXEC=1"
 set "BLINTER_SELF=%~f0"
 set "BLINTER_CRLF_COPY=%TEMP%\blinter_crlf_%RANDOM%_%RANDOM%.cmd"
 set "BLINTER_CRLF_PS=%TEMP%\blinter_crlf_%RANDOM%_%RANDOM%.ps1"
+
 :write_crlf_script
 (
 echo $bytes = [System.IO.File]::ReadAllBytes($env:BLINTER_SELF^)
@@ -19,7 +20,7 @@ echo }
 echo [System.IO.File]::WriteAllBytes($env:BLINTER_CRLF_COPY, $list.ToArray(^)^)
 echo exit 3
 ) > "%BLINTER_CRLF_PS%"
-PowerShell -NoProfile -ExecutionPolicy Bypass -File "%BLINTER_CRLF_PS%"
+PowerShell -NoProfile -ExecutionPolicy RemoteSigned -File "%BLINTER_CRLF_PS%"
 set "BLINTER_CRLF_PS_EXIT=!errorlevel!"
 del /F /Q "%BLINTER_CRLF_PS%" >nul 2>&1
 if errorlevel 1 set "BLINTER_CRLF_PS_EXIT=!BLINTER_CRLF_PS_EXIT!"
@@ -110,8 +111,8 @@ if %errorlevel% equ 0 (
     goto :error_exit
 )
 
-REM Check if curl is installed
-where curl >nul 2>&1
+REM Check if curl is installed and can start
+curl --version >nul 2>&1
 if %errorlevel% neq 0 (
     echo ERROR: Curl is not installed or in PATH.
     goto :error_exit
@@ -137,7 +138,10 @@ set BLINTER_SHA256=
 set "PS_GET_RELEASE=%BLINTER_TEMP%_get_release.ps1"
 
 call :write_get_release_script
-for /f "tokens=1,2,3" %%a in ('powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_GET_RELEASE%"') do (
+REM The helper prints the URL, the tag, and the digest, separated by spaces.
+for /f "tokens=1-3 delims= " %%a in (
+'powershell -NoProfile -ExecutionPolicy RemoteSigned -File "%PS_GET_RELEASE%"'
+) do (
     set BLINTER_URL=%%a
     set BLINTER_VERSION=%%b
     set BLINTER_SHA256=%%c
@@ -197,7 +201,7 @@ set CURRENT_VERSION=
 set NEEDS_BACKUP=0
 
 if exist "%BLINTER_BIN%\blinter.exe" (
-    set "VERSION_TEMP=%TEMP%\blinter_version_%RANDOM%_%RANDOM%.txt"
+    set "VERSION_TEMP=%TEMP%\blinter_version_!RANDOM!_!RANDOM!.txt"
     "%BLINTER_BIN%\blinter.exe" --version > "!VERSION_TEMP!" 2>&1
     if !errorlevel! equ 0 (
         for /f "usebackq tokens=*" %%v in ("!VERSION_TEMP!") do set CURRENT_VERSION=%%v
@@ -278,7 +282,7 @@ if not exist "%BLINTER_TEMP%.zip" (
 set FILESIZE=0
 set "PS_FILE_SIZE=%BLINTER_TEMP%_file_size.ps1"
 call :write_file_size_script
-for /f "delims=" %%S in ('powershell -NoProfile -ExecutionPolicy Bypass -File "!PS_FILE_SIZE!" 2^>nul') do (
+for /f "delims=" %%S in ('powershell -NoProfile -ExecutionPolicy RemoteSigned -File "!PS_FILE_SIZE!" 2^>nul') do (
     set FILESIZE=%%S
 )
 if exist "!PS_FILE_SIZE!" del /F /Q "!PS_FILE_SIZE!" >nul 2>&1
@@ -291,7 +295,7 @@ if !FILESIZE! lss !MIN_DOWNLOAD_BYTES! (
 REM Verify SHA256 digest from the GitHub release asset
 set "PS_HASH_VERIFY=%BLINTER_TEMP%_hash_verify.ps1"
 call :write_hash_verify_script
-powershell -NoProfile -ExecutionPolicy Bypass -File "!PS_HASH_VERIFY!" 2>&1
+powershell -NoProfile -ExecutionPolicy RemoteSigned -File "!PS_HASH_VERIFY!" 2>&1
 if !errorlevel! neq 0 (
     echo ERROR: SHA256 digest mismatch. The download may be corrupted or tampered with.
     goto :error_restore
@@ -304,15 +308,15 @@ echo Extracting Blinter...
 echo.
 set "PS_EXPAND=%BLINTER_TEMP%_expand.ps1"
 call :write_expand_script
-powershell -NoProfile -ExecutionPolicy Bypass -File "!PS_EXPAND!" 2>&1
+powershell -NoProfile -ExecutionPolicy RemoteSigned -File "!PS_EXPAND!" 2>&1
 if !errorlevel! neq 0 (
     echo ERROR: Failed to extract Blinter archive. Error code: !errorlevel!
     goto :error_restore
 )
 if exist "!PS_EXPAND!" del /F /Q "!PS_EXPAND!" >nul 2>&1
 
-REM Locate extracted executable. The folder name matches the zip name.
 set "BLINTER_SOURCE_EXE=%BLINTER_TEMP%\Blinter-!BLINTER_VERSION!-Windows-!BLINTER_ARCH!\blinter.exe"
+REM Locate extracted executable. The folder name matches the zip name.
 if not exist "!BLINTER_SOURCE_EXE!" (
     echo ERROR: Blinter executable not found in extracted archive.
     echo.
@@ -361,7 +365,7 @@ echo Updating PATH environment variable...
 echo.
 set "PS_UPDATE_PATH=%BLINTER_TEMP%_update_path.ps1"
 call :write_update_path_script
-powershell -NoProfile -ExecutionPolicy Bypass -File "!PS_UPDATE_PATH!" 2>&1
+powershell -NoProfile -ExecutionPolicy RemoteSigned -File "!PS_UPDATE_PATH!" 2>&1
 if !errorlevel! neq 0 (
     echo WARNING: Failed to update User PATH environment variable.
     echo You may need to manually add %BLINTER_BIN% to your PATH.
@@ -380,6 +384,7 @@ for /f "usebackq delims=" %%p in ("!WHERE_TEMP!") do (
     if not defined FIRST_BLINTER set "FIRST_BLINTER=%%p"
 )
 if exist "!WHERE_TEMP!" del /F /Q "!WHERE_TEMP!" >nul 2>&1
+REM Compare the first PATH match with the executable just installed.
 if defined FIRST_BLINTER (
     if /I not "!FIRST_BLINTER!"=="!BLINTER_BIN!\blinter.exe" (
         echo.
@@ -505,9 +510,11 @@ echo             $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Envi
 echo             if ($key^) {
 echo                 try {
 echo                     $kind = $key.GetValueKind('Path'^)
-echo                     $raw = $key.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames^)
+echo                     $rawOptions = [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames
+echo                     $raw = $key.GetValue('Path', '', $rawOptions^)
 echo                     if ($null -ne $raw^) { $path = [string]$raw }
-echo                     if ($kind -eq [Microsoft.Win32.RegistryValueKind]::ExpandString^) { $kindName = 'ExpandString' }
+echo                     $expandKind = [Microsoft.Win32.RegistryValueKind]::ExpandString
+echo                     if ($kind -eq $expandKind^) { $kindName = 'ExpandString' }
 echo                 } catch {
 echo                     $path = [Environment]::GetEnvironmentVariable('Path', 'User'^)
 echo                 }

@@ -7,6 +7,7 @@ set "BLINTER_CRLF_REEXEC=1"
 set "BLINTER_SELF=%~f0"
 set "BLINTER_CRLF_COPY=%TEMP%\blinter_crlf_%RANDOM%_%RANDOM%.cmd"
 set "BLINTER_CRLF_PS=%TEMP%\blinter_crlf_%RANDOM%_%RANDOM%.ps1"
+
 :write_crlf_script
 (
 echo $bytes = [System.IO.File]::ReadAllBytes($env:BLINTER_SELF^)
@@ -19,7 +20,7 @@ echo }
 echo [System.IO.File]::WriteAllBytes($env:BLINTER_CRLF_COPY, $list.ToArray(^)^)
 echo exit 3
 ) > "%BLINTER_CRLF_PS%"
-PowerShell -NoProfile -ExecutionPolicy Bypass -File "%BLINTER_CRLF_PS%"
+PowerShell -NoProfile -ExecutionPolicy RemoteSigned -File "%BLINTER_CRLF_PS%"
 set "BLINTER_CRLF_PS_EXIT=!errorlevel!"
 del /F /Q "%BLINTER_CRLF_PS%" >nul 2>&1
 if errorlevel 1 set "BLINTER_CRLF_PS_EXIT=!BLINTER_CRLF_PS_EXIT!"
@@ -121,7 +122,7 @@ set PROCESSES_KILLED=0
 set "PS_STOP_BLINTER=%BLINTER_TEMP%_stop.ps1"
 set "PS_STOP_OUT=%BLINTER_TEMP%_stop.out"
 call :write_stop_blinter_script
-powershell -NoProfile -ExecutionPolicy Bypass -File "!PS_STOP_BLINTER!" > "!PS_STOP_OUT!" 2>&1
+powershell -NoProfile -ExecutionPolicy RemoteSigned -File "!PS_STOP_BLINTER!" > "!PS_STOP_OUT!" 2>&1
 if !errorlevel! neq 0 (
     echo WARNING: Failed to stop the installed blinter.exe.
     echo.
@@ -181,7 +182,7 @@ echo Removing Blinter from User PATH...
 echo.
 set "PS_REMOVE_PATH=%BLINTER_TEMP%_remove_path.ps1"
 call :write_remove_path_script
-powershell -NoProfile -ExecutionPolicy Bypass -File "!PS_REMOVE_PATH!" 2>&1
+powershell -NoProfile -ExecutionPolicy RemoteSigned -File "!PS_REMOVE_PATH!" 2>&1
 if !errorlevel! neq 0 (
     echo WARNING: Failed to remove Blinter from User PATH.
     echo You may need to manually remove it from your environment variables.
@@ -268,9 +269,11 @@ echo             $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Envi
 echo             if ($key^) {
 echo                 try {
 echo                     $kind = $key.GetValueKind('Path'^)
-echo                     $raw = $key.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames^)
+echo                     $rawOptions = [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames
+echo                     $raw = $key.GetValue('Path', '', $rawOptions^)
 echo                     if ($null -ne $raw^) { $path = [string]$raw }
-echo                     if ($kind -eq [Microsoft.Win32.RegistryValueKind]::ExpandString^) { $kindName = 'ExpandString' }
+echo                     $expandKind = [Microsoft.Win32.RegistryValueKind]::ExpandString
+echo                     if ($kind -eq $expandKind^) { $kindName = 'ExpandString' }
 echo                 } catch {
 echo                     $path = [Environment]::GetEnvironmentVariable('Path', 'User'^)
 echo                 }

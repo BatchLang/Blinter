@@ -886,6 +886,8 @@ class TestLineEndingStandaloneDetection:
         ("encoding", "coherence", "expected"),
         [
             ("utf-8", 0.95, "utf-8"),
+            ("utf_8", 0.95, "utf-8"),
+            ("utf_8_sig", 0.95, "utf-8-sig"),
             ("utf-8", 0.5, None),
             (123, 0.95, None),
         ],

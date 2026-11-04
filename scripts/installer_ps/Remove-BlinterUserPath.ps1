@@ -12,9 +12,11 @@ try {
             if ($key) {
                 try {
                     $kind = $key.GetValueKind('Path')
-                    $raw = $key.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+                    $rawOptions = [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames
+                    $raw = $key.GetValue('Path', '', $rawOptions)
                     if ($null -ne $raw) { $path = [string]$raw }
-                    if ($kind -eq [Microsoft.Win32.RegistryValueKind]::ExpandString) { $kindName = 'ExpandString' }
+                    $expandKind = [Microsoft.Win32.RegistryValueKind]::ExpandString
+                    if ($kind -eq $expandKind) { $kindName = 'ExpandString' }
                 } catch {
                     $path = [Environment]::GetEnvironmentVariable('Path', 'User')
                 }
