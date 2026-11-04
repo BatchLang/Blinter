@@ -1,0 +1,23 @@
+{
+  "config": {
+    "enabled_rules": [
+      "S010"
+    ]
+  },
+  "description": "A label jumped over, or sitting after EXIT, is dead code (S010)",
+  "lines": {
+    "3": [
+      "S010"
+    ],
+    "8": [
+      "S010"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "S010"
+  ],
+  "tags": [
+    "integration"
+  ]
+}

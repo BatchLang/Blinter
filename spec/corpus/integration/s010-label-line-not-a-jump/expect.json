@@ -6,10 +6,7 @@
   },
   "description": "A goto on a label line is not a computed jump (S010)",
   "lines": {
-    "2": [
-      "S010"
-    ],
-    "4": [
+    "5": [
       "S010"
     ]
   },
@@ -21,5 +18,5 @@
   "tags": [
     "integration"
   ],
-  "total": 2
+  "total": 1
 }

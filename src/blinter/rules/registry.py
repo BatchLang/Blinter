@@ -584,8 +584,8 @@ RULES: Dict[str, Rule] = {
         code="S010",
         name="Dead code detected",
         severity=RuleSeverity.STYLE,
-        explanation="Unused labels or unreferenced subroutines make code harder to maintain",
-        recommendation="Remove unused labels and unreferenced code sections",
+        explanation="A label that no GOTO or CALL names, and that execution cannot fall into, is unused",
+        recommendation="Remove that unused label. Do not delete statements that run by falling through a label",
     ),
     "S011": Rule(
         code="S011",

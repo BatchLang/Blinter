@@ -427,6 +427,49 @@ def _consume_separator(text: str, index: int, *, andand_only: bool) -> Optional[
     return None
 
 
+def _command_chain(body: str) -> list[tuple[str, str]]:
+    """Return ``(separator, segment)`` pairs, including a leading empty separator.
+
+    ``&&`` and ``||`` are conditional. A single ``&`` is not. An ``&`` in a
+    redirection such as ``2>&1`` stays inside the segment, matching
+    ``_split_unquoted``.
+    """
+    parts: list[tuple[str, str]] = []
+    current: List[str] = []
+    quote = ""
+    redirect = False
+    separator = ""
+    index = 0
+    length = len(body)
+    while index < length:
+        after_redirect, redirect = redirect, False
+        if quote:
+            index, quote = _consume_quote_body(body, index, quote, current)
+            continue
+        caret_index = _consume_caret(body, index, current)
+        if caret_index is not None:
+            index = caret_index
+            continue
+        opened = _consume_quote_open(body, index, current)
+        if opened is not None:
+            index, quote = opened
+            continue
+        separator_index = None
+        if not (after_redirect and body[index] == "&"):
+            separator_index = _consume_separator(body, index, andand_only=False)
+        if separator_index is not None:
+            parts.append((separator, "".join(current)))
+            separator = body[index:separator_index]
+            current = []
+            index = separator_index
+            continue
+        redirect = body[index] in "<>"
+        current.append(body[index])
+        index += 1
+    parts.append((separator, "".join(current)))
+    return parts
+
+
 def _split_unquoted(text: str, *, andand_only: bool) -> List[str]:
     """Split on unquoted separators without breaking ``2>&1``.
 

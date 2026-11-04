@@ -6,7 +6,7 @@
   },
   "description": "do inside a quoted FOR set is not the loop body (S010)",
   "lines": {
-    "3": [
+    "4": [
       "S010"
     ]
   },

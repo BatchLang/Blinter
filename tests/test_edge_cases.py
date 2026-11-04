@@ -2428,13 +2428,115 @@ class TestGlobalChecks:
         assert "W002" in codes
         assert "W003" in codes
 
-    def test_unused_label_triggers_s010(self) -> None:
-        """Unused labels should trigger S010."""
-        lines = ["@echo off", ":unused_label", "echo done"]
+    def test_fallthrough_label_is_not_s010(self) -> None:
+        """A label execution falls through is not dead code."""
+        lines = ["@echo off", "echo before", ":unused_label", "echo done"]
+        issues = _check_global_style_rules(lines, "test.cmd")
+        assert not [issue for issue in issues if issue.rule.code == "S010"]
+
+    def test_jumped_over_label_triggers_s010(self) -> None:
+        """A label every top-level path jumps over is still S010."""
+        lines = [
+            "@echo off",
+            "goto :done",
+            ":unused_label",
+            "echo skipped",
+            ":done",
+            "exit /b 0",
+        ]
         issues = _check_global_style_rules(lines, "test.cmd")
         s010_issues = [issue for issue in issues if issue.rule.code == "S010"]
         assert len(s010_issues) == 1
-        assert "unused_label" in s010_issues[0].context.lower()
+        assert s010_issues[0].line_number == 3
+        assert "never reached" in s010_issues[0].context.lower()
+
+    def test_label_after_exit_or_chained_goto_triggers_s010(self) -> None:
+        """EXIT, or GOTO after ``&``, leaves the following label unreachable."""
+        for lines in (
+            ["@echo off", "exit /b 0", ":unused_label", "exit /b 1"],
+            [
+                "@echo off",
+                "echo hi & goto :done",
+                ":unused_label",
+                ":done",
+                "exit /b 0",
+            ],
+            ["@echo off", ">nul exit /b 0", ":unused_label", "exit /b 1"],
+            ["@echo off", "@exit /b 0", ":unused_label", "exit /b 1"],
+            ["@echo off", "rem note ^", "exit /b 0", ":unused_label", "exit /b 1"],
+            ["@echo off", "echo hi & ^", "exit /b 0", ":unused_label", "exit /b 1"],
+            [
+                "@echo off",
+                "echo bye ^",
+                "goto %ACTION%",
+                "exit /b 0",
+                ":unused_label",
+                "exit /b 1",
+            ],
+            [
+                "@echo off",
+                "echo hi & ^",
+                "goto :done",
+                ":unused_label",
+                ":done",
+                "exit /b 0",
+            ],
+            [
+                "@echo off",
+                "if defined FLAG ^",
+                "(",
+                "echo inside",
+                ")",
+                "exit /b 0",
+                ":unused_label",
+                "exit /b 1",
+            ],
+            [
+                "@echo off",
+                "echo hi ^",
+                "(",
+                "exit /b 0",
+                ")",
+                ":unused_label",
+                "exit /b 1",
+            ],
+        ):
+            issues = _check_global_style_rules(lines, "test.cmd")
+            s010_issues = [issue for issue in issues if issue.rule.code == "S010"]
+            assert len(s010_issues) == 1, lines
+            assert "unused_label" in s010_issues[0].context.lower()
+
+    def test_conditional_leave_does_not_make_the_next_label_dead(self) -> None:
+        """``&&``, ``||``, IF, a pipe, ``exit.bat``, and a caret can still fall through."""
+        samples = [
+            ["@echo off", "echo hi && exit /b 1", ":section", "echo after"],
+            ["@echo off", "echo hi || goto :done", ":section", ":done", "exit /b 0"],
+            ["@echo off", "if 1==1 exit /b 1", ":section", "echo after"],
+            ["@echo off", "exit /b 1 | more", ":section", "echo after"],
+            ["@echo off", "exit.bat", ":section", "echo after"],
+            ["@echo off", "echo bye ^", "exit /b 1", ":section", "echo after"],
+            ["@echo off", "echo hi & ^", "goto %ACTION%", ":section", "echo after"],
+            [
+                "@echo off",
+                'if "%~1"=="" ^',
+                "goto :done",
+                "exit /b 0",
+                ":done",
+                "exit /b 1",
+            ],
+            [
+                "@echo off",
+                "if defined FLAG ^",
+                "(",
+                "exit /b 0",
+                ")",
+                ":section",
+                "echo after",
+            ],
+        ]
+        for lines in samples:
+            issues = _check_global_style_rules(lines, "test.cmd")
+            assert not [issue for issue in issues if issue.rule.code == "S010"], lines
 
     def test_goto_loop_without_guard_triggers_w004(self) -> None:
         """GOTO back to a label without exit guard should trigger W004."""
@@ -2596,8 +2698,9 @@ class TestGlobalChecks:
             "@echo off",
             "REM goto :never_used",
             "echo goto :never_used",
-            ":never_used",
             "exit /b 0",
+            ":never_used",
+            "exit /b 1",
         ]
         issues = _check_global_style_rules(lines, "test.cmd")
         s010_issues = [issue for issue in issues if issue.rule.code == "S010"]
@@ -3379,6 +3482,68 @@ class TestSpecializedEdgeCases:
             issues = _check_function_docs(line, line_num, lines)
             assert isinstance(issues, list)
 
+    def test_s018_requires_a_call_target(self) -> None:
+        """S018 documents CALL targets only, including IF and ``||`` forms."""
+        lines = [
+            "@echo off",
+            "goto :done",
+            "call :worker",
+            "if 1==1 call :from_if",
+            "echo x || call :from_or",
+            ":done",
+            "echo reached",
+            ":section",
+            "echo after",
+            ":worker",
+            "exit /b 1",
+            "rem from_if takes no args and returns 0",
+            ":from_if",
+            "exit /b 0",
+            ":from_or",
+            "exit /b 2",
+        ]
+        codes = {
+            issue.line_number: issue.rule.code
+            for issue in _check_advanced_style_rules(lines)
+            if issue.rule.code == "S018"
+        }
+        assert codes == {10: "S018", 15: "S018"}
+
+    def test_caret_continuation_does_not_invent_an_s018_call(self) -> None:
+        """A ``call`` swallowed by ``^`` is not a subroutine; one after ``& ^`` is."""
+        swallowed = [
+            "@echo off",
+            "echo bye ^",
+            "call :worker",
+            "exit /b 0",
+            ":worker",
+            "exit /b 1",
+        ]
+        joined = [
+            "@echo off",
+            "echo hi & ^",
+            "call :worker",
+            ":worker",
+            "exit /b 0",
+        ]
+        assert not [
+            issue
+            for issue in _check_advanced_style_rules(swallowed)
+            if issue.rule.code == "S018"
+        ]
+        codes = {
+            issue.line_number
+            for issue in _check_advanced_style_rules(joined)
+            if issue.rule.code == "S018"
+        }
+        assert codes == {4}
+
+    def test_call_on_a_label_line_is_not_an_s018_target(self) -> None:
+        """cmd ignores ``call`` written on the label line itself."""
+        lines = ["@echo off", ":start & call :worker", ":worker", "exit /b 0"]
+        issues = _check_advanced_style_rules(lines)
+        assert not [issue for issue in issues if issue.rule.code == "S018"]
+
     def test_magic_numbers_function(self) -> None:
         """Test _check_magic_numbers function."""
         test_lines = [
@@ -3864,6 +4029,7 @@ ECHO Done
     def test_long_block_with_clear_boundary(self) -> None:
         """Test that long blocks (>15 lines) with clear boundaries are detected."""
         content = """@ECHO OFF
+call :long_label
 REM Long section
 :long_label
 ECHO Line 1

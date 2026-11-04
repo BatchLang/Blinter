@@ -1,0 +1,16 @@
+{
+  "config": {
+    "enabled_rules": [
+      "S018"
+    ]
+  },
+  "description": "A GOTO target and a fall-through label are not subroutines (S018 negative)",
+  "lines": {},
+  "must_not": [
+    "S018"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

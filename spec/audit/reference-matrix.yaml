@@ -259,7 +259,6 @@ entries:
   - integration/s010-inline-rem-not-a-reference
   - syntax/e014-call-missing-colon
   - syntax/e015-goto-eof-missing-colon
-  - integration/w013-duplicate-label
   - syntax/w057-bat-without-call
   - syntax/w057-bat-with-call-valid
   - syntax/s010-if-goto-call-valid
@@ -276,6 +275,11 @@ entries:
   - integration/s010-redirect-ampersand-in-echo
   - syntax/s010-nested-if-any-label-valid
   - syntax/s010-redirect-ampersand-valid
+  - syntax/s010-fallthrough-label-valid
+  - integration/s010-unreachable-label
+  - integration/s010-caret-joined-exit
+  - syntax/s010-caret-if-block-valid
+  - integration/s010-caret-echo-paren-leaves
   - syntax/e015-goto-colon-eof-valid
 - construct: Command typos and removed/deprecated commands
   sources:
@@ -664,6 +668,10 @@ entries:
   - syntax/s015-consistent-goto-valid
   - syntax/s017-consistent-names-valid
   - syntax/s018-documented-subroutine-valid
+  - syntax/s018-non-subroutine-valid
+  - integration/s018-called-without-docs
+  - syntax/s018-caret-swallowed-call-valid
+  - integration/s018-caret-joined-call
   - syntax/s019-named-numbers-valid
   - syntax/s020-wrapped-line-valid
   - syntax/s022-uniform-naming-valid

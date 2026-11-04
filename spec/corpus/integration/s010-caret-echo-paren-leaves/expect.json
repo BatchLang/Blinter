@@ -1,0 +1,20 @@
+{
+  "config": {
+    "enabled_rules": [
+      "S010"
+    ]
+  },
+  "description": "A parenthesis continued into ECHO is not a block, so the following EXIT leaves (S010)",
+  "lines": {
+    "6": [
+      "S010"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "S010"
+  ],
+  "tags": [
+    "integration"
+  ]
+}

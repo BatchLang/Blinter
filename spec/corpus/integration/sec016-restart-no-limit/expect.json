@@ -3,7 +3,6 @@
   "description": "sec016 restart no limit",
   "lines": {
     "2": [
-      "S018",
       "S027",
       "SEC016"
     ],
@@ -18,7 +17,6 @@
   },
   "must_not": [],
   "rules": [
-    "S018",
     "S027",
     "SEC005",
     "SEC016",

@@ -1,0 +1,23 @@
+{
+  "config": {
+    "enabled_rules": [
+      "S018"
+    ]
+  },
+  "description": "CALL targets, including after IF and ||, need a comment; a documented one does not (S018)",
+  "lines": {
+    "11": [
+      "S018"
+    ],
+    "14": [
+      "S018"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "S018"
+  ],
+  "tags": [
+    "integration"
+  ]
+}
