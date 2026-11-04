@@ -6,8 +6,8 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ### Fixed
 
-- S010 no longer reports a label that execution falls through. The label is dead only when nothing names it with GOTO or CALL and no path falls into it, such as a label after a top-level EXIT or GOTO. `if ... goto` and `|| goto` still count as references
-- S018 now asks for a parameter and return comment only on a label that an executable `call :name` invokes, including `call :name` after IF or `||`. A GOTO target or a fall-through label is not a subroutine
+- S010 no longer reports a label that execution falls through. The label is dead only when nothing names it with GOTO or CALL and no path falls into it, such as a label after a top-level EXIT or GOTO. `if ... goto` and `|| goto` still count as references. A line ending in `^` is one command with the next physical line, so `echo bye ^` followed by `exit` or `goto` does not leave, and `echo hi & ^` followed by `exit` or `goto` does
+- S018 now asks for a parameter and return comment only on a label that an executable `call :name` invokes, including `call :name` after IF or `||`. A GOTO target or a fall-through label is not a subroutine. `call :name` on the continuation of `echo bye ^` is not a call; `call :name` after `echo hi & ^` is
 - P008 no longer reports `!VAR!` below a block that runs ENDLOCAL and ends in EXIT or GOTO, nor below `if ... endlocal & exit /b`: those lines run only when the ENDLOCAL did not. Where a `setlocal disabledelayedexpansion` is open at such an ENDLOCAL, it now stays open below the block, so P008 can report `!VAR!` there
 - P008 keeps that ENDLOCAL, as before, in the cases the docstrings of `_ExitScan` and `_build_delayed_expansion_state` in `src/blinter/parsing/structure.py` give, such as a block that holds a SETLOCAL or a GOTO before its last command, or a piped EXIT
 

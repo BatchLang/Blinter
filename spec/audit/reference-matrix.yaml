@@ -277,6 +277,7 @@ entries:
   - syntax/s010-redirect-ampersand-valid
   - syntax/s010-fallthrough-label-valid
   - integration/s010-unreachable-label
+  - integration/s010-caret-joined-exit
   - syntax/e015-goto-colon-eof-valid
 - construct: Command typos and removed/deprecated commands
   sources:
@@ -667,6 +668,8 @@ entries:
   - syntax/s018-documented-subroutine-valid
   - syntax/s018-non-subroutine-valid
   - integration/s018-called-without-docs
+  - syntax/s018-caret-swallowed-call-valid
+  - integration/s018-caret-joined-call
   - syntax/s019-named-numbers-valid
   - syntax/s020-wrapped-line-valid
   - syntax/s022-uniform-naming-valid

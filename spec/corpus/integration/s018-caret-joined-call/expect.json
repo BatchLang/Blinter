@@ -1,0 +1,20 @@
+{
+  "config": {
+    "enabled_rules": [
+      "S018"
+    ]
+  },
+  "description": "call joined by & and a caret is a subroutine that needs a comment (S018)",
+  "lines": {
+    "4": [
+      "S018"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "S018"
+  ],
+  "tags": [
+    "integration"
+  ]
+}

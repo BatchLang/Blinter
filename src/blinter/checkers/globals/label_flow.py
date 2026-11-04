@@ -139,15 +139,39 @@ def _prefix_of_computed_jump(segment: str) -> str | None:
     return str(match.group(1)).lower()
 
 
+def _logical_command(lines: List[str], index: int) -> str:
+    """Join a caret-continued command into the single line cmd runs.
+
+    Only the caret that escapes the newline is removed. ``rem`` does not
+    continue, so a following ``exit`` stays its own command.
+    """
+    parts: List[str] = []
+    cursor = index
+    while cursor < len(lines):
+        text = lines[cursor].rstrip("\r\n")
+        if not _caret_continues(lines[cursor]):
+            parts.append(text)
+            break
+        parts.append(text[:-1])
+        logger.debug("Caret continues command onto the next line: %s", text.strip())
+        cursor += 1
+    return "".join(parts)
+
+
 def _computed_jump_prefixes(lines: List[str]) -> set[str]:
     """Return the literal start of each computed GOTO or CALL target, lowercased.
 
     ``goto %ACTION%`` can reach any label and ``goto case_%1`` any label starting
     with ``case_``. A line that is itself a label is not a jump: cmd ignores
-    the rest of that line. ``@goto`` is the same jump as ``goto``.
+    the rest of that line. ``@goto`` is the same jump as ``goto``. A GOTO that
+    exists only because the previous line ended in ``^`` is part of that earlier
+    command, not its own jump.
     """
     prefixes: set[str] = set()
-    for line in lines:
+    continued = _continuation_mask(lines)
+    for index, line in enumerate(lines):
+        if continued[index]:
+            continue
         if _is_comment_or_label(line):
             if "goto" in line.lower() or "call" in line.lower():
                 logger.debug(
@@ -155,7 +179,7 @@ def _computed_jump_prefixes(lines: List[str]) -> set[str]:
                     line.strip(),
                 )
             continue
-        for segment in _command_segments(line):
+        for segment in _command_segments(_logical_command(lines, index)):
             prefix = _prefix_of_computed_jump(segment)
             if prefix is None:
                 continue
@@ -263,16 +287,25 @@ def _close_blocks(reachable: bool, entered: List[bool], delta: int, line: str) -
 
 
 def _step_fallthrough(
-    line: str, depth: int, reachable: bool, entered: List[bool]
+    line: str,
+    depth: int,
+    reachable: bool,
+    entered: List[bool],
+    command: str,
 ) -> tuple[int, bool]:
-    """Advance parenthesis depth and whether the next line can be fallen into."""
+    """Advance parenthesis depth and whether the next line can be fallen into.
+
+    Parentheses are counted on the physical line. ``command`` is that line
+    with any caret continuation joined, so ``echo hi & ^`` plus ``exit /b``
+    leaves and ``echo bye ^`` plus ``exit /b`` does not.
+    """
     new_depth = max(_update_paren_depth(line.strip(), depth), 0)
     delta = new_depth - depth
     if delta > 0:
         entered.extend([reachable] * delta)
     elif delta < 0:
         reachable = _close_blocks(reachable, entered, delta, line)
-    if depth == 0 and new_depth == 0 and _line_always_leaves(line):
+    if depth == 0 and new_depth == 0 and _line_always_leaves(command):
         reachable = False
     return new_depth, reachable
 
@@ -301,7 +334,8 @@ def _fallthrough_label_lines(
                 fallthrough.add(index)
             reachable = _label_restarts_path(name, reachable, referenced, prefixes)
             continue
-        depth, reachable = _step_fallthrough(line, depth, reachable, entered)
+        command = _logical_command(lines, index - 1)
+        depth, reachable = _step_fallthrough(line, depth, reachable, entered, command)
     return fallthrough
 
 
@@ -320,7 +354,7 @@ def _check_unused_labels(lines: List[str]) -> List[LintIssue]:
         if label_match:
             labels[str(label_match.group(1)).lower()] = i
             continue
-        referenced.update(_goto_and_call_label_names(line))
+        referenced.update(_goto_and_call_label_names(_logical_command(lines, i - 1)))
 
     fallthrough = _fallthrough_label_lines(lines, referenced, computed_prefixes)
     for label_name, line_num in labels.items():
@@ -368,10 +402,11 @@ def _called_subroutine_names(lines: List[str]) -> set[str]:
     after IF or ``||`` still counts, because those segments are executable.
     """
     called: set[str] = set()
-    for line in lines:
-        if _is_comment_or_label(line):
+    continued = _continuation_mask(lines)
+    for index, line in enumerate(lines):
+        if continued[index] or _is_comment_or_label(line):
             continue
-        called.update(_call_subroutine_label_names(line))
+        called.update(_call_subroutine_label_names(_logical_command(lines, index)))
     logger.debug("CALL subroutine targets: %s", sorted(called))
     return called
 

@@ -2464,6 +2464,23 @@ class TestGlobalChecks:
             ["@echo off", ">nul exit /b 0", ":unused_label", "exit /b 1"],
             ["@echo off", "@exit /b 0", ":unused_label", "exit /b 1"],
             ["@echo off", "rem note ^", "exit /b 0", ":unused_label", "exit /b 1"],
+            ["@echo off", "echo hi & ^", "exit /b 0", ":unused_label", "exit /b 1"],
+            [
+                "@echo off",
+                "echo bye ^",
+                "goto %ACTION%",
+                "exit /b 0",
+                ":unused_label",
+                "exit /b 1",
+            ],
+            [
+                "@echo off",
+                "echo hi & ^",
+                "goto :done",
+                ":unused_label",
+                ":done",
+                "exit /b 0",
+            ],
         ):
             issues = _check_global_style_rules(lines, "test.cmd")
             s010_issues = [issue for issue in issues if issue.rule.code == "S010"]
@@ -2479,6 +2496,7 @@ class TestGlobalChecks:
             ["@echo off", "exit /b 1 | more", ":section", "echo after"],
             ["@echo off", "exit.bat", ":section", "echo after"],
             ["@echo off", "echo bye ^", "exit /b 1", ":section", "echo after"],
+            ["@echo off", "echo hi & ^", "goto %ACTION%", ":section", "echo after"],
         ]
         for lines in samples:
             issues = _check_global_style_rules(lines, "test.cmd")
@@ -3454,6 +3472,35 @@ class TestSpecializedEdgeCases:
             if issue.rule.code == "S018"
         }
         assert codes == {10: "S018", 15: "S018"}
+
+    def test_caret_continuation_does_not_invent_an_s018_call(self) -> None:
+        """A ``call`` swallowed by ``^`` is not a subroutine; one after ``& ^`` is."""
+        swallowed = [
+            "@echo off",
+            "echo bye ^",
+            "call :worker",
+            "exit /b 0",
+            ":worker",
+            "exit /b 1",
+        ]
+        joined = [
+            "@echo off",
+            "echo hi & ^",
+            "call :worker",
+            ":worker",
+            "exit /b 0",
+        ]
+        assert not [
+            issue
+            for issue in _check_advanced_style_rules(swallowed)
+            if issue.rule.code == "S018"
+        ]
+        codes = {
+            issue.line_number
+            for issue in _check_advanced_style_rules(joined)
+            if issue.rule.code == "S018"
+        }
+        assert codes == {4}
 
     def test_call_on_a_label_line_is_not_an_s018_target(self) -> None:
         """cmd ignores ``call`` written on the label line itself."""
