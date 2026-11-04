@@ -3,7 +3,6 @@
   "description": "unreachable goto flow",
   "lines": {
     "3": [
-      "S018",
       "S027"
     ]
   },
@@ -12,7 +11,6 @@
     "W004"
   ],
   "rules": [
-    "S018",
     "S027"
   ],
   "tags": [

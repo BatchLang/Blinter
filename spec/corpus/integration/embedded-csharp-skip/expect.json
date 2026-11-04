@@ -3,11 +3,7 @@
   "description": "Embedded C# after a label is skipped; batch hex is not treated as C#",
   "lines": {
     "4": [
-      "S010",
-      "S018"
-    ],
-    "9": [
-      "S018"
+      "S010"
     ]
   },
   "must_not": [
@@ -15,8 +11,7 @@
     "E013"
   ],
   "rules": [
-    "S010",
-    "S018"
+    "S010"
   ],
   "tags": [
     "integration"

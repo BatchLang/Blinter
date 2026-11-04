@@ -3,7 +3,6 @@
   "description": "sec021 fork bomb",
   "lines": {
     "2": [
-      "S018",
       "S027"
     ],
     "3": [
@@ -15,7 +14,6 @@
   },
   "must_not": [],
   "rules": [
-    "S018",
     "S027",
     "SEC021",
     "W004"

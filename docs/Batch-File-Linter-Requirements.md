@@ -883,17 +883,19 @@ Line 5: Missing '@ECHO OFF' at top of file (S001)
   TIMEOUT /t "%TIMEOUT_SECONDS%"
   ```
 
-- **Dead code**: Detect unused labels or unreferenced subroutines
+- **Dead code**: A label that execution cannot fall into, and that no GOTO or CALL names
   ```batch
-  # Bad
+  # Bad: nothing falls into :unused_label, and nothing jumps to it
   GOTO main
   :unused_label
   ECHO This is never called
   :main
   ECHO Hello
-  
-  # Good
-  ECHO Hello
+
+  # Not dead: execution falls through :section
+  ECHO before
+  :section
+  ECHO after
   ```
 
 ### Advanced Style and Best Practice Rules
@@ -909,14 +911,16 @@ Line 5: Missing '@ECHO OFF' at top of file (S001)
   set ANOTHER_GLOBAL=value
   ```
 
-- **Function documentation**: Require documentation for functions and subroutines
+- **Function documentation**: Require documentation for labels invoked by CALL
   ```batch
-  # Bad - No documentation
+  # Bad - called subroutine, no documentation
+  call :MyFunction
   :MyFunction
   echo Processing
-  goto :eof
-  
+  exit /b 0
+
   # Good - Documented function
+  call :ProcessFile file.txt
   REM Function: ProcessFile
   REM Purpose: Processes a file and creates backup
   REM Parameters: %1 = filename to process

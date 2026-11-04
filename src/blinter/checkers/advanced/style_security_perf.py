@@ -14,6 +14,10 @@ from blinter.checkers.cmd_extended import (
     check_sec025_unquoted_cd,
     has_unquoted_user_args,
 )
+from blinter.checkers.globals.label_flow import (
+    _called_subroutine_names,
+    _check_function_docs,
+)
 from blinter.constants import MAGIC_NUMBER_EXCEPTIONS
 from blinter.models import LintIssue
 from blinter.parsing.context import _is_comment_line
@@ -500,35 +504,6 @@ def _check_variable_naming(
     return issues
 
 
-def _check_function_docs(
-    line: str, line_number: int, lines: List[str]
-) -> List[LintIssue]:
-    """Check for function documentation (S018) - hybrid implementation."""
-    issues: List[LintIssue] = []
-
-    stripped = line.strip()
-    # Match all labels (subroutines) - pattern: :LabelName
-    if re.match(r"\s*:[a-zA-Z_][a-zA-Z0-9_]*\s*$", stripped):
-        # Found a label that might be a subroutine
-        # Check if previous 3 lines have documentation (more focused than 5)
-        doc_found = False
-        for j in range(max(0, line_number - 3), line_number - 1):
-            if j < len(lines) and _is_comment_line(lines[j]):
-                doc_found = True
-                break
-
-        if not doc_found:
-            issues.append(
-                LintIssue(
-                    line_number=line_number,
-                    rule=RULES["S018"],
-                    context="Function/subroutine lacks documentation",
-                )
-            )
-
-    return issues
-
-
 def _find_set_exclusion_ranges(line: str) -> List[Tuple[int, int]]:
     """
     Find exclusion ranges for SET statements in a line.
@@ -686,10 +661,11 @@ def _check_advanced_style_rules(
     """Check for advanced style and best practice issues (S017-S020)."""
     issues: List[LintIssue] = []
     variables_seen: Dict[str, str] = {}  # var_name -> case_style
+    called_labels = _called_subroutine_names(lines)
 
     for i, line in enumerate(lines, start=1):
         issues.extend(_check_variable_naming(line, i, variables_seen))
-        issues.extend(_check_function_docs(line, i, lines))
+        issues.extend(_check_function_docs(line, i, lines, called_labels))
         issues.extend(_check_magic_numbers(line, i))
         issues.extend(_check_line_length(line, i, max_line_length))
 

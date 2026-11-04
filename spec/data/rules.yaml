@@ -666,8 +666,8 @@ rules:
 - code: S010
   name: Dead code detected
   severity: STYLE
-  explanation: Unused labels or unreferenced subroutines make code harder to maintain
-  recommendation: Remove unused labels and unreferenced code sections
+  explanation: A label that no GOTO or CALL names, and that execution cannot fall into, is unused
+  recommendation: Remove that unused label. Do not delete statements that run by falling through a label
   checker: regex
 - code: S011
   name: Line exceeds maximum length

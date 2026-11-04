@@ -3,11 +3,7 @@
   "description": "Embedded VBScript after a label is skipped; Dim/CreateObject are not batch commands",
   "lines": {
     "4": [
-      "S010",
-      "S018"
-    ],
-    "10": [
-      "S018"
+      "S010"
     ]
   },
   "must_not": [
@@ -15,8 +11,7 @@
     "E013"
   ],
   "rules": [
-    "S010",
-    "S018"
+    "S010"
   ],
   "tags": [
     "integration"
