@@ -1,0 +1,20 @@
+{
+  "config": {
+    "enabled_rules": [
+      "E002"
+    ]
+  },
+  "description": "Comma stays in the label key, so goto comma does not find :comma,more",
+  "lines": {
+    "2": [
+      "E002"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "E002"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}

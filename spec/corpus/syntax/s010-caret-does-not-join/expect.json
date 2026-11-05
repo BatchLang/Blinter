@@ -1,0 +1,45 @@
+{
+  "config": {
+    "enabled_rules": [
+      "S010"
+    ]
+  },
+  "description": "REM, an even caret, and a caret inside quotes do not swallow the following exit",
+  "lines": {
+    "4": [
+      "S010"
+    ],
+    "8": [
+      "S010"
+    ],
+    "12": [
+      "S010"
+    ],
+    "16": [
+      "S010"
+    ],
+    "20": [
+      "S010"
+    ],
+    "24": [
+      "S010"
+    ],
+    "28": [
+      "S010"
+    ],
+    "32": [
+      "S010"
+    ],
+    "36": [
+      "S010"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "S010"
+  ],
+  "tags": [
+    "syntax"
+  ],
+  "total": 9
+}

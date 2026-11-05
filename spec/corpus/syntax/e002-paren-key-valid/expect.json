@@ -1,0 +1,16 @@
+{
+  "config": {
+    "enabled_rules": [
+      "E002"
+    ]
+  },
+  "description": "Parentheses stay in the label key, so goto paren(more) finds :paren(more)",
+  "lines": {},
+  "must_not": [
+    "E002"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

@@ -599,10 +599,6 @@ def _count_unmatched_batch_quotes(line: str) -> int:
         if index + 1 < len(line) and line[index + 1] == '"':
             index += 2
             continue
-        remaining = line[index + 1 :].strip()
-        if remaining == "^":
-            index += 1
-            continue
         quote_count += 1
         index += 1
     return quote_count

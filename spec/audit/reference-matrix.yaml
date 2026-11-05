@@ -46,6 +46,13 @@ entries:
   - syntax/e002-colon-key-valid
   - syntax/e002-plus-key-valid
   - syntax/e002-equals-key-miss
+  - syntax/e002-comma-key-miss
+  - syntax/e002-dot-key-valid
+  - syntax/e002-dot-key-miss
+  - syntax/e002-paren-key-valid
+  - syntax/e002-paren-key-miss
+  - syntax/e002-colon-short-valid
+  - syntax/e002-underscore-key-valid
   - syntax/e002-ampersand-key-valid
   - syntax/e002-dynamic-param-valid
   - integration/special-filename-percent
@@ -201,6 +208,8 @@ entries:
   corpus:
   - syntax/e009-mismatched-quotes
   - syntax/e009-quote-caret
+  - syntax/e009-caret-inside-quote
+  - syntax/e009-closed-quote-caret-valid
   - syntax/e011-bang-invalid-expansion
   - syntax/e011-invalid-expansion
   - syntax/e028-complex-quotes
@@ -289,6 +298,11 @@ entries:
   - syntax/s010-fallthrough-label-valid
   - syntax/s010-plus-key-reached-valid
   - syntax/s010-equals-key-miss
+  - syntax/s010-dot-key-miss
+  - syntax/s010-dot-key-reached-valid
+  - syntax/s010-paren-key-reached-valid
+  - syntax/s010-caret-does-not-join
+  - syntax/s010-caret-joins
   - integration/s010-unreachable-label
   - integration/s010-caret-joined-exit
   - syntax/s010-caret-if-block-valid
@@ -696,6 +710,9 @@ entries:
   - syntax/s018-rem-and-caret-keeps-call
   - syntax/s018-quote-caret-keeps-call
   - syntax/s018-closed-quote-caret-swallows-valid
+  - syntax/s018-cmd-label-key
+  - syntax/s018-dot-key-documented-valid
+  - syntax/s018-underscore-label
   - integration/s018-caret-joined-call
   - syntax/s019-named-numbers-valid
   - syntax/s020-wrapped-line-valid

@@ -1,0 +1,16 @@
+{
+  "config": {
+    "enabled_rules": [
+      "S010"
+    ]
+  },
+  "description": "goto ok.extra reaches the label key ok.extra",
+  "lines": {},
+  "must_not": [
+    "S010"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

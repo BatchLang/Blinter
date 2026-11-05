@@ -4373,6 +4373,24 @@ class TestEmbeddedScriptDetection:  # pylint: disable=too-few-public-methods
         assert 5 not in skip_lines
         assert 7 not in skip_lines
 
+    @pytest.mark.parametrize(
+        "label",
+        [":ok:extra", ":ok.extra", ":paren(more)", ":lab&more", ":eq=more", ":_"],
+    )
+    def test_cmd_label_key_ends_embedded_block(self, label: str) -> None:
+        """A cmd label key ends an embedded block even when the line is not only :name."""
+        lines = [
+            "@echo off",
+            ":csharpblock",
+            "using System;",
+            "public class Helper",
+            label,
+            "echo after label",
+        ]
+        skip_lines = _detect_embedded_script_blocks(lines)
+        assert 5 not in skip_lines
+        assert 6 not in skip_lines
+
     def test_hex_literal_in_batch_is_not_treated_as_csharp(self) -> None:
         """Batch hex values must not open a C# skip block."""
 

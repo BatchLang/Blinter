@@ -1,0 +1,30 @@
+{
+  "config": {
+    "enabled_rules": [
+      "S018"
+    ]
+  },
+  "description": "CALL targets use the cmd label key, including dot, parentheses, and text after the key",
+  "lines": {
+    "7": [
+      "S018"
+    ],
+    "9": [
+      "S018"
+    ],
+    "11": [
+      "S018"
+    ],
+    "13": [
+      "S018"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "S018"
+  ],
+  "tags": [
+    "syntax"
+  ],
+  "total": 4
+}

@@ -2,11 +2,18 @@
 
 All notable changes to Blinter are documented in this file. Release tags follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.1.68] - 2026-11-05
+
+### Fixed
+
+- E009 reports an unmatched quote when a caret sits inside it, including `echo "^`. That caret does not continue the line, and `echo "hello^^` is unmatched as well. `echo "ok" ^` still joins and is not E009
+- S018 uses the cmd label key. `call :ok.extra`, `call :paren(more)`, `call :entry` on `:entry rem text`, and `call :ok` on `:ok:extra` are subroutines that need a comment
+- A label such as `:ok:extra`, `:ok.extra`, `:paren(more)`, or `:_` ends an embedded script block, so the label line is linted as batch. `goto _` finds `:_`, and `call :_` needs a subroutine comment
 
 ### Changed
 
 - GitHub Actions pins record the full release in the comment, such as `# v7.0.1`. The commit SHA remains the pin
+- The MegaLinter install pin is 1.1.68
 
 ## [1.1.67] - 2026-11-05
 
@@ -750,6 +757,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 Older 1.0.x releases are available on the [GitHub Releases](https://github.com/BatchLang/Blinter/releases) page.
 
+[1.1.68]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.68
 [1.1.67]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.67
 [1.1.66]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.66
 [1.1.65]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.65

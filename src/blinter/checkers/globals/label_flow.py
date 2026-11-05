@@ -454,15 +454,17 @@ def _check_function_docs(
     """Report a CALL target with no comment above it (S018).
 
     GOTO targets and labels that execution merely falls through are not
-    subroutines. The comment may sit on either of the two lines above the label.
+    subroutines. The label's cmd lookup key is the subroutine name, so
+    ``:ok:extra`` is ``ok`` and ``:start rem entry`` is ``start``. The comment
+    may sit on either of the two lines above the label.
     """
     issues: List[LintIssue] = []
-    match = re.match(r":([a-zA-Z_][a-zA-Z0-9_]*)\s*$", line.strip())
-    if match is None:
+    label = label_key_from_line(line.strip())
+    if label is None:
         return issues
     if called is None:
         called = _called_subroutine_names(lines)
-    name = str(match.group(1)).lower()
+    name = label[1:]
     if name not in called:
         logger.debug("S018 skips :%s on line %d; nothing CALLs it", name, line_number)
         return issues

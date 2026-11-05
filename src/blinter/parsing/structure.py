@@ -48,13 +48,14 @@ def label_key_from_line(stripped_line: str) -> Optional[str]:
     """Return ``:name`` for a label line.
 
     The key ends at space, tab, ``+``, ``:``, ``&``, ``|``, ``<``, or ``>``.
-    Comma, semicolon, and equals stay in the key. ``::`` remarks and lines
-    with no letter or digit are not labels.
+    Comma, semicolon, and equals stay in the key. ``::`` remarks are not
+    labels. A key must contain a letter, digit, or underscore, so ``:_`` is a
+    label and ``:----`` is not.
     """
     if not stripped_line.startswith(":") or stripped_line.startswith("::"):
         return None
     name = label_line_key(stripped_line[1:])
-    if not name or not re.search(r"[a-zA-Z0-9]", name):
+    if not name or not re.search(r"[a-zA-Z0-9_]", name):
         return None
     return ":" + name.lower()
 

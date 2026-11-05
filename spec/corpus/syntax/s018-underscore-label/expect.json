@@ -1,0 +1,21 @@
+{
+  "config": {
+    "enabled_rules": [
+      "S018"
+    ]
+  },
+  "description": "call :_ names the underscore label, which needs a comment",
+  "lines": {
+    "4": [
+      "S018"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "S018"
+  ],
+  "tags": [
+    "syntax"
+  ],
+  "total": 1
+}

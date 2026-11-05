@@ -1,0 +1,16 @@
+{
+  "config": {
+    "enabled_rules": [
+      "E002"
+    ]
+  },
+  "description": "goto :ok and :ok:extra are both the key ok",
+  "lines": {},
+  "must_not": [
+    "E002"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "config": {
+    "enabled_rules": [
+      "S010"
+    ]
+  },
+  "description": "goto paren(more) reaches the label key paren(more)",
+  "lines": {},
+  "must_not": [
+    "S010"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

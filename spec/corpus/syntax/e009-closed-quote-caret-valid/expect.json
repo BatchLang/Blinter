@@ -1,0 +1,16 @@
+{
+  "config": {
+    "enabled_rules": [
+      "E009"
+    ]
+  },
+  "description": "An odd caret after a closed quote joins the next line and is not an unmatched quote",
+  "lines": {},
+  "must_not": [
+    "E009"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

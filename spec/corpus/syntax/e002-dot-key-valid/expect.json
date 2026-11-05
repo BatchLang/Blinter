@@ -1,0 +1,16 @@
+{
+  "config": {
+    "enabled_rules": [
+      "E002"
+    ]
+  },
+  "description": "A dot stays in the label key, so goto ok.extra finds :ok.extra",
+  "lines": {},
+  "must_not": [
+    "E002"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

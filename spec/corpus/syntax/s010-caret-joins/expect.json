@@ -1,0 +1,16 @@
+{
+  "config": {
+    "enabled_rules": [
+      "S010"
+    ]
+  },
+  "description": "echo rem, if exist rem, rem), ::, remote, a label, and a closed quote still join across ^",
+  "lines": {},
+  "must_not": [
+    "S010"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

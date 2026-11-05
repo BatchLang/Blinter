@@ -1,0 +1,20 @@
+{
+  "config": {
+    "enabled_rules": [
+      "E002"
+    ]
+  },
+  "description": "goto ok.extra does not find the shorter label :ok",
+  "lines": {
+    "2": [
+      "E002"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "E002"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}

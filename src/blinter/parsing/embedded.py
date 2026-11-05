@@ -11,6 +11,7 @@ from typing import (
 )
 
 from blinter.logging_config import logger
+from blinter.parsing.structure import label_key_from_line
 from blinter.patterns import (
     BATCH_INDICATORS,
     CSHARP_PATTERNS,
@@ -337,8 +338,9 @@ def _detect_embedded_script_blocks(  # pylint: disable=too-many-locals
         if should_continue:
             continue
 
-        # Track labels (potential start of embedded script block)
-        if re.match(r"^:[a-zA-Z_][\w]*(?:\s|$)", stripped):
+        # Any cmd label ends an embedded block. The key may contain ., =, or
+        # parentheses, and a later colon or space is not part of the key.
+        if label_key_from_line(stripped) is not None:
             last_label_line = i
             block_states = _empty_block_states()
             continue

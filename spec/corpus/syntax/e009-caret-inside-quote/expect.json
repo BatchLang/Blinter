@@ -1,0 +1,27 @@
+{
+  "config": {
+    "enabled_rules": [
+      "E009"
+    ]
+  },
+  "description": "A caret inside an open quote does not continue, so the quote is unmatched",
+  "lines": {
+    "2": [
+      "E009"
+    ],
+    "3": [
+      "E009"
+    ],
+    "4": [
+      "E009"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "E009"
+  ],
+  "tags": [
+    "syntax"
+  ],
+  "total": 3
+}
