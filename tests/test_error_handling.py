@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 from typing import List
@@ -654,13 +655,18 @@ class TestDiscoverySandbox:
         outside.mkdir()
         (nested / "local.bat").write_text("@echo off\n", encoding="utf-8")
         (outside / "secret.bat").write_text("@echo off\n", encoding="utf-8")
+        if shutil.which("cmd") is None:
+            pytest.skip("cmd.exe is required to create a directory junction")
         junction = scan_dir / "link"
-        completed = subprocess.run(
-            ["cmd", "/c", "mklink", "/J", str(junction), str(outside)],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
+        try:
+            completed = subprocess.run(
+                ["cmd", "/c", "mklink", "/J", str(junction), str(outside)],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+        except FileNotFoundError:
+            pytest.skip("cmd.exe is required to create a directory junction")
         if completed.returncode != 0:
             pytest.skip(f"junction creation failed: {completed.stderr}")
         names = {path.name for path in find_batch_files(scan_dir)}

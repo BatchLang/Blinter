@@ -325,7 +325,12 @@ class TestBuildExe:
         ci_text = (_REPO_ROOT / ".github" / "workflows" / "CI.yml").read_text(
             encoding="utf-8"
         )
-        assert ci_text.count("--no-binary charset-normalizer") == 2
+        installer = (_REPO_ROOT / "scripts" / "install_nuitka_venv.py").read_text(
+            encoding="utf-8"
+        )
+        assert ci_text.count("python scripts/install_nuitka_venv.py") == 2
+        assert "--no-binary" in installer
+        assert "charset-normalizer" in installer
         assert ci_text.count('CHARSET_NORMALIZER_USE_MYPYC: "0"') == 2
         assert "install_nuitka_build.py" not in ci_text
         assert "run_venv.py" not in ci_text

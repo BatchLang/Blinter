@@ -1,13 +1,20 @@
 #Requires -Version 5.1
 function Send-BlinterSettingChange {
     if (-not ('Blinter.UserPathNotify' -as [type])) {
-        Add-Type -Namespace Blinter -Name UserPathNotify -MemberDefinition @'
-[System.Runtime.InteropServices.DllImport("user32.dll", CharSet=System.Runtime.InteropServices.CharSet.Auto, SetLastError=true)]
-public static System.IntPtr SendMessageTimeout(System.IntPtr hWnd, int Msg, System.UIntPtr wParam, string lParam, int fuFlags, int uTimeout, out System.UIntPtr lpdwResult);
+        $member = @'
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+public static extern System.IntPtr SendMessageTimeout(
+ System.IntPtr hWnd, int msg, System.UIntPtr wParam,
+ string lParam, int flags, int timeout,
+ out System.UIntPtr result);
 '@
+        Add-Type -Namespace Blinter -Name UserPathNotify -MemberDefinition $member
     }
-    $notifyResult = [System.UIntPtr]::Zero
-    [void][Blinter.UserPathNotify]::SendMessageTimeout([System.IntPtr]0xffff, 0x001A, [System.UIntPtr]::Zero, 'Environment', 2, 5000, [ref]$notifyResult)
+    $result = [System.UIntPtr]::Zero
+    $broadcast = [System.IntPtr]0xffff
+    [void][Blinter.UserPathNotify]::SendMessageTimeout(
+        $broadcast, 0x001A, [System.UIntPtr]::Zero,
+        'Environment', 2, 1000, [ref]$result)
 }
 try {
     $binPath = $env:BLINTER_BIN

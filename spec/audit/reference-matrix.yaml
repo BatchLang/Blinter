@@ -41,6 +41,7 @@ entries:
   - W019
   corpus:
   - syntax/e002-missing-label
+  - syntax/e002-label-comment-valid
   - syntax/e002-dynamic-param-valid
   - integration/special-filename-percent
   - syntax/w019-goto-lf
@@ -237,6 +238,7 @@ entries:
   - E023
   corpus:
   - syntax/e022-set-a-invalid
+  - syntax/e022-unary-minus-valid
   - syntax/e023-set-a-unquoted
   - syntax/e029-set-a-unbalanced
   - syntax/e022-valid-arithmetic-valid
@@ -258,6 +260,7 @@ entries:
   - syntax/e012-missing-call
   - integration/s010-inline-rem-not-a-reference
   - syntax/e014-call-missing-colon
+  - syntax/e014-external-call-valid
   - syntax/e015-goto-eof-missing-colon
   - syntax/w057-bat-without-call
   - syntax/w057-bat-with-call-valid
@@ -308,6 +311,7 @@ entries:
   - syntax/e034-available-command-valid
   - syntax/w024-current-command-valid
   - syntax/w025-or-exit-valid
+  - syntax/inline-ignore-line-valid
   - syntax/w029-exe-command-valid
 - construct: IF ERRORLEVEL and numeric comparison semantics
   sources:
@@ -787,6 +791,7 @@ entries:
   - W013
   corpus:
   - integration/w013-duplicate-label
+  - integration/w013-label-comment-duplicate
   - syntax/w013-unique-labels-valid
 - construct: Nested FOR loops and variable scope
   sources:
@@ -904,6 +909,10 @@ entries:
   - integration/sec013-var-injection
   - integration/sec013-installer-redirection-valid
   - integration/sec013-quoted-operator-valid
+  - integration/sec013-redirect-chain
+  - integration/sec001-skipped-header
+  - syntax/sec003-where-prefix-valid
+  - syntax/sec005-label-sc-valid
   - integration/sec014-unescaped-input
   - integration/sec014-echo-unquoted
   - integration/sec015-taskkill-unfiltered

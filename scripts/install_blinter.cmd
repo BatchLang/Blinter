@@ -501,13 +501,20 @@ REM Write PowerShell script to add Blinter bin directory to user PATH
 echo #Requires -Version 5.1
 echo function Send-BlinterSettingChange {
 echo     if (-not ('Blinter.UserPathNotify' -as [type]^)^) {
-echo         Add-Type -Namespace Blinter -Name UserPathNotify -MemberDefinition @'
-echo [System.Runtime.InteropServices.DllImport("user32.dll", CharSet=System.Runtime.InteropServices.CharSet.Auto, SetLastError=true^)]
-echo public static System.IntPtr SendMessageTimeout(System.IntPtr hWnd, int Msg, System.UIntPtr wParam, string lParam, int fuFlags, int uTimeout, out System.UIntPtr lpdwResult^);
+echo         $member = @'
+echo [System.Runtime.InteropServices.DllImport("user32.dll"^)]
+echo public static extern System.IntPtr SendMessageTimeout(
+echo  System.IntPtr hWnd, int msg, System.UIntPtr wParam,
+echo  string lParam, int flags, int timeout,
+echo  out System.UIntPtr result^);
 echo '@
+echo         Add-Type -Namespace Blinter -Name UserPathNotify -MemberDefinition $member
 echo     }
-echo     $notifyResult = [System.UIntPtr]::Zero
-echo     [void][Blinter.UserPathNotify]::SendMessageTimeout([System.IntPtr]0xffff, 0x001A, [System.UIntPtr]::Zero, 'Environment', 2, 5000, [ref]$notifyResult^)
+echo     $result = [System.UIntPtr]::Zero
+echo     $broadcast = [System.IntPtr]0xffff
+echo     [void][Blinter.UserPathNotify]::SendMessageTimeout(
+echo         $broadcast, 0x001A, [System.UIntPtr]::Zero,
+echo         'Environment', 2, 1000, [ref]$result^)
 echo }
 echo try {
 echo     $binPath = $env:BLINTER_BIN

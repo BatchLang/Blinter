@@ -515,11 +515,14 @@ def test_benchmark_workflow_checks_out_and_can_upload_artifacts() -> None:
     permissions = document["permissions"]
     assert isinstance(permissions, dict)
     assert permissions["contents"] == "read"
-    assert permissions["actions"] == "write"
     jobs = document["jobs"]
     assert isinstance(jobs, dict)
     for job in jobs.values():
         assert isinstance(job, dict)
+        job_permissions = job["permissions"]
+        assert isinstance(job_permissions, dict)
+        assert job_permissions["contents"] == "read"
+        assert job_permissions["actions"] == "write"
         first = _steps(job)[0]
         uses = first["uses"]
         assert isinstance(uses, str)
@@ -576,7 +579,7 @@ def test_exe_job_uses_the_token_and_report_merges_artifacts() -> None:
     report_job = _job(document, "report")
     assert "cancelled" in str(report_job["if"])
     build = _step_named(report_job, "Build report")
-    assert "scripts/report.py" in str(build["run"])
+    assert "scripts/publish_benchmark_summary.py" in str(build["run"])
     download_with = _step_named(report_job, "Download results")["with"]
     assert isinstance(download_with, dict)
     assert download_with["merge-multiple"] is True
