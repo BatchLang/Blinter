@@ -4,6 +4,8 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ## [Unreleased]
 
+## [1.1.64] - 2026-11-05
+
 ### Fixed
 
 - Files longer than 2500 lines still receive the security, warning, style, and unreachable-code checks. Parenthesis depth for unreachable code is computed once per file
@@ -27,6 +29,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 - `scripts/spec/cmd_oracle.py --case` runs one corpus case
 - yamllint no longer checks YAML newlines. `.gitattributes` already stores YAML as LF, and a Windows `core.autocrlf` checkout is CRLF
 - The synthetic and label benchmark medians are remeasured now that files over 2500 lines run the full checks. The ceiling remains twice the measured median
+- The MegaLinter install pin is 1.1.64
 
 ## [1.1.63] - 2026-11-04
 
@@ -713,6 +716,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 Older 1.0.x releases are available on the [GitHub Releases](https://github.com/BatchLang/Blinter/releases) page.
 
+[1.1.64]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.64
 [1.1.63]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.63
 [1.1.62]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.62
 [1.1.61]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.61
