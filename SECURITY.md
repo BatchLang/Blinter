@@ -45,3 +45,12 @@ Blinter is a static analyzer for batch files. It reads files you point it at and
 - Keep Blinter updated to receive security fixes in dependencies and the linter itself
 
 Dependency vulnerabilities are monitored in CI with [pip-audit](https://pypi.org/project/pip-audit/) and addressed through routine releases.
+
+Release files on PyPI published after this change carry a [PEP 740](https://peps.python.org/pep-0740/) attestation from the `BatchLang/Blinter` trusted publisher. To check a wheel or sdist:
+
+```bash
+python -m pip install pypi-attestations
+pypi-attestations verify pypi --repository https://github.com/BatchLang/Blinter WHEEL_URL
+```
+
+`WHEEL_URL` is the file URL on `files.pythonhosted.org`. The attestation shows which GitHub workflow published the file. Earlier releases have no provenance.

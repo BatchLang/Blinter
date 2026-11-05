@@ -729,7 +729,25 @@ class TestCiRelease:
         needs = gate.split("if:", maxsplit=1)[0]
         assert "dependency-graph" not in needs
         assert '--version "$VERSION"' in ci_text
-        assert "twine upload --skip-existing dist/*" in ci_text
+
+    def test_pypi_publish_uses_trusted_publishing(self) -> None:
+        """PyPI uploads use GitHub Trusted Publishing, not a stored token."""
+        ci_text = (_REPO_ROOT / ".github" / "workflows" / "CI.yml").read_text(
+            encoding="utf-8"
+        )
+        assert "PYPI_BLINTER" not in ci_text
+        assert "TWINE_" not in ci_text
+        assert "twine" not in ci_text.lower()
+        job = ci_text.split("  publish-pypi:", maxsplit=1)[1]
+        assert "pypa/gh-action-pypi-publish@" in job
+        assert "7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3" in job
+        assert "name: pypi" in job
+        assert "https://pypi.org/project/blinter" in job
+        assert "id-token: write" in job
+        assert "skip-existing: true" in job
+        assert "attestations: true" in job
+        assert "verify-metadata: true" in job
+        assert "password:" not in job
 
     def test_windows_ci_runs_installer_and_uninstaller(self) -> None:
         """Windows CI must execute the install and uninstall batch scripts."""

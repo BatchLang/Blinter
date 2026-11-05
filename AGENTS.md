@@ -113,6 +113,7 @@ Every rule in `rules.yaml` must have at least one corpus assertion. `spec/corpus
 ## Versioning and releases
 
 - A change to `[project].version` in `pyproject.toml` that lands on `main` triggers the release pipeline (`scripts/ci_release.py`, `.github/workflows/CI.yml`). Do not bump the version in ordinary changes.
+- PyPI publishing uses GitHub Trusted Publishing. The `publish-pypi` job is bound to the GitHub environment `pypi`. Do not reintroduce a long-lived PyPI token.
 - A release bump must also update the pinned version in `mega-linter-plugin-blinter/blinter.megalinter-descriptor.yml` and `docs/MegaLinter.md` (checked by `tests/test_megalinter_plugin.py`), refresh `uv.lock`, and add a dated section to `CHANGELOG.md`.
 - Record user-visible changes under `## [Unreleased]` in `CHANGELOG.md`.
 - Write clear, imperative commit messages, for example "Add W064 rule for X" or "Fix false positive in E019".

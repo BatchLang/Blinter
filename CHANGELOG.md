@@ -4,6 +4,13 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ## [Unreleased]
 
+## [1.1.66] - 2026-11-05
+
+### Changed
+
+- PyPI publishing uses GitHub Trusted Publishing and attaches PEP 740 attestations. CI no longer uses a long-lived PyPI API token
+- The MegaLinter install pin is 1.1.66
+
 ## [1.1.65] - 2026-11-05
 
 ### Changed
@@ -723,6 +730,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 Older 1.0.x releases are available on the [GitHub Releases](https://github.com/BatchLang/Blinter/releases) page.
 
+[1.1.66]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.66
 [1.1.65]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.65
 [1.1.64]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.64
 [1.1.63]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.63
