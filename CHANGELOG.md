@@ -2,6 +2,12 @@
 
 All notable changes to Blinter are documented in this file. Release tags follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- GitHub Actions pins record the full release in the comment, such as `# v7.0.1`. The commit SHA remains the pin
+
 ## [1.1.67] - 2026-11-05
 
 ### Fixed

@@ -716,6 +716,26 @@ class TestCiRelease:
         )
         assert "github/codeql-action*" in dependabot
 
+    def test_action_uses_are_sha_pinned_with_exact_versions(self) -> None:
+        """Third-party actions use a commit SHA and a full release comment."""
+        pattern = re.compile(
+            r"uses: [\w.-]+/[\w.-]+(?:/[\w.-]+)?@[0-9a-f]{40} # v\d+\.\d+\.\d+\s*$"
+        )
+        workflow_dir = _REPO_ROOT / ".github" / "workflows"
+        pinned = 0
+        for path in sorted(workflow_dir.glob("*.yml")):
+            for line_number, line in enumerate(
+                path.read_text(encoding="utf-8").splitlines(),
+                start=1,
+            ):
+                if "uses:" not in line:
+                    continue
+                assert pattern.search(
+                    line
+                ), f"{path.name}:{line_number}: {line.strip()}"
+                pinned += 1
+        assert pinned >= 10
+
     def test_release_gate_wiring_in_ci_workflow(self) -> None:
         """Manual releases need confirmation and the gate ignores dependency-graph."""
         ci_text = (_REPO_ROOT / ".github" / "workflows" / "CI.yml").read_text(
