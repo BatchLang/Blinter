@@ -57,7 +57,6 @@ from blinter.checkers.globals import (
     _check_unreachable_code,
 )
 from blinter.checkers.globals.exit_flow import _check_missing_exit_statement
-from blinter.checkers.globals.style_globals import _collect_cmd_cases
 from blinter.checkers.line_endings import _check_line_ending_rules
 from blinter.checkers.performance import _check_performance_issues
 from blinter.checkers.security import _check_security_issues
@@ -70,6 +69,7 @@ from blinter.io.encoding import (
     _has_multibyte_chars,
     _validate_and_read_file,
 )
+from blinter.parsing.command_scan import _collect_cmd_cases
 from blinter.parsing.context import (
     _command_segments,
     _is_blank_or_comment,

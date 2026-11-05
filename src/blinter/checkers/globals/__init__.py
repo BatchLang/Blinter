@@ -32,12 +32,12 @@ from blinter.checkers.globals.style_globals import (
     _check_missing_header_doc,
     _check_missing_pause,
     _check_redundant_operations,
-    _collect_cmd_cases,
     _collect_indented_lines,
     _find_file_mixed_indent,
     _find_most_common_case,
     _find_single_line_mixed_indent,
 )
+from blinter.parsing.command_scan import _collect_cmd_cases
 from blinter.parsing.structure import _update_paren_depth
 
 __all__ = [
