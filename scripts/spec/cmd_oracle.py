@@ -327,6 +327,21 @@ def classify_corpus_cases() -> tuple[list[Path], list[tuple[str, str]]]:
     return runnable, skipped
 
 
+def _filter_runnable(runnable: list[Path], *, limit: int, case: str) -> list[Path]:
+    """Return the runnable cases selected by ``--case`` and ``--limit``."""
+    selected = runnable
+    if case:
+        wanted = case.replace("\\", "/").strip("/")
+        selected = [
+            path
+            for path in runnable
+            if "/".join(path.parent.relative_to(_CORPUS).parts) == wanted
+        ]
+    if limit:
+        return selected[:limit]
+    return selected
+
+
 def main() -> None:
     """Classify corpus fixtures and execute the ones that are safe to run."""
     parser = argparse.ArgumentParser(description="cmd.exe oracle for corpus fixtures")
@@ -335,6 +350,11 @@ def main() -> None:
         type=int,
         default=0,
         help="Max runnable cases (0 = all safe cases)",
+    )
+    parser.add_argument(
+        "--case",
+        default="",
+        help="Run one corpus case id, such as syntax/e002-missing-label",
     )
     parser.add_argument(
         "--timeout",
@@ -353,9 +373,10 @@ def main() -> None:
         return
 
     runnable, skipped = classify_corpus_cases()
-
-    if args.limit:
-        runnable = runnable[: args.limit]
+    runnable = _filter_runnable(runnable, limit=args.limit, case=args.case)
+    if args.case and not runnable:
+        wanted = args.case.replace("\\", "/").strip("/")
+        raise SystemExit(f"cmd_oracle: no runnable case matches {wanted}")
 
     print(
         f"cmd_oracle: {len(runnable)} runnable, {len(skipped)} skipped "

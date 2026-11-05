@@ -26,9 +26,6 @@ from blinter.parsing.context import (
     _split_tokens,
     _strip_leading_if_predicates,
 )
-from blinter.patterns import (
-    _COMPILED_SETLOCAL_DISABLE,
-)
 from blinter.rules.helpers import _add_issue
 
 _LABEL_TARGET_PATTERN = re.compile(
@@ -810,29 +807,21 @@ def _delayed_expansion_active_at_line(lines: List[str], line_num: int) -> bool:
 
 def _analyze_script_structure(
     lines: List[str],
-) -> Tuple[bool, bool, bool, bool, bool, bool, bool]:
+) -> Tuple[bool, bool, bool, bool]:
     """Analyze script structure for context-aware checking.
 
     Returns:
-        Tuple of (has_setlocal, has_set_commands, has_delayed_expansion, uses_delayed_vars,
-                  has_disable_delayed_expansion, has_literal_exclamations, disable_expansion_lines)
+        Tuple of (has_setlocal, has_set_commands, uses_delayed_vars,
+        has_literal_exclamations). Delayed-expansion enablement is decided
+        per line by ``_delayed_expansion_active_at_line``.
     """
     has_setlocal = any(_is_setlocal_command(line) for line in lines)
     has_set_commands = any(
         re.match(r"\s*set\s+[^=]+=.*", line, re.IGNORECASE) for line in lines
     )
-    has_delayed_expansion = any(
-        _is_setlocal_command(line) and "enabledelayedexpansion" in line.lower()
-        for line in lines
-    )
     # Match any content between exclamation marks, including special chars like @, -, #, $, etc.
     # that are commonly used in batch variable names (e.g., !@DEBUG_MODE!, !@CRLF-%~1!)
     uses_delayed_vars = any(re.search(r"![^!]+!", line) for line in lines)
-
-    # Check for SETLOCAL DISABLEDELAYEDEXPANSION usage
-    has_disable_delayed_expansion = any(
-        _COMPILED_SETLOCAL_DISABLE.search(line) for line in lines
-    )
 
     # Check for literal ! characters in strings (not delayed expansion variables)
     # Look for ! characters that are NOT part of delayed expansion !var! patterns
@@ -846,17 +835,9 @@ def _analyze_script_structure(
             has_literal_exclamations = True
             break
 
-    # Track whether any line uses disabledelayedexpansion
-    has_disable_expansion_lines = any(
-        _COMPILED_SETLOCAL_DISABLE.search(line) for line in lines
-    )
-
     return (
         has_setlocal,
         has_set_commands,
-        has_delayed_expansion,
         uses_delayed_vars,
-        has_disable_delayed_expansion,
         has_literal_exclamations,
-        has_disable_expansion_lines,
     )

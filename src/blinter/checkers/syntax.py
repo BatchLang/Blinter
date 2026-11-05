@@ -17,6 +17,7 @@ from blinter.checkers.warnings import (
 from blinter.models import LintIssue
 from blinter.parsing.context import (
     _is_blank_or_comment,
+    _is_caret_escaped,
     _is_comment_line,
     _split_tokens,
 )
@@ -1047,16 +1048,6 @@ _DO_BLOCK_OPEN_RE = re.compile(r"\bdo\s*\(", re.IGNORECASE)
 _ELSE_BLOCK_OPEN_RE = re.compile(r"\belse\s*\(", re.IGNORECASE)
 _LEADING_GROUP_OPEN_RE = re.compile(r"^@?\(")
 _IF_LINE_RE = re.compile(r"^@?if\b", re.IGNORECASE)
-
-
-def _is_caret_escaped(text: str, index: int) -> bool:
-    """Return True when an odd number of carets precede text[index]."""
-    caret_count = 0
-    pos = index - 1
-    while pos >= 0 and text[pos] == "^":
-        caret_count += 1
-        pos -= 1
-    return caret_count % 2 == 1
 
 
 def _first_unquoted_open_paren(text: str) -> Optional[int]:

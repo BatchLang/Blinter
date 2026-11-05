@@ -1,7 +1,4 @@
-# Blinter project artifacts (local corpus and generated reports)
-batch-script-examples/
-batch-examples-*.json
-tests/fixtures/corpus-baseline.json
+# Blinter project artifacts (generated reports)
 blinter-*/
 pylint-output.txt
 .hypothesis/

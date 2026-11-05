@@ -22,7 +22,7 @@ Fixes #
 
 ## Checklist
 
-- [ ] I ran `py scripts/verify.py` (or `python scripts/verify.py` on Linux/macOS) and it passes. It needs `uv` on `PATH`.
+- [ ] I ran `uv run python scripts/verify.py` and it passes. It needs `uv` on `PATH`. A bare `py` uses the global interpreter unless `.venv` is activated.
 - [ ] I added or updated tests under `tests/`, extending an existing topical file where one fits.
 - [ ] I recorded user-visible changes under `## [Unreleased]` in `CHANGELOG.md`.
 - [ ] I did **not** bump `[project].version` in `pyproject.toml` (a version change on `main` triggers the release pipeline).
@@ -41,8 +41,8 @@ Fixes #
 - [ ] I added a corpus case at `spec/corpus/<category>/<case-id>/` with `input.cmd` and `expect.json`.
 - [ ] I included a `*-valid` case that must not fire, to guard against false positives.
 - [ ] I did not normalize line endings in `spec/corpus/**` (those files are `-text` on purpose).
-- [ ] `py scripts/spec/validate_spec.py`, `py scripts/spec/validate_corpus.py` and `py scripts/spec/audit_ssot.py --strict` pass.
-- [ ] For a rule that scans every line, I checked it against pathological long lines and the benchmark baseline (`py scripts/benchmark_lint.py --check-baseline`).
+- [ ] `uv run python scripts/spec/validate_spec.py`, `uv run python scripts/spec/validate_corpus.py` and `uv run python scripts/spec/audit_ssot.py --strict --check` pass.
+- [ ] For a rule that scans every line, I checked it against pathological long lines and the benchmark baseline through `runpy`, the same launch `scripts/verify.py` uses. On Windows, `python scripts/benchmark_lint.py` exceeds the ceiling.
 
 **Rule code(s):**
 **Behavior in cmd.exe (with a link or test result if possible):**
@@ -53,7 +53,7 @@ Fixes #
 
 - [ ] I changed `scripts/installer_ps/*.ps1` and the mirrored echo blocks in `scripts/install_blinter.cmd` and `scripts/uninstall_blinter.cmd` together (parity is enforced by `tests/test_installer_script_parity.py`).
 - [ ] New shell code is in its own `.sh` file and passes ShellCheck. New PowerShell is in its own `.ps1`/`.psm1` file and passes PSScriptAnalyzer and Pester.
-- [ ] `py scripts/verify.py --windows-only` passes on Windows (cmd.exe oracle, PSScriptAnalyzer, Pester, installer lint).
+- [ ] `uv run python scripts/verify.py --windows-only` passes on Windows (cmd.exe oracle, PowerShell module prerequisites, PSScriptAnalyzer, Pester, installer lint).
 
 ## Notes for reviewers
 

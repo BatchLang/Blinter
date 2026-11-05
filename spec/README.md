@@ -69,16 +69,19 @@ Optional `expect.json` fields for cmd.exe oracle (`cmd_oracle.py`):
 ## Code generation
 
 ```bash
-py scripts/spec/generate_rules.py      # rules.yaml -> src/blinter/rules/registry.py
-py scripts/spec/generate_expansion.py  # vendor/batch-spec/data/expansion.yaml -> expansion_data.py
-py scripts/spec/generate_commands.py   # merge language + linter YAML -> patterns.py
-py scripts/spec/generate_docs.py       # rules.yaml -> docs rule catalog sections
-py scripts/spec/validate_spec.py       # Validate linter YAML + batch-spec language YAML
-py scripts/spec/validate_corpus.py     # Validate corpus fixtures
-py scripts/spec/audit_ssot.py --strict # SSOT drift and coverage audit
-py scripts/spec/cmd_oracle.py          # Windows cmd.exe smoke oracle (safe subset only)
-py scripts/benchmark_lint.py --check-baseline  # Performance regression gate
+uv run python scripts/spec/generate_rules.py      # rules.yaml -> src/blinter/rules/registry.py
+uv run python scripts/spec/generate_expansion.py  # vendor/batch-spec/data/expansion.yaml -> expansion_data.py
+uv run python scripts/spec/generate_commands.py   # merge language + linter YAML -> patterns.py
+uv run python scripts/spec/generate_docs.py       # rules.yaml -> docs rule catalog sections
+uv run python scripts/spec/validate_spec.py       # Validate linter YAML + batch-spec language YAML
+uv run python scripts/spec/validate_corpus.py     # Validate corpus fixtures
+uv run python scripts/spec/audit_ssot.py --strict --check # SSOT drift and coverage audit
+uv run python scripts/spec/cmd_oracle.py          # Windows cmd.exe smoke oracle (safe subset only)
+uv run python scripts/spec/cmd_oracle.py --case syntax/e002-missing-label
+uv run python -c "import runpy, sys; sys.argv = ['benchmark_lint.py', '--runs', '3', '--check-baseline']; runpy.run_path('scripts/benchmark_lint.py', run_name='__main__')"
 ```
 
-Run `py scripts/verify.py` for the full local verification pipeline (includes generator
-`--check`, strict audit, and tests).
+`audit_ssot.py --strict` without `--check` rewrites `spec/audit/baseline-latest.md`. The gate compares only.
+On Windows, run the benchmark through `runpy` as `scripts/verify.py` does. Executing `scripts/benchmark_lint.py` directly exceeds the committed CPU ceiling.
+Run `uv run python scripts/verify.py` for the full local verification pipeline (includes generator
+`--check`, strict audit, and tests). Activate `.venv` first if you use a bare `python` or `py`.

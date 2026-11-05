@@ -13,12 +13,6 @@ import warnings
 
 import pytest
 
-from tests.corpus_support import (
-    CORPUS_SKIP_REASON,
-    corpus_available,
-    corpus_files,
-)
-
 try:
     import coverage.misc  # pylint: disable=import-outside-toplevel
 
@@ -128,34 +122,9 @@ def _write_batch_files_with_crlf(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
-    """Skip corpus-dependent tests when batch-script-examples is unavailable."""
+    """Run the benchmark ceiling test before the rest of the suite."""
     items.sort(
         key=lambda item: 0 if item.name == "test_synthetic_lint_within_baseline" else 1
-    )
-    if corpus_available():
-        return
-    skip_marker = pytest.mark.skip(reason=CORPUS_SKIP_REASON)
-    for item in items:
-        if item.get_closest_marker("needs_corpus") is not None:
-            item.add_marker(skip_marker)
-
-
-def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
-    """Parametrize per-corpus-file smoke tests only when the corpus exists."""
-    if "corpus_file_path" not in metafunc.fixturenames:
-        return
-    files = corpus_files()
-    if not files:
-        metafunc.parametrize(
-            "corpus_file_path",
-            [pytest.param(None, marks=pytest.mark.needs_corpus)],
-            ids=["corpus-unavailable"],
-        )
-        return
-    metafunc.parametrize(
-        "corpus_file_path",
-        files,
-        ids=[path.name for path in files],
     )
 
 

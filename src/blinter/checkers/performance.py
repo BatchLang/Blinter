@@ -167,11 +167,8 @@ def _check_performance_issues(  # pylint: disable=too-many-arguments,too-many-po
     line: str,
     has_setlocal: bool,
     has_set_commands: bool,
-    _has_delayed_expansion: bool,
     uses_delayed_vars: bool,
-    has_disable_delayed_expansion: bool,  # pylint: disable=unused-argument
     has_literal_exclamations: bool,
-    has_disable_expansion_lines: bool,  # pylint: disable=unused-argument
 ) -> List[LintIssue]:
     """Check for performance level issues."""
     issues: List[LintIssue] = []

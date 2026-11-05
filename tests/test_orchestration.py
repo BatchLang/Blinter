@@ -121,9 +121,6 @@ class TestProcessFileChecks:
                 False,
                 False,
                 False,
-                False,
-                False,
-                False,
                 config,
             )
             mock_security.assert_not_called()

@@ -15,7 +15,7 @@ pipeline**. It does not embed the ANTLR parser at runtime.
 
 Pin updates are recorded in [`spec/batch-spec.lock`](../spec/batch-spec.lock). After changing
 the pin, regenerate affected artifacts (`generate_commands.py`, `generate_expansion.py`) and run
-`py scripts/spec/audit_ssot.py --strict`.
+`uv run python scripts/spec/audit_ssot.py --strict --check`. Without `--check` the audit rewrites `spec/audit/baseline-latest.md`.
 
 ## Checker pipeline (high level)
 

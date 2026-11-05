@@ -15,6 +15,7 @@ from blinter.models import LintIssue
 from blinter.parsing.context import (
     _command_body,
     _command_segments,
+    _is_caret_escaped,
     _is_comment_line,
     _is_echo_statement,
     _split_pipe_stages,
@@ -139,16 +140,6 @@ _SPECIALS_IN_FOR_F = frozenset("&<>|")
 def _strip_double_quoted_strings(text: str) -> str:
     """Replace double-quoted spans with empty quotes so unquoted forms remain."""
     return re.sub(r'"[^"]*"', '""', text)
-
-
-def _is_caret_escaped(text: str, index: int) -> bool:
-    """Return True when the character at index is escaped by an odd caret run."""
-    caret_count = 0
-    pos = index - 1
-    while pos >= 0 and text[pos] == "^":
-        caret_count += 1
-        pos -= 1
-    return caret_count % 2 == 1
 
 
 def _split_amp_commands(text: str) -> List[str]:

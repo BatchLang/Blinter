@@ -2,6 +2,24 @@
 
 All notable changes to Blinter are documented in this file. Release tags follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- On Windows, `scripts/verify.py` launches the lint benchmark through `runpy`, matching the regression test. Executing `scripts/benchmark_lint.py` as a script exceeds the committed CPU ceiling
+- Child Python tools started by `scripts/verify.py` use UTF-8, so isort checks source files that contain characters outside the console code page
+- `syntax/for-f-delims-only-valid` records the FOR /F rules that `delims=` must not raise. The conditional SETLOCAL fixture is no longer listed under pairing rules it does not assert
+
+### Changed
+
+- CodeRabbit reviews follow `.coderabbit.yaml`, including generated files, corpus fixtures, and the batch-spec submodule
+- Contributor commands use `uv run` or an activated `.venv`. A bare `py` can import a different Blinter
+- Script-structure analysis no longer returns delayed-expansion flags that no checker reads
+- S003 command-start scanning lives in `parsing/command_scan.py`. Caret escapes are the one helper in `parsing/context.py`
+- The optional `batch-script-examples` folder, its baseline check, and the `needs_corpus` tests are removed. Rule fixtures stay in `spec/corpus`
+- `scripts/spec/cmd_oracle.py --case` runs one corpus case
+- yamllint no longer checks YAML newlines. `.gitattributes` already stores YAML as LF, and a Windows `core.autocrlf` checkout is CRLF
+
 ## [1.1.63] - 2026-11-04
 
 ### Changed

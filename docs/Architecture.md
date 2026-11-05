@@ -16,7 +16,8 @@ src/blinter/
     helpers.py         # _create_rule, _add_issue, severity helpers
   parsing/
     structure.py       # Labels, SET variables, script structure
-    context.py         # Comment/safe-context helpers
+    context.py         # Comment/safe-context helpers and caret escapes
+    command_scan.py    # Where a command starts (S003 reads this)
     embedded.py        # PowerShell/VBScript block detection
   checkers/
     orchestration.py   # _process_file_checks, _filter_issues_by_config
@@ -64,7 +65,7 @@ flowchart BT
 ```
 
 1. **Input** — `read_file_with_encoding` reads the batch file; encoding is detected via `charset_normalizer` with fallbacks.
-2. **Structure** — Labels, SET variables, delayed expansion, and embedded script blocks are analyzed.
+2. **Structure** — Labels, SET variables, delayed expansion, command starts, and embedded script blocks are analyzed.
 3. **Checkers** — Line and global rules run via `orchestration._process_file_checks`.
 4. **Filter** — `BlinterConfig`, inline `REM LINT:IGNORE` comments (ASCII case-insensitive), and severity filters apply.
 5. **Baseline** — When the CLI is given `--baseline`, `baseline.py` hides findings the file accepts and reports entries that no longer match. `--update-baseline` rewrites the file from the current findings and keeps entries for files that were not scanned.
@@ -77,7 +78,7 @@ flowchart BT
 - `lint_batch_file`, `read_file_with_encoding`, `find_batch_files`
 - `load_config`, `create_default_config_file`, `main`
 - `BlinterConfig`, `LintIssue`, `Rule`, `RuleSeverity`
-- `__version__`, `__author__`, `__license__` — the Nuitka exe takes `__version__` from `src/blinter/_build_version.py`, generated at build time from `[project].version`. Source checkouts read that version from `pyproject.toml`, then installed package metadata (`importlib.metadata`), with a final fallback to parsing `pyproject.toml` (see `_version.py`).
+- `__version__`, `__author__`, `__license__` — the Nuitka exe takes `__version__` from `src/blinter/_build_version.py`, generated at build time from `[project].version`. A source checkout reads `[project].version` from the src-layout `pyproject.toml`, then installed package metadata (`importlib.metadata`). When neither is available, `get_version` returns `unknown`.
 
 **Internal / extension imports** (import from subpackages):
 
@@ -144,7 +145,12 @@ In text mode, a run where every file fails to read exits 1 without a JSON or SAR
 Clone with `git clone --recurse-submodules` or run `git submodule update --init --recursive` after checkout.
 
 Generators live under [`scripts/spec/`](../scripts/spec/).
-`scripts/verify.py` is the quality gate for local runs and CI: schema validation, generator `--check`, strict SSOT audit, lockfile check, formatting, yamllint, pymarkdown, mypy, pylint, bandit, pip-audit, the benchmark baseline, pytest, the cmd.exe oracle (Windows), and PowerShell checks (Windows).
+`scripts/verify.py` is the quality gate for local runs and CI: schema validation, corpus
+validation, the cmd.exe oracle on Windows, generator `--check`, strict SSOT audit,
+lockfile check, formatting, yamllint, pymarkdown, mypy, pylint, bandit, pip-audit, the
+benchmark baseline, and pytest. Windows then runs PowerShell module prerequisites,
+PSScriptAnalyzer, Pester, and the install-script lint. The oracle runs once, before the
+generator checks.
 CI's quality job runs `python scripts/verify.py --skip-pytest` because pytest has its own matrix job.
 The Windows job runs `python scripts/verify.py --windows-only`.
 

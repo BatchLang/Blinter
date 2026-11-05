@@ -34,7 +34,6 @@ from blinter import (
 )
 from blinter.models import BlinterConfig, CliArguments, LintIssue, ProcessingState
 from tests.conftest import get_project_version
-from tests.corpus_support import CORPUS_DIR, CORPUS_SKIP_REASON, corpus_available
 
 # pylint: disable=too-many-lines,redefined-outer-name,reimported,too-few-public-methods
 
@@ -2575,37 +2574,6 @@ class TestCliStdioAndModuleEntry:
         )
         assert result.returncode == 0
         assert "Blinter" in result.stdout or "usage" in result.stdout.lower()
-
-
-@pytest.mark.needs_corpus
-@pytest.mark.skipif(not corpus_available(), reason=CORPUS_SKIP_REASON)
-@pytest.mark.slow
-class TestCorpusCli:
-    """CLI integration against the local batch-script-examples corpus."""
-
-    def test_cli_corpus_directory_scan_completes_without_internal_error(self) -> None:
-        with patch.object(sys, "argv", ["blinter", str(CORPUS_DIR)]):
-            with pytest.raises(SystemExit) as exc_info:
-                main()
-            assert exc_info.value.code in (0, 1)
-
-    def test_cli_corpus_follow_calls_summary_completes_without_internal_error(
-        self,
-    ) -> None:
-        with patch.object(
-            sys,
-            "argv",
-            ["blinter", str(CORPUS_DIR), "--follow-calls", "--summary"],
-        ):
-            with pytest.raises(SystemExit) as exc_info:
-                main()
-            assert exc_info.value.code in (0, 1)
-
-    def test_find_batch_files_discovers_full_corpus(self) -> None:
-        discovered = find_batch_files(str(CORPUS_DIR), recursive=True)
-        names = {Path(path).name for path in discovered}
-        assert len(names) >= 85
-        assert "%MM%.cmd" in names
 
 
 _PASSWORD_SCRIPT = "@echo off\r\nset PASSWORD=hunter2\r\nexit /b 0\r\n"

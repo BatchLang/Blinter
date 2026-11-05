@@ -61,6 +61,16 @@ def _command_body(line: str) -> str:
     return stripped
 
 
+def _is_caret_escaped(text: str, index: int) -> bool:
+    """Return True when an odd run of carets escapes the character at index."""
+    caret_count = 0
+    pos = index - 1
+    while pos >= 0 and text[pos] == "^":
+        caret_count += 1
+        pos -= 1
+    return caret_count % 2 == 1
+
+
 def _split_command_separators(body: str) -> list[str]:
     """Split on unescaped ``&``, ``&&`` and ``||`` outside quoting.
 

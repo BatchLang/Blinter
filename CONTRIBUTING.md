@@ -26,7 +26,7 @@ Security issues must **not** be filed as public issues. See [SECURITY.md](SECURI
 2. Clone with submodules: `git clone --recurse-submodules https://github.com/BatchLang/Blinter.git`
 3. Install development dependencies: `uv sync --extra dev` (or `pip install -e ".[dev]"`)
 4. Make your changes and add or update tests where appropriate.
-5. Run the full local quality gate: `uv run python scripts/verify.py` (or `py scripts/verify.py`)
+5. Run the full local quality gate: `uv run python scripts/verify.py`. A bare `py scripts/verify.py` uses the global interpreter unless `.venv` is already activated.
 6. Open a pull request against `main` with a clear description of the change and how you tested it.
 
 Maintainers review PRs on GitHub. Address review feedback with additional commits on the same branch.
@@ -53,7 +53,7 @@ Shell and PowerShell code lives in its own files so these tools can check it. Do
 Auto-fix formatting before committing:
 
 ```bash
-py scripts/verify.py --fix
+uv run python scripts/verify.py --fix
 ```
 
 ## Testing Policy
@@ -62,8 +62,8 @@ py scripts/verify.py --fix
 
 - Add or extend tests under `tests/` using [pytest](https://docs.pytest.org/).
 - Rule changes should include corpus fixtures under `spec/corpus/` when applicable.
-- Run `py -m pytest` locally; CI runs the suite on Ubuntu, macOS, and Windows across Python 3.11–3.15.
-- Optional corpus regression tests require a local `batch-script-examples/` directory (see `README.md`).
+- Run `uv run python -m pytest` locally; CI runs the suite on Ubuntu, macOS, and Windows across Python 3.11–3.15. `pytest.ini` writes coverage reports and `tests/pytest.log` on every run. Pass `--override-ini=addopts=` and `--override-ini=log_file=` when a one-node run should not.
+- A single corpus case is `uv run python -m pytest tests/test_spec_corpus.py -k <case-directory>`. `-k` matches the directory name. A docs-only prose change is `uv run python -m pymarkdown --strict-config scan <file>`. Catalog or README rule-count edits also need `uv run python scripts/spec/generate_docs.py --check`.
 
 CI runs the same gate with `python scripts/verify.py --skip-pytest` on Ubuntu, and `python scripts/verify.py --windows-only` on Windows. pytest itself runs in a separate OS and Python matrix job (see `.github/workflows/CI.yml`). `--skip-pytest` skips only pytest. `--windows-only` runs the cmd.exe oracle, PSScriptAnalyzer, Pester, and the install-script lint.
 
@@ -72,7 +72,7 @@ CI runs the same gate with `python scripts/verify.py --skip-pytest` on Ubuntu, a
 Lint rules are defined in the SSOT under `spec/`. When adding or changing rules:
 
 1. Update `spec/data/rules.yaml` and related generated artifacts as needed.
-2. Run `py scripts/spec/validate_spec.py` and the `generate_* --check` scripts (or `py scripts/verify.py`).
+2. Run `uv run python scripts/spec/validate_spec.py`, `uv run python scripts/spec/validate_corpus.py`, `uv run python scripts/spec/audit_ssot.py --strict --check`, and the `generate_* --check` scripts (or `uv run python scripts/verify.py`). Without `--check`, the audit rewrites `spec/audit/baseline-latest.md`.
 3. Add corpus cases under `spec/corpus/` with `input.cmd` and `expect.json`.
 
 See [docs/Architecture.md](docs/Architecture.md) for module layout and extension points.

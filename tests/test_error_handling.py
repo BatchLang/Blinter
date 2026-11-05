@@ -216,7 +216,7 @@ class TestSpecificEdgeCases:
         ]
 
         for command, should_trigger in test_cases:
-            issues = _check_warning_issues(command, 1, set_vars, False)
+            issues = _check_warning_issues(command, 1, set_vars)
             w005_issues = [i for i in issues if i.rule.code == "W005"]
             if should_trigger:
                 assert len(w005_issues) >= 1, f"Should trigger W005 for: {command}"
@@ -266,7 +266,7 @@ class TestSpecificEdgeCases:
         set_vars: set[str] = set()
         for command in test_cases:
             # Should handle Unicode gracefully
-            issues = _check_warning_issues(command, 1, set_vars, False)
+            issues = _check_warning_issues(command, 1, set_vars)
             # Should detect non-ASCII characters
             non_ascii_issues = [i for i in issues if i.rule.code == "W012"]
             if not all(ord(c) < 128 for c in command):

@@ -4,10 +4,9 @@
 
 _None_
 
-## WARNING (2)
+## WARNING (0)
 
-- **[reference-matrix]** SETLOCAL/ENDLOCAL pairing and nesting limit: corpus integration/p024-conditional-setlocal does not assert any of ['P005', 'P006', 'P027']
-- **[reference-matrix]** FOR /F tokenization, delimiters, and CSV: corpus syntax/for-f-delims-only-valid does not assert any of ['E037', 'E038', 'W034', 'W035', 'W037', 'W048', 'W063']
+_None_
 
 ## INFO (3)
 

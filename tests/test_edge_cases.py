@@ -295,14 +295,14 @@ class TestWarningIssueChecking:
         comprehensive deprecated command tests.
         """
         set_vars: Set[str] = set()
-        issues = _check_warning_issues("assign A: B:", 1, set_vars, False)
+        issues = _check_warning_issues("assign A: B:", 1, set_vars)
         # Should not return any issues since deprecated command checking moved to W024
         assert len(issues) == 0
 
     def test_unquoted_variable_in_echo(self) -> None:
         """Test unquoted variable in ECHO - should NOT trigger W005 (only IF comparisons do)."""
         set_vars: Set[str] = set()
-        issues = _check_warning_issues("echo %VARIABLE%", 1, set_vars, False)
+        issues = _check_warning_issues("echo %VARIABLE%", 1, set_vars)
         # W005 is now more conservative - only checks IF string comparisons
         w005_issues = [i for i in issues if i.rule.code == "W005"]
         assert len(w005_issues) == 0, "W005 should not flag echo commands"
@@ -310,7 +310,7 @@ class TestWarningIssueChecking:
     def test_ping_without_timeout(self) -> None:
         """Test PING without timeout parameter."""
         set_vars: Set[str] = set()
-        issues = _check_warning_issues("ping google.com", 1, set_vars, False)
+        issues = _check_warning_issues("ping google.com", 1, set_vars)
         # Should detect W006 (ping without timeout) and W029 (16-bit command detection for .com)
         assert len(issues) >= 1
         rule_codes = [issue.rule.code for issue in issues]
@@ -319,7 +319,7 @@ class TestWarningIssueChecking:
     def test_setx_path_modification(self) -> None:
         """Test SETX PATH modification warning."""
         set_vars: Set[str] = set()
-        issues = _check_warning_issues("setx path %PATH%;C:\\temp", 1, set_vars, False)
+        issues = _check_warning_issues("setx path %PATH%;C:\\temp", 1, set_vars)
         # May also trigger W005 (Unquoted variable)
         w008_issues = [i for i in issues if i.rule.code == "W008"]
         assert len(w008_issues) == 1
@@ -327,14 +327,14 @@ class TestWarningIssueChecking:
     def test_older_windows_command(self) -> None:
         """Test older Windows command warning."""
         set_vars: Set[str] = set()
-        issues = _check_warning_issues("choice /c yn /m Continue?", 1, set_vars, False)
+        issues = _check_warning_issues("choice /c yn /m Continue?", 1, set_vars)
         assert len(issues) == 1
         assert "W009" in issues[0].rule.code
 
     def test_architecture_specific_pattern(self) -> None:
         """Test architecture-specific pattern detection."""
         set_vars: Set[str] = set()
-        issues = _check_warning_issues("cd Wow6432Node", 1, set_vars, False)
+        issues = _check_warning_issues("cd Wow6432Node", 1, set_vars)
         assert len(issues) == 1
         assert "W010" in issues[0].rule.code
 
@@ -342,7 +342,7 @@ class TestWarningIssueChecking:
         """Test Unicode problematic command with actual Unicode content."""
         set_vars: Set[str] = set()
         # Test with actual Unicode content that should trigger the warning
-        issues = _check_warning_issues("type unicode_filé.txt", 1, set_vars, False)
+        issues = _check_warning_issues("type unicode_filé.txt", 1, set_vars)
         # Multiple Unicode-related warnings may be triggered
         w011_issues = [i for i in issues if i.rule.code == "W011"]
         assert len(w011_issues) == 1
@@ -351,9 +351,7 @@ class TestWarningIssueChecking:
     def test_non_ascii_characters(self) -> None:
         """Test non-ASCII character detection."""
         set_vars: Set[str] = set()
-        issues = _check_warning_issues(
-            "echo Ñandú", 1, set_vars, False
-        )  # Contains non-ASCII
+        issues = _check_warning_issues("echo Ñandú", 1, set_vars)  # Contains non-ASCII
         # May also trigger W011 (Unicode handling issue for echo command)
         w012_issues = [i for i in issues if i.rule.code == "W012"]
         assert len(w012_issues) == 1
@@ -642,9 +640,6 @@ class TestPerformanceIssueChecking:
             False,
             False,
             False,
-            False,
-            False,
-            False,
         )
         assert len(issues) == 1
         assert "P010" in issues[0].rule.code
@@ -662,9 +657,7 @@ class TestPerformanceIssueChecking:
     )
     def test_dir_command_not_flagged_by_p010(self, command: str) -> None:
         """P010 stays quiet for unprocessed output, /B listings and other commands."""
-        issues = _check_performance_issues(
-            [""], 1, command, False, False, False, False, False, False, False
-        )
+        issues = _check_performance_issues([""], 1, command, False, False, False, False)
         assert "P010" not in {issue.rule.code for issue in issues}
 
     def test_for_loop_without_tokens(self) -> None:
@@ -673,9 +666,6 @@ class TestPerformanceIssueChecking:
             [""],
             1,
             'FOR /F "usebackq" %%i IN (file.txt) DO echo %%i',
-            False,
-            False,
-            False,
             False,
             False,
             False,
@@ -694,9 +684,6 @@ class TestPerformanceIssueChecking:
             False,
             False,
             False,
-            False,
-            False,
-            False,
         )
         assert not issues
 
@@ -710,9 +697,6 @@ class TestPerformanceIssueChecking:
             False,
             False,
             False,
-            False,
-            False,
-            False,
         )
         assert len(issues) == 1
         assert "P007" in issues[0].rule.code
@@ -720,7 +704,7 @@ class TestPerformanceIssueChecking:
     def test_delayed_expansion_without_enablement(self) -> None:
         """Test delayed expansion variables without enablement."""
         issues = _check_performance_issues(
-            [""], 1, "echo !VARIABLE!", False, False, False, False, False, False, False
+            [""], 1, "echo !VARIABLE!", False, False, False, False
         )
         assert len(issues) == 1
         assert "P008" in issues[0].rule.code
@@ -728,7 +712,7 @@ class TestPerformanceIssueChecking:
     def test_unnecessary_setlocal(self) -> None:
         """Test unnecessary SETLOCAL usage."""
         issues = _check_performance_issues(
-            [""], 1, "setlocal", False, False, False, False, False, False, False
+            [""], 1, "setlocal", False, False, False, False
         )
         assert len(issues) == 1
         assert "P003" in issues[0].rule.code
@@ -743,9 +727,6 @@ class TestPerformanceIssueChecking:
             False,
             False,
             False,
-            False,
-            False,
-            False,
         )
         # May also trigger P003 (unnecessary SETLOCAL)
         p004_issues = [i for i in issues if i.rule.code == "P004"]
@@ -754,7 +735,7 @@ class TestPerformanceIssueChecking:
     def test_endlocal_without_setlocal(self) -> None:
         """Test ENDLOCAL without SETLOCAL."""
         issues = _check_performance_issues(
-            [""], 1, "endlocal", False, False, False, False, False, False, False
+            [""], 1, "endlocal", False, False, False, False
         )
         assert len(issues) == 1
         assert "P005" in issues[0].rule.code
@@ -945,16 +926,13 @@ class TestMainFunctionEdgeCases:
         (
             has_setlocal,
             has_set_commands,
-            has_delayed_expansion,
             uses_delayed_vars,
-            _,
-            _,
-            _,
+            has_literal_exclamations,
         ) = _analyze_script_structure(lines)
         assert has_setlocal is True
         assert has_set_commands is True
-        assert has_delayed_expansion is True
         assert uses_delayed_vars is True
+        assert has_literal_exclamations is False
 
     def test_if_exist_with_defined_check(self) -> None:
         """Test IF statement with EXIST and DEFINED keywords."""
@@ -1017,7 +995,7 @@ class TestAdditionalEdgeCaseScenarios:
         # Empty lines
         lines: list[str] = []
         result = _analyze_script_structure(lines)
-        assert result == (False, False, False, False, False, False, False)
+        assert result == (False, False, False, False)
 
         # Lines with various patterns
         lines = [
@@ -1030,15 +1008,11 @@ class TestAdditionalEdgeCaseScenarios:
         (
             has_setlocal,
             has_set_commands,
-            has_delayed_expansion,
             uses_delayed_vars,
-            _,
-            _,
-            _,
+            _has_literal_exclamations,
         ) = _analyze_script_structure(lines)
         assert has_setlocal is True
         assert has_set_commands is True  # Should detect set /p and set /a
-        assert has_delayed_expansion is True
         assert uses_delayed_vars is True
 
     def test_missing_pause_edge_case(self) -> None:
@@ -1136,9 +1110,6 @@ class TestAdditionalEdgeCaseScenarios:
             [""],
             1,
             "echo content > temp_%RANDOM%.txt",
-            False,
-            False,
-            False,
             False,
             False,
             False,
@@ -1253,23 +1224,21 @@ class TestWarningChecking:
     def test_ping_with_parameters_but_no_timeout(self) -> None:
         """Test PING command with parameters but no timeout."""
         set_vars: set[str] = set()
-        issues = _check_warning_issues("ping google.com", 1, set_vars, False)
+        issues = _check_warning_issues("ping google.com", 1, set_vars)
         warning_issues = [i for i in issues if i.rule.code == "W006"]
         assert len(warning_issues) == 1
 
     def test_ping_with_proper_timeout(self) -> None:
         """Test PING command with proper timeout."""
         set_vars: set[str] = set()
-        issues = _check_warning_issues("ping google.com -n 4", 1, set_vars, False)
+        issues = _check_warning_issues("ping google.com -n 4", 1, set_vars)
         warning_issues = [i for i in issues if i.rule.code == "W006"]
         assert len(warning_issues) == 0
 
     def test_setx_path_modification(self) -> None:
         """Test SETX PATH modification detection."""
         set_vars: set[str] = set()
-        issues = _check_warning_issues(
-            "setx PATH %PATH%;C:\\newpath", 1, set_vars, False
-        )
+        issues = _check_warning_issues("setx PATH %PATH%;C:\\newpath", 1, set_vars)
         warning_issues = [i for i in issues if i.rule.code == "W008"]
         assert len(warning_issues) == 1
 
@@ -1279,7 +1248,7 @@ class TestWarningChecking:
         # Removed "timeout" as it's been available since Windows Vista
         # Removed "robocopy" as it's been available since Windows Vista/Server 2008 (2007-2008)
         for cmd in ["choice", "forfiles", "where", "icacls"]:
-            issues = _check_warning_issues(f"{cmd} /param", 1, set_vars, False)
+            issues = _check_warning_issues(f"{cmd} /param", 1, set_vars)
             warning_issues = [i for i in issues if i.rule.code == "W009"]
             assert len(warning_issues) == 1
             assert cmd in warning_issues[0].context
@@ -1292,7 +1261,7 @@ class TestWarningChecking:
             ("copy SysWow64\\file.txt dest", "SysWow64"),
         ]
         for command, expected_pattern in test_cases:
-            issues = _check_warning_issues(command, 1, set_vars, False)
+            issues = _check_warning_issues(command, 1, set_vars)
             warning_issues = [i for i in issues if i.rule.code == "W010"]
             assert len(warning_issues) == 1
             assert expected_pattern in warning_issues[0].context
@@ -1301,7 +1270,7 @@ class TestWarningChecking:
         """Test that Program Files (x86) pattern requires specific format."""
         # The pattern is looking for literal \(x86\) which doesn't match (x86)
         set_vars: set[str] = set()
-        issues = _check_warning_issues('cd "Program Files (x86)"', 1, set_vars, False)
+        issues = _check_warning_issues('cd "Program Files (x86)"', 1, set_vars)
         warning_issues = [i for i in issues if i.rule.code == "W010"]
         assert len(warning_issues) == 0  # Won't match because pattern expects \\(x86\\)
 
@@ -1309,47 +1278,43 @@ class TestWarningChecking:
         """Test detection of Unicode problematic commands with actual Unicode risks."""
         set_vars: set[str] = set()
         # Test commands with actual Unicode content that should be flagged
-        issues = _check_warning_issues("type unicode_filé.txt", 1, set_vars, False)
+        issues = _check_warning_issues("type unicode_filé.txt", 1, set_vars)
         warning_issues = [i for i in issues if i.rule.code == "W011"]
         # The improved rule should still catch this because it has Unicode in filename
         assert len(warning_issues) == 1
         assert "type" in warning_issues[0].context
 
         # Test find/findstr with Unicode content
-        issues = _check_warning_issues(
-            "findstr /i pattérn file.txt", 1, set_vars, False
-        )
+        issues = _check_warning_issues("findstr /i pattérn file.txt", 1, set_vars)
         warning_issues = [i for i in issues if i.rule.code == "W011"]
         assert len(warning_issues) == 1
 
         # Test echo with non-ASCII - should be flagged
-        issues = _check_warning_issues("echo héllo", 1, set_vars, False)
+        issues = _check_warning_issues("echo héllo", 1, set_vars)
         warning_issues = [i for i in issues if i.rule.code == "W011"]
         assert len(warning_issues) == 1
 
         # Test echo with redirection - improved rule now considers this safe
-        issues = _check_warning_issues("echo test > file", 1, set_vars, False)
+        issues = _check_warning_issues("echo test > file", 1, set_vars)
         warning_issues = [i for i in issues if i.rule.code == "W011"]
         assert len(warning_issues) == 0  # Now considered safe by improved rule
 
         # Test simple echo - should NOT be flagged
-        issues = _check_warning_issues("echo simple text", 1, set_vars, False)
+        issues = _check_warning_issues("echo simple text", 1, set_vars)
         warning_issues = [i for i in issues if i.rule.code == "W011"]
         assert len(warning_issues) == 0
 
     def test_findstr_safe_switches_no_w011(self) -> None:
         """ASCII findstr with standard switches must not trigger W011."""
         set_vars: set[str] = set()
-        issues = _check_warning_issues(
-            "findstr /i pattern file.txt", 1, set_vars, False
-        )
+        issues = _check_warning_issues("findstr /i pattern file.txt", 1, set_vars)
         w011_issues = [i for i in issues if i.rule.code == "W011"]
         assert len(w011_issues) == 0
 
     def test_non_ascii_character_detection(self) -> None:
         """Test detection of non-ASCII characters."""
         set_vars: set[str] = set()
-        issues = _check_warning_issues("echo héllo wørld", 1, set_vars, False)
+        issues = _check_warning_issues("echo héllo wørld", 1, set_vars)
         warning_issues = [i for i in issues if i.rule.code == "W012"]
         assert len(warning_issues) == 1
 
@@ -1357,7 +1322,7 @@ class TestWarningChecking:
         """Test that FOR loop variables (%%a %%b) don't trigger Unicode warnings."""
         set_vars: set[str] = set()
         # FOR loop variables should NOT trigger W011 Unicode warning
-        issues = _check_warning_issues("echo %%a %%b", 1, set_vars, False)
+        issues = _check_warning_issues("echo %%a %%b", 1, set_vars)
         w011_issues = [i for i in issues if i.rule.code == "W011"]
         assert (
             len(w011_issues) == 0
@@ -1368,7 +1333,7 @@ class TestWarningChecking:
         Unicode warnings."""
         set_vars: set[str] = {"red", "under", "def"}
         # Consecutive variables should NOT trigger W011 Unicode warning
-        issues = _check_warning_issues("echo %red%%under%text%def%", 1, set_vars, False)
+        issues = _check_warning_issues("echo %red%%under%text%def%", 1, set_vars)
         w011_issues = [i for i in issues if i.rule.code == "W011"]
         assert (
             len(w011_issues) == 0
@@ -1378,7 +1343,7 @@ class TestWarningChecking:
         """Test that actual Unicode content in echo still triggers warnings."""
         set_vars: set[str] = set()
         # Real Unicode content should still trigger W011
-        issues = _check_warning_issues("echo Ñandú birds", 1, set_vars, False)
+        issues = _check_warning_issues("echo Ñandú birds", 1, set_vars)
         w011_issues = [i for i in issues if i.rule.code == "W011"]
         assert (
             len(w011_issues) == 1
@@ -1715,23 +1680,23 @@ class TestPseudoEnvAssignmentW049:
     """SET \"name=\" clears a shadow; space-only values still assign (W049)."""
 
     def test_quoted_clear_is_not_w049(self) -> None:
-        issues = _check_warning_issues('set "errorlevel="', 1, set(), False)
+        issues = _check_warning_issues('set "errorlevel="', 1, set())
         assert not [issue for issue in issues if issue.rule.code == "W049"]
 
     def test_quoted_space_value_is_w049(self) -> None:
-        issues = _check_warning_issues('set "errorlevel= "', 1, set(), False)
+        issues = _check_warning_issues('set "errorlevel= "', 1, set())
         assert [issue.rule.code for issue in issues if issue.rule.code == "W049"] == [
             "W049"
         ]
 
     def test_unquoted_space_value_is_w049(self) -> None:
-        issues = _check_warning_issues("set errorlevel= ", 1, set(), False)
+        issues = _check_warning_issues("set errorlevel= ", 1, set())
         assert [issue.rule.code for issue in issues if issue.rule.code == "W049"] == [
             "W049"
         ]
 
     def test_unquoted_clear_is_not_w049(self) -> None:
-        issues = _check_warning_issues("set errorlevel=", 1, set(), False)
+        issues = _check_warning_issues("set errorlevel=", 1, set())
         assert not [issue for issue in issues if issue.rule.code == "W049"]
 
 
@@ -2216,7 +2181,7 @@ class TestPerformanceChecking:
         """Test detection of unnecessary SETLOCAL."""
         lines = ["@echo off", "setlocal", "echo hello"]
         issues = _check_performance_issues(
-            lines, 2, "setlocal", False, False, False, False, False, False, False
+            lines, 2, "setlocal", False, False, False, False
         )
         setlocal_issues = [i for i in issues if i.rule.code == "P003"]
         assert len(setlocal_issues) == 1
@@ -2230,9 +2195,6 @@ class TestPerformanceChecking:
             "setlocal enabledelayedexpansion",
             True,
             True,
-            True,
-            False,
-            False,
             False,
             False,
         )
@@ -2243,7 +2205,7 @@ class TestPerformanceChecking:
         """Test detection of ENDLOCAL without SETLOCAL."""
         lines = ["@echo off", "endlocal"]
         issues = _check_performance_issues(
-            lines, 2, "endlocal", False, False, False, False, False, False, False
+            lines, 2, "endlocal", False, False, False, False
         )
         endlocal_issues = [i for i in issues if i.rule.code == "P005"]
         assert len(endlocal_issues) == 1
@@ -2257,9 +2219,6 @@ class TestPerformanceChecking:
                 lines,
                 1,
                 f"echo test > {pattern}",
-                False,
-                False,
-                False,
                 False,
                 False,
                 False,
@@ -2279,9 +2238,6 @@ class TestPerformanceChecking:
             False,
             False,
             False,
-            False,
-            False,
-            False,
         )
         temp_issues = [i for i in issues if i.rule.code == "P007"]
         assert len(temp_issues) == 0
@@ -2290,7 +2246,7 @@ class TestPerformanceChecking:
         """Test detection of delayed expansion without enablement."""
         lines = ["echo !MYVAR!"]
         issues = _check_performance_issues(
-            lines, 1, "echo !MYVAR!", False, False, False, False, False, False, False
+            lines, 1, "echo !MYVAR!", False, False, False, False
         )
         delayed_issues = [i for i in issues if i.rule.code == "P008"]
         assert len(delayed_issues) == 1

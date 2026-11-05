@@ -864,7 +864,6 @@ def _check_warning_issues(
     line: str,
     line_num: int,
     _set_vars: Set[str],
-    _delayed_expansion_enabled: bool,
     *,
     lines: list[str] | None = None,
     file_path: str = "",

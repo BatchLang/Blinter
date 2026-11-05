@@ -4,8 +4,6 @@ Test cases for batch string replacement syntax detection.
 These tests validate that the linter correctly handles string replacement syntax
 in both delayed expansion (!VAR:"=!) and percent-style (%VAR:"=%) formats,
 which were previously incorrectly flagged as mismatched quotes (E009).
-
-Tests added based on real-world batch script analysis from batch-script-examples folder.
 """
 
 from pathlib import Path

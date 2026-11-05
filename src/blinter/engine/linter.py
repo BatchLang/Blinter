@@ -112,11 +112,8 @@ def lint_batch_file(  # pylint: disable=too-many-locals
     (
         has_setlocal,
         has_set_commands,
-        has_delayed_expansion,
         uses_delayed_vars,
-        has_disable_delayed_expansion,
         has_literal_exclamations,
-        has_disable_expansion_lines,
     ) = structure_data
 
     # Critical line ending checks (includes ERROR level E018)
@@ -161,11 +158,8 @@ def lint_batch_file(  # pylint: disable=too-many-locals
             set_vars,
             has_setlocal,
             has_set_commands,
-            has_delayed_expansion,
             uses_delayed_vars,
-            has_disable_delayed_expansion,
             has_literal_exclamations,
-            has_disable_expansion_lines,
             config,
             skip_lines,
             called_scripts_vars,

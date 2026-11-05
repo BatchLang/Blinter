@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from blinter import lint_batch_file
+from scripts.spec.cmd_oracle import _CORPUS, _filter_runnable
 from tests.spec_corpus_support import (
     SpecCorpusCase,
     assert_issues_match,
@@ -68,3 +69,14 @@ def test_wmic_read_only_corpus_is_oracle_runnable() -> None:
     assert "interactive wmic prompt" in oracle_src
     assert "mutating wmic" in oracle_src
     assert "hangs or is absent on modern Windows" not in oracle_src
+
+
+def test_cmd_oracle_case_filter_selects_one_fixture() -> None:
+    """--case runs one corpus id, and --limit still applies after that filter."""
+    case_path = _CORPUS / "syntax" / "e002-missing-label" / "input.cmd"
+    other_path = _CORPUS / "syntax" / "s001-echo-off-first-valid" / "input.cmd"
+    assert _filter_runnable(
+        [case_path, other_path], limit=0, case="syntax/e002-missing-label"
+    ) == [case_path]
+    assert _filter_runnable([case_path], limit=0, case="syntax/does-not-exist") == []
+    assert _filter_runnable([case_path, other_path], limit=1, case="") == [case_path]

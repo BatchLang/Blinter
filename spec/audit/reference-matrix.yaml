@@ -496,7 +496,6 @@ entries:
   - integration/p006-subroutine-exit-valid
   - integration/p006-main-exit-b-valid
   - integration/p027-setlocal-nesting
-  - integration/p024-conditional-setlocal
   - syntax/p024-p006-setlocal-in-comment-valid
   - syntax/p005-endlocal-paired-valid
   - syntax/p027-shallow-setlocal-valid

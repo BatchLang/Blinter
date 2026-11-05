@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import subprocess
 
 import pytest
 
@@ -11,6 +12,9 @@ from scripts.verify import (
     Step,
     StepKind,
     StepRequest,
+    _benchmark_command,
+    _child_env,
+    _command_exit,
     _execute_step,
     _parse_project_name,
     _require_cpython,
@@ -88,12 +92,6 @@ def test_windows_only_requires_windows() -> None:
         _names(_request(windows_only=True, is_windows=False))
 
 
-def test_corpus_step_follows_the_snapshot() -> None:
-    """The corpus baseline runs only when the corpus and snapshot are present."""
-    assert "corpus baseline check" not in _names()
-    assert "corpus baseline check" in _names(_request(corpus_present=True))
-
-
 def test_shellcheck_runs_on_every_platform_and_covers_each_shell_script() -> None:
     """ShellCheck runs outside --windows-only and lints each installer script."""
     for is_windows in (False, True):
@@ -154,6 +152,49 @@ def test_powershell_steps_run_script_files_that_exist() -> None:
         assert script.suffix == ".ps1"
         assert script.is_file()
         assert script.parent == root / "scripts" / "verify_ps"
+
+
+def test_benchmark_baseline_uses_the_runpy_launch() -> None:
+    """The gate must not execute the benchmark file as a script.
+
+    On Windows that launch exceeds the committed CPU ceiling. The regression
+    test and this step both load the file through runpy.
+    """
+    command = _step("benchmark baseline").command
+    assert command == _benchmark_command()
+    assert command[1:3] == (
+        "-c",
+        "import runpy, sys; "
+        "sys.argv = ['benchmark_lint.py', '--runs', '3', '--check-baseline']; "
+        "runpy.run_path('scripts/benchmark_lint.py', run_name='__main__')",
+    )
+
+
+def test_child_python_tools_use_utf8(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Child Python tools use UTF-8 even when the parent console code page cannot."""
+    monkeypatch.setenv("PYTHONUTF8", "0")
+    monkeypatch.setenv("PYTHONIOENCODING", "cp1252")
+    env = _child_env()
+    assert env["PYTHONUTF8"] == "1"
+    assert env["PYTHONIOENCODING"] == "utf-8"
+
+    captured: list[dict[str, str]] = []
+
+    def fake_run(
+        args: list[str],
+        *,
+        cwd: Path,
+        check: bool,
+        env: dict[str, str],
+    ) -> subprocess.CompletedProcess[str]:
+        assert cwd == Path(".")
+        assert check is False
+        captured.append(env)
+        return subprocess.CompletedProcess(args, 0)
+
+    monkeypatch.setattr("scripts.verify.subprocess.run", fake_run)
+    assert _command_exit(("python", "-m", "isort"), Path(".")) == 0
+    assert captured == [env]
 
 
 def test_yamllint_checks_the_repository_root() -> None:

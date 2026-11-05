@@ -23,33 +23,50 @@ uv sync --extra dev                       # or: pip install -e ".[dev]"
 ## Commands
 
 ```bash
-py scripts/verify.py                  # full quality gate (requires uv on PATH)
-py scripts/verify.py --fix            # apply autopep8, isort, pyproject-fmt fixes, then check
-py scripts/verify.py --skip-pytest    # what the CI "quality" job runs
-py scripts/verify.py --windows-only   # cmd.exe oracle, PSScriptAnalyzer, Pester, installer lint
+uv run python scripts/verify.py                 # full quality gate (requires uv on PATH)
+uv run python scripts/verify.py --fix          # apply autopep8, isort, pyproject-fmt fixes, then check
+uv run python scripts/verify.py --skip-pytest  # what the CI "quality" job runs
+uv run python scripts/verify.py --windows-only # cmd.exe oracle, PowerShell module prerequisites, PSScriptAnalyzer, Pester, installer lint
 
-py -m pytest                          # whole suite
-py -m pytest tests/test_x.py::test_name
-py -m pytest -m "not slow"
+uv run python -m pytest                         # whole suite
+uv run python -m pytest tests/test_x.py::test_name
+uv run python -m pytest -m "not slow"
 
-py -m blinter path\to\script.cmd      # run the linter itself
+uv run python -m blinter path\to\script.cmd     # run the linter itself
 ```
 
-On Linux and macOS use `python` or `python3` in place of `py`. Run everything inside the project virtual environment (`.venv`). A global interpreter may carry other pytest plugins (for example `pytest-asyncio`) that fail under `filterwarnings = error`, and an older installed `blinter` can shadow the source tree for `python -m blinter`.
+`uv run` uses the project virtual environment. Activating `.venv` first
+(`.\.venv\Scripts\Activate.ps1` on Windows, `source .venv/bin/activate` on Linux and macOS)
+makes a bare `python` or `py` do the same. Without that, `py` is the global interpreter:
+it can import an installed Blinter instead of this checkout, and a fresh machine will not
+have the dev tools. A global interpreter may also carry other pytest plugins (for example
+`pytest-asyncio`) that fail under `filterwarnings = error`.
 
-`verify.py` runs these steps in order, so the failing step name tells you which area broke: spec schema validation, corpus validation, generated-file `--check` steps, strict SSOT audit, `uv lock --check`, autopep8, isort, pyproject-fmt, black, yamllint, pymarkdown, ShellCheck, mypy, pylint, bandit, pip-audit, benchmark baseline, pytest.
-On Windows it also runs the cmd.exe oracle, PSScriptAnalyzer, Pester and a blinter lint of the install scripts.
+`verify.py` runs these steps in order, so the failing step name tells you which area broke:
+spec schema validation, corpus validation, the cmd.exe oracle on Windows, generated-file
+`--check` steps, strict SSOT audit, `uv lock --check`, autopep8, isort, pyproject-fmt,
+black, yamllint, pymarkdown, ShellCheck, mypy, pylint, bandit, pip-audit, benchmark
+baseline, pytest. On Windows the gate then runs PowerShell module prerequisites,
+PSScriptAnalyzer, Pester, and a blinter lint of the install scripts. The oracle is not
+run twice.
 
-Pytest runs with a 300 second timeout, `filterwarnings = error` (any warning fails a test), `--strict-markers`, and coverage enabled. Tests marked `needs_corpus` skip unless the local, gitignored `batch-script-examples/` folder exists.
+Pytest runs with a 300 second timeout, `filterwarnings = error` (any warning fails a test),
+`--strict-markers`, and coverage enabled. `pytest.ini` always writes `htmlcov/`,
+`coverage.xml`, and `tests/pytest.log`. A one-node run that should not write those passes
+`--override-ini=addopts=` and `--override-ini=log_file=`. Corpus rule checks use
+`tests/test_spec_corpus.py`. `-k` matches the case directory name, not only the rule
+code inside `expect.json`, so `-k e014` does not select
+a guard case whose directory is named for a different rule. One cmd.exe oracle case is
+`uv run python scripts/spec/cmd_oracle.py --case syntax/e002-missing-label`.
 
 ## Generated files: do not edit by hand
 
 | File | Source | Regenerate with |
 | ---- | ------ | --------------- |
-| `src/blinter/rules/registry.py` | `spec/data/rules.yaml` | `py scripts/spec/generate_rules.py` |
-| `src/blinter/rules/expansion_data.py` | `vendor/batch-spec/data/expansion.yaml` | `py scripts/spec/generate_expansion.py` |
-| `src/blinter/patterns.py` (partly) | batch-spec `commands.yaml` + `spec/data/commands-linter.yaml` | `py scripts/spec/generate_commands.py` |
-| Rule catalog block in `docs/Batch-File-Linter-Requirements.md` (between `GENERATED:rule-catalog` markers) | `spec/data/rules.yaml` | `py scripts/spec/generate_docs.py` |
+| `src/blinter/rules/registry.py` | `spec/data/rules.yaml` | `uv run python scripts/spec/generate_rules.py` |
+| `src/blinter/rules/expansion_data.py` | `vendor/batch-spec/data/expansion.yaml` | `uv run python scripts/spec/generate_expansion.py` |
+| `src/blinter/patterns.py` (partly) | batch-spec `commands.yaml` + `spec/data/commands-linter.yaml` | `uv run python scripts/spec/generate_commands.py` |
+| Rule catalog block in `docs/Batch-File-Linter-Requirements.md` (between `GENERATED:rule-catalog` markers) | `spec/data/rules.yaml` | `uv run python scripts/spec/generate_docs.py` |
 
 Each generator supports `--check`, which `verify.py` uses to detect drift. `src/blinter/_build_version.py` is a gitignored build artifact. Do not edit `vendor/batch-spec`; language-level changes belong in `BatchLang/batch-spec`.
 
@@ -59,7 +76,7 @@ Each generator supports `--check`, which `verify.py` uses to detect drift. `src/
 2. Run the generators listed above.
 3. Implement the check in the matching module under `src/blinter/checkers/` and wire it through `checkers/orchestration.py` if needed.
 4. Add a corpus case at `spec/corpus/<category>/<case-id>/` with `input.cmd` and `expect.json` (format and oracle fields are in `spec/README.md`). Include a `*-valid` case that must not fire, to guard against false positives.
-5. Run `py scripts/spec/validate_spec.py`, `py scripts/spec/validate_corpus.py` and `py scripts/spec/audit_ssot.py --strict`, then the full gate.
+5. Run `uv run python scripts/spec/validate_spec.py`, `uv run python scripts/spec/validate_corpus.py` and `uv run python scripts/spec/audit_ssot.py --strict --check`, then the full gate. `audit_ssot.py --strict` without `--check` rewrites `spec/audit/baseline-latest.md` when the report differs. The gate only compares.
 
 Every rule in `rules.yaml` must have at least one corpus assertion. `spec/corpus/**` is marked `-text` in `.gitattributes` so bytes are preserved exactly for line-ending rules; never normalize line endings in those files and do not let an editor rewrite them.
 
@@ -97,4 +114,4 @@ Every rule in `rules.yaml` must have at least one corpus assertion. `spec/corpus
 
 ## Do not commit
 
-Local artifacts: `pylint-output.txt`, `coverage.xml`, `.coverage`, `htmlcov/`, `testResults.xml`, `tests/pytest.log`, `.mypy_cache/`, `.hypothesis/`, `batch-script-examples/`, `tests/fixtures/corpus-baseline.json`, `dist/`, `build/`. Most are already gitignored. Report security issues privately per [SECURITY.md](SECURITY.md), not in public issues.
+Local artifacts: `pylint-output.txt`, `coverage.xml`, `.coverage`, `htmlcov/`, `testResults.xml`, `tests/pytest.log`, `.mypy_cache/`, `.hypothesis/`, `dist/`, `build/`. Most are already gitignored. Report security issues privately per [SECURITY.md](SECURITY.md), not in public issues.

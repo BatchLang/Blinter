@@ -7,6 +7,10 @@ ignore-from-file:
 
 rules:
   document-start: disable
+  # .gitattributes already stores YAML as LF. core.autocrlf on Windows checks
+  # those files out as CRLF, so this rule failed the local gate without a
+  # committed line-ending defect.
+  new-lines: disable
   indentation:
     spaces: 2
     indent-sequences: whatever

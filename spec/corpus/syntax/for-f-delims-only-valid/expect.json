@@ -1,14 +1,21 @@
 {
   "config": {},
-  "description": "for /f delims= captures whole line",
+  "description": "for /f delims= captures the whole line and is not a tokenization defect",
   "lines": {
     "5": [
       "W001"
     ]
   },
   "must_not": [
+    "E037",
+    "E038",
     "P009",
-    "W020"
+    "W020",
+    "W034",
+    "W035",
+    "W037",
+    "W048",
+    "W063"
   ],
   "rules": [
     "W001"

@@ -1,0 +1,215 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: en-US
+early_access: false
+tone_instructions: >-
+  Direct and technical. No emoji. Report bugs, security issues, false
+  positives, and spec drift. Skip style nits already enforced by Black,
+  isort, mypy, and pylint.
+reviews:
+  profile: assertive
+  high_level_summary: true
+  high_level_summary_instructions: >-
+    Write a short technical summary of the behavior change. No emoji.
+    Name rule codes, CLI flags, or spec files when the change affects them.
+  poem: false
+  sequence_diagrams: false
+  suggested_labels: true
+  auto_apply_labels: false
+  labeling_instructions:
+    - label: bug
+      instructions: >-
+        Defect in the linter, CLI, installer, or tooling that is not an
+        existing rule firing incorrectly.
+    - label: rule-accuracy
+      instructions: >-
+        An existing rule fires when it should not, or fails to fire when
+        it should.
+    - label: new-rule
+      instructions: >-
+        Adds a rule code in spec/data/rules.yaml or a new checker.
+    - label: enhancement
+      instructions: New behavior that is not a new lint rule.
+    - label: documentation
+      instructions: Documentation-only change.
+  auto_review:
+    enabled: true
+    drafts: false
+    ignore_title_keywords:
+      - WIP
+      - "[skip review]"
+  path_instructions:
+    - path: "**/*.py"
+      instructions: |
+        Blinter is a read-only static analyzer for Windows batch. It must not execute batch. The only cmd.exe runner is scripts/spec/cmd_oracle.py, and it is test-only.
+
+        - Support Python >=3.11,<3.16. Annotate fully. Do not introduce Any; use object and narrow. Keep imports at module top.
+        - src/ is mypy strict, including disallow_any_expr and disallow_any_explicit. tests/ and scripts/ use the relaxed overrides in mypy.ini.
+        - Black (88 columns) and isort (black profile, force_sort_within_sections) own formatting. Pylint uses pylintrc. Do not request Ruff or Flake8 changes.
+        - Console output belongs in cli/ and output/. Elsewhere use logging.
+        - Keep linting thread-safe. Per-lint state lives in a ContextVar reset at the start of lint_batch_file, engine/lines_cache.py is lock-protected, and RULES is read-only at runtime.
+        - Never read or lint a path outside BlinterConfig.scan_root. That includes --follow-calls.
+        - The stable public API is blinter.__all__. Checker facades (checkers/advanced/__init__.py and checkers/globals/__init__.py) re-export symbols. Moving a checker must update the facade import and __all__.
+        - Do not embed shell or PowerShell in Python strings beyond a plain command.
+        - Do not change [project].version in pyproject.toml unless the pull request is a release.
+    - path: "src/blinter/checkers/**/*.py"
+      instructions: |
+        - A new or changed diagnostic starts in spec/data/rules.yaml. Command policy also updates spec/data/commands-linter.yaml. Regenerate, then implement the check and wire it through checkers/orchestration.py when a new checker is involved.
+        - Every rule needs a spec/corpus case with input.cmd and expect.json, plus a *-valid case that must not fire.
+        - Flag a checker that executes batch, follows a path outside scan_root, or mutates RULES.
+    - path: "src/blinter/rules/registry.py"
+      instructions: |
+        Fully generated from spec/data/rules.yaml by uv run python scripts/spec/generate_rules.py. Review only for drift from that source or from the generator. Do not request hand edits, docstrings, or formatting changes. A diff without a matching rules.yaml or generator change is a defect.
+    - path: "src/blinter/rules/expansion_data.py"
+      instructions: |
+        Fully generated from vendor/batch-spec/data/expansion.yaml by uv run python scripts/spec/generate_expansion.py. Review only for drift. A diff without a submodule update or a generator change is a defect. Do not edit vendor/batch-spec in this repository.
+    - path: "src/blinter/patterns.py"
+      instructions: |
+        Partially generated. SSOT tables come from vendor/batch-spec/data/commands.yaml and spec/data/commands-linter.yaml via uv run python scripts/spec/generate_commands.py.
+        Embedded-language detection patterns are maintained in scripts/spec/patterns_static_fragment.py.
+        Do not hand-edit generated tables. Flag a generated-table diff that has no matching source or generator change.
+    - path: "tests/**/*.py"
+      instructions: |
+        - Add cases to the existing topical module. Do not create a similarly named new test module.
+        - Rule diagnostics belong in spec/corpus and run through tests/test_spec_corpus.py, not a bespoke test.
+        - Pytest uses filterwarnings=error, strict markers, and a 300 second timeout.
+        - Do not weaken assertions, filters, or markers to make a change pass.
+        - Unix installer tests must keep using the stand-ins in tests/unix_stubs/.
+    - path: "spec/corpus/**"
+      instructions: |
+        These bytes are the conformance oracle. .gitattributes marks spec/corpus/** as -text, so line endings must not be normalized or otherwise rewritten.
+
+        A case is input.cmd plus expect.json. Invalid batch is intentional. Do not rewrite a fixture into a valid script, and do not report Blinter findings on these fixtures as defects. A behavior change needs an updated expectation. A new rule needs a firing case and a *-valid case that must not fire.
+    - path: "spec/data/**/*.yaml"
+      instructions: |
+        spec/data/rules.yaml is the rule catalog. spec/data/commands-linter.yaml is linter command policy. Language data stays in vendor/batch-spec. A rule or command-policy change is incomplete until the generators have been run and a corpus case covers the diagnostic.
+    - path: "vendor/batch-spec/**"
+      instructions: |
+        Do not edit this submodule. Language-level changes belong in BatchLang/batch-spec. A pointer update must match spec/batch-spec.lock.
+    - path: "scripts/**/*.{cmd,bat,ps1,psm1,psd1,sh}"
+      instructions: |
+        - .bat, .cmd, .reg, .ps1, .psm1, and .psd1 use CRLF. .sh uses LF.
+        - .sh must pass ShellCheck with .shellcheckrc (SC2310 and SC2312 are disabled) and stay compatible with Bash 3.2.
+        - PowerShell targets Windows PowerShell 5.1. Use scripts/PSScriptAnalyzerSettings.psd1. PSAvoidUsingWriteHost is an allowed exception. Behavior changes need a Pester test (*.Tests.ps1).
+        - scripts/installer_ps/*.ps1 are mirrored as echo blocks in scripts/install_blinter.cmd and scripts/uninstall_blinter.cmd. tests/test_installer_script_parity.py requires byte parity. Change both sides together.
+    - path: "tests/unix_stubs/**"
+      instructions: |
+        Bash 3.2 stand-ins for the Unix installer tests. They must pass their own ShellCheck configuration. Do not replace them with host commands.
+    - path: ".github/workflows/**/*.yml"
+      instructions: |
+        Match CI.yml: pin actions to a full commit SHA with a version comment, keep permissions least-privilege, and do not inline shell or PowerShell beyond a plain command. Put scripts in scripts/ or scripts/verify_ps/. Call out any change to how a version bump on main publishes a release.
+    - path: "docs/**/*.md"
+      instructions: |
+        Documentation belongs in docs/, except README.md, CONTRIBUTING.md, SECURITY.md, CHANGELOG.md, and AGENTS.md.
+        PyMarkdown (.pymarkdown.yaml) checks Markdown. Do not apply markdownlint or Vale. No emoji.
+        Do not hand-edit the block between GENERATED:rule-catalog markers in docs/Batch-File-Linter-Requirements.md.
+        That block is generated from spec/data/rules.yaml.
+    - path: "CHANGELOG.md"
+      instructions: |
+        User-visible changes go under ## [Unreleased]. A release moves them into a dated section. Do not rewrite released sections.
+    - path: "pyproject.toml"
+      instructions: |
+        The only runtime dependency is charset-normalizer. requires-python stays >=3.11,<3.16. Do not change [project].version unless this pull request is a release that also updates CHANGELOG.md, uv.lock, mega-linter-plugin-blinter/blinter.megalinter-descriptor.yml, and docs/MegaLinter.md.
+    - path: "uv.lock"
+      instructions: |
+        Comment only when a distribution is added, removed, or upgraded in a way that changes runtime behavior, the supported Python range, or security. Ignore lockfile formatting and transitive hash churn.
+    - path: "src/blinter/checkers/security.py"
+      instructions: |
+        Treat unexpected process execution, path access outside BlinterConfig.scan_root, and secret leakage as security defects. Do not ask for a public GitHub issue. SECURITY.md requires private reporting.
+    - path: "src/blinter/io/**/*.py"
+      instructions: |
+        File discovery and reads must stay inside BlinterConfig.scan_root. A path that escapes the scan root is a security defect, including paths reached through --follow-calls.
+  tools:
+    # Black, isort, and pylint are the Python gate. Ruff and Flake8 have no project config and would fight it.
+    ruff:
+      enabled: false
+    flake8:
+      enabled: false
+    # Markdown is checked with PyMarkdown (.pymarkdown.yaml). Vale and LanguageTool have no project config.
+    markdownlint:
+      enabled: false
+    vale:
+      enabled: false
+    languagetool:
+      enabled: false
+    # The published Blinter pinned by CodeRabbit lags this repository, and spec/corpus
+    # fixtures are intentionally invalid batch. CI lints the install scripts with the workspace copy.
+    blinter:
+      enabled: false
+  pre_merge_checks:
+    docstrings:
+      mode: "off"
+    title:
+      mode: warning
+      requirements: >-
+        Imperative sentence, such as "Add W064 rule for X" or "Fix false
+        positive in E019".
+    custom_checks:
+      - name: Generated files match their source
+        mode: warning
+        instructions: |
+          Fail when a generated output changes without its source in the same pull request.
+          - src/blinter/rules/registry.py requires spec/data/rules.yaml or a change to scripts/spec/generate_rules.py.
+          - src/blinter/rules/expansion_data.py requires vendor/batch-spec/data/expansion.yaml, a submodule pointer update, or a change to scripts/spec/generate_expansion.py.
+          - Generated tables in src/blinter/patterns.py require spec/data/commands-linter.yaml, vendor/batch-spec/data/commands.yaml, a submodule pointer update, or a change to scripts/spec/generate_commands.py. Embedded-language patterns may change with scripts/spec/patterns_static_fragment.py alone.
+          - The block between GENERATED:rule-catalog markers in docs/Batch-File-Linter-Requirements.md requires spec/data/rules.yaml or a change to scripts/spec/generate_docs.py.
+          Pass when those generated outputs are unchanged, or each changed output has its source or generator change in the diff.
+      - name: Release version bump is complete
+        mode: warning
+        instructions: |
+          Pass when pyproject.toml [project].version is unchanged.
+          When it changes, fail unless the same pull request also updates CHANGELOG.md with a dated release section, uv.lock, mega-linter-plugin-blinter/blinter.megalinter-descriptor.yml, and docs/MegaLinter.md.
+          A pull request that is not a release must not change [project].version.
+      - name: Rule changes include corpus cases
+        mode: warning
+        instructions: |
+          Pass when spec/data/rules.yaml and src/blinter/checkers/ are unchanged.
+          When a rule is added or its diagnostic behavior changes, fail unless spec/corpus/ has a new or updated input.cmd and expect.json for that rule, including a *-valid case when the change could false-positive.
+          A refactor that preserves diagnostics passes without new corpus files. Tests, docs, and CLI-only changes do not need corpus edits.
+  finishing_touches:
+    docstrings:
+      enabled: true
+    unit_tests:
+      enabled: true
+chat:
+  art: false
+knowledge_base:
+  learnings:
+    scope: local
+  issues:
+    scope: local
+  pull_requests:
+    scope: local
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - files: "AGENTS.md,CONTRIBUTING.md"
+        applyTo: "**/*"
+      - files: "docs/Architecture.md"
+        applyTo: "src/**/*.py,scripts/**/*.py"
+      - files: "spec/README.md"
+        applyTo: "spec/**/*,src/blinter/checkers/**/*.py,src/blinter/rules/**/*.py,scripts/spec/**/*.py"
+      - files: "SECURITY.md"
+        applyTo: "src/blinter/checkers/security.py,src/blinter/io/**/*.py,src/blinter/cli/**/*.py,SECURITY.md"
+  linked_repositories:
+    - repository: BatchLang/batch-spec
+      instructions: >-
+        Pinned Windows batch language specification, vendored at
+        vendor/batch-spec. Use it for command and expansion behavior.
+        Do not propose edits to the submodule in this repository.
+        Language changes belong in BatchLang/batch-spec. The pin is
+        recorded in spec/batch-spec.lock.
+code_generation:
+  docstrings:
+    language: en-US
+    path_instructions:
+      - path: "src/blinter/**/*.py"
+        instructions: |
+          Match the docstring style of the surrounding module. Document behavior, parameters, and return values. Do not restate the function name. Do not add docstrings to src/blinter/rules/registry.py, src/blinter/rules/expansion_data.py, or the generated tables in src/blinter/patterns.py. No emoji.
+      - path: "tests/**/*.py"
+        instructions: |
+          Do not add docstrings or narrative comments to tests.
+  unit_tests:
+    path_instructions:
+      - path: "src/**/*.py"
+        instructions: |
+          Add tests to the existing topical module under tests/. Do not create a new test module. For a rule diagnostic, add spec/corpus/<category>/<case-id>/input.cmd and expect.json, plus a *-valid case that must not fire. Do not normalize line endings in spec/corpus/.
