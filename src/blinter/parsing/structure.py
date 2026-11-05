@@ -412,13 +412,43 @@ def _identity_cached(
 class _ParenScan:  # pylint: disable=too-few-public-methods
     """Mutable cursor for one quote- and caret-aware parenthesis scan."""
 
-    __slots__ = ("delta", "same_line_open", "command", "quote")
+    __slots__ = (
+        "delta",
+        "same_line_open",
+        "command",
+        "quote",
+        "command_has_text",
+        "paren_is_literal",
+    )
 
     def __init__(self) -> None:
         self.delta = 0
         self.same_line_open = 0
         self.command: List[str] = []
         self.quote = ""
+        self.command_has_text = False
+        # True once '(' does not open a block. Further parentheses cannot add
+        # a block keyword or turn the first token into echo, so later '(' and
+        # ')' on this command stay literal without rebuilding the buffer.
+        self.paren_is_literal = False
+
+    def reset_command(self) -> None:
+        """Drop the command buffer so the next '(' is judged from scratch."""
+        self.command = []
+        self.command_has_text = False
+        self.paren_is_literal = False
+
+    def append_command(self, text: str) -> None:
+        """Add ``text`` to the command buffer.
+
+        Parentheses keep a known non-block command as a non-block. Any other
+        character can introduce a keyword, so the next '(' is judged again.
+        """
+        self.command.append(text)
+        if text.strip():
+            self.command_has_text = True
+        if text not in ("(", ")"):
+            self.paren_is_literal = False
 
 
 def _is_paren_comment_line(line: str) -> bool:
@@ -471,12 +501,13 @@ def _separator_span(text: str, index: int) -> int:
 
 def _apply_open_paren(scan: _ParenScan) -> None:
     """Count a structural '(' or keep a literal one in the command buffer."""
-    if _paren_opens_block("".join(scan.command)):
-        scan.delta += 1
-        scan.same_line_open += 1
-        scan.command = []
+    if scan.paren_is_literal or not _paren_opens_block("".join(scan.command)):
+        scan.append_command("(")
+        scan.paren_is_literal = True
         return
-    scan.command.append("(")
+    scan.delta += 1
+    scan.same_line_open += 1
+    scan.reset_command()
 
 
 def _apply_close_paren(scan: _ParenScan) -> None:
@@ -484,13 +515,13 @@ def _apply_close_paren(scan: _ParenScan) -> None:
     if scan.same_line_open > 0:
         scan.same_line_open -= 1
         scan.delta -= 1
-        scan.command = []
+        scan.reset_command()
         return
-    if not "".join(scan.command).strip():
+    if not scan.command_has_text:
         scan.delta -= 1
-        scan.command = []
+        scan.reset_command()
         return
-    scan.command.append(")")
+    scan.append_command(")")
 
 
 def _block_paren_delta(line: str) -> int:
@@ -513,12 +544,12 @@ def _block_paren_delta(line: str) -> int:
             continue
         redir_end = _redir_amp_end(line, index)
         if redir_end is not None:
-            scan.command.append(line[index:redir_end])
+            scan.append_command(line[index:redir_end])
             index = redir_end
             continue
         separator = _separator_span(line, index)
         if separator:
-            scan.command = []
+            scan.reset_command()
             index += separator
             continue
         if line[index] == "(":
@@ -529,7 +560,7 @@ def _block_paren_delta(line: str) -> int:
             _apply_close_paren(scan)
             index += 1
             continue
-        scan.command.append(line[index])
+        scan.append_command(line[index])
         index += 1
     return scan.delta
 
