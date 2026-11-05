@@ -9,6 +9,7 @@
 *.yaml text eol=lf
 *.yml text eol=lf
 *.toml text eol=lf
+uv.lock text eol=lf
 *.ini text eol=lf
 *.cfg text eol=lf
 *.config text eol=lf
