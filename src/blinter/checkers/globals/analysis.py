@@ -21,6 +21,7 @@ from blinter.parsing.context import (
     _is_setlocal_command,
     _iter_goto_label_refs,
 )
+from blinter.parsing.structure import label_key_from_line
 from blinter.rules.helpers import _add_issue
 from blinter.rules.registry import RULES
 
@@ -675,9 +676,9 @@ def _collect_label_line_numbers(lines: List[str]) -> Dict[str, int]:
     """Map label names to their first defining line number."""
     label_lines: Dict[str, int] = {}
     for i, line in enumerate(lines, start=1):
-        label_match = re.match(r"^\s*:([a-zA-Z_][a-zA-Z0-9_]*)\s*$", line.strip())
-        if label_match:
-            label_name = str(label_match.group(1)).lower()
+        label = label_key_from_line(line.strip())
+        if label is not None:
+            label_name = label[1:]
             if label_name not in label_lines:
                 label_lines[label_name] = i
     return label_lines

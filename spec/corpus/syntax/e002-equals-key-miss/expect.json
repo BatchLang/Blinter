@@ -1,0 +1,8 @@
+{
+  "config": {"enabled_rules": ["E002"]},
+  "description": "Equals stays in the label key, so goto eq does not find :eq=more",
+  "lines": {"2": ["E002"]},
+  "must_not": [],
+  "rules": ["E002"],
+  "tags": ["syntax"]
+}

@@ -1,0 +1,8 @@
+{
+  "config": {"enabled_rules": ["E002"]},
+  "description": "Ampersand ends the label key, so goto lab finds :lab&more (E002 negative)",
+  "lines": {},
+  "must_not": ["E002"],
+  "rules": [],
+  "tags": ["syntax"]
+}

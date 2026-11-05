@@ -1,0 +1,8 @@
+{
+  "config": {"enabled_rules": ["E002"]},
+  "description": "goto :ok:extra searches for the key ok, so :ok:other is the target (E002 negative)",
+  "lines": {},
+  "must_not": ["E002"],
+  "rules": [],
+  "tags": ["syntax"]
+}

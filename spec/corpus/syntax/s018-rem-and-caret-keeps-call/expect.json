@@ -1,0 +1,8 @@
+{
+  "config": {"enabled_rules": ["S018"]},
+  "description": "A caret inside a REM remark does not swallow the next command, so call :work still needs a comment",
+  "lines": {"5": ["S018"]},
+  "must_not": [],
+  "rules": ["S018"],
+  "tags": ["syntax"]
+}

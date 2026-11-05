@@ -1,0 +1,8 @@
+{
+  "config": {"enabled_rules": ["S010"]},
+  "description": "goto eq does not reach :eq=more, and the GOTO leaves no fall-through",
+  "lines": {"4": ["S010"]},
+  "must_not": [],
+  "rules": ["S010"],
+  "tags": ["syntax"]
+}

@@ -20,6 +20,7 @@ from blinter.parsing.context import (
     _is_caret_escaped,
     _is_comment_line,
     _split_tokens,
+    jump_lookup_key,
 )
 from blinter.parsing.structure import (
     _delayed_expansion_state_for_lines,
@@ -45,10 +46,10 @@ def _check_goto_labels(
         return issues
 
     label_text: str = goto_match.group(1)
-    target_label: str = label_text.lower()
+    target_key = jump_lookup_key(label_text)
 
     # E015: GOTO EOF must use colon (GOTO :EOF is required, GOTO EOF is invalid)
-    if target_label == "eof":
+    if target_key == "eof" and not label_text.startswith(":"):
         issues.append(
             LintIssue(
                 line_number=line_num,
@@ -56,17 +57,16 @@ def _check_goto_labels(
                 context="GOTO EOF should be GOTO :EOF (colon is mandatory for EOF)",
             )
         )
-    elif target_label == ":eof":
+    elif target_key == "eof" and label_text.startswith(":"):
         # :eof is a built-in construct, always valid with colon
         pass
-    elif _is_dynamic_jump_target(label_text):
+    elif not target_key or _is_dynamic_jump_target(target_key):
         # Dynamic labels like "label.%errorlevel%", ":%1", or "%~1" can't be
-        # statically validated
+        # statically validated. A colon after the key is not part of the search.
         pass
     else:
         # Static label - check if it exists
-        if not target_label.startswith(":"):
-            target_label = ":" + target_label
+        target_label = ":" + target_key
         if target_label not in labels:
             issues.append(
                 LintIssue(
@@ -100,10 +100,11 @@ def _check_call_labels(
         return issues
 
     call_label_text: str = call_match.group(1)
-    if _is_dynamic_jump_target(call_label_text) or call_label_text.startswith(":"):
+    if call_label_text.startswith(":"):
         return issues
-
-    call_name = call_label_text.lower()
+    call_name = jump_lookup_key(call_label_text)
+    if not call_name or _is_dynamic_jump_target(call_name):
+        return issues
     # An external name is only a missing-colon label when that label exists.
     if (
         f":{call_name}" in labels

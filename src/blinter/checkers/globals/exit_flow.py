@@ -10,7 +10,7 @@ from typing import (
 )
 
 from blinter.models import LintIssue
-from blinter.parsing.context import _is_blank_or_comment
+from blinter.parsing.context import _is_blank_or_comment, jump_lookup_key
 from blinter.parsing.structure import _update_paren_depth, label_key_from_line
 from blinter.rules.registry import RULES
 
@@ -149,10 +149,10 @@ def _build_label_index(lines: List[str]) -> Dict[str, int]:
 
 def _normalize_goto_target(target: str) -> str:
     """Normalize a GOTO target to lowercase label form ``:name``."""
-    normalized = target.lower().strip()
-    if not normalized.startswith(":"):
-        normalized = f":{normalized}"
-    return normalized
+    key = jump_lookup_key(target)
+    if not key:
+        return ""
+    return f":{key}"
 
 
 def _parse_goto_target(stripped: str) -> Optional[str]:

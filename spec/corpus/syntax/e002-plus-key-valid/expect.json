@@ -1,0 +1,8 @@
+{
+  "config": {"enabled_rules": ["E002"]},
+  "description": "goto plus+zzz searches for the key plus (E002 negative)",
+  "lines": {},
+  "must_not": ["E002"],
+  "rules": [],
+  "tags": ["syntax"]
+}

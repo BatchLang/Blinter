@@ -25,11 +25,14 @@ from blinter.parsing.context import (
     _split_pipe_stages,
     _split_tokens,
     _strip_leading_if_predicates,
+    caret_joins_next_physical_line,
+    jump_lookup_key,
+    label_line_key,
 )
 from blinter.rules.helpers import _add_issue
 
 _LABEL_TARGET_PATTERN = re.compile(
-    r"\b(?:call|goto)\s+(:[^\s]+)",
+    r"\b(?:call|goto)\s+(:\S+)",
     re.IGNORECASE,
 )
 # ASCII-only case folding: str.upper() maps ı to I and ſ to S, so a look-alike
@@ -38,21 +41,19 @@ _SUPPRESSION_DIRECTIVE = re.compile(
     r"(?:^|(?<!\^)&\s*)@?(?:rem\s|::)\s*lint:ignore(-line)?(?=\s|$)(.*)$",
     re.IGNORECASE | re.ASCII,
 )
-_LABEL_NAME_END = re.compile(r"[\s+:=,;]")
 _SUPPRESSION_CODE = re.compile(r"^[A-Za-z]+[0-9]+$", re.ASCII)
 
 
 def label_key_from_line(stripped_line: str) -> Optional[str]:
-    """Return ``:name`` for a label, stopping at whitespace and cmd separators.
+    """Return ``:name`` for a label line.
 
-    ``::`` comments and decorative lines with no letters or digits are not labels.
-    cmd.exe ends a label name at space, tab, ``+``, ``:``, ``=``, comma, or semicolon.
+    The key ends at space, tab, ``+``, ``:``, ``&``, ``|``, ``<``, or ``>``.
+    Comma, semicolon, and equals stay in the key. ``::`` remarks and lines
+    with no letter or digit are not labels.
     """
     if not stripped_line.startswith(":") or stripped_line.startswith("::"):
         return None
-    body = stripped_line[1:]
-    name_end = _LABEL_NAME_END.search(body)
-    name = body if name_end is None else body[: name_end.start()]
+    name = label_line_key(stripped_line[1:])
     if not name or not re.search(r"[a-zA-Z0-9]", name):
         return None
     return ":" + name.lower()
@@ -81,10 +82,10 @@ def _collect_labels(lines: List[str]) -> Tuple[Dict[str, int], List[LintIssue]]:
 
 def _normalize_label_target(raw_target: str) -> str:
     """Normalize CALL/GOTO label targets to match ``labels`` dict keys."""
-    target = raw_target.strip().lower()
-    if not target.startswith(":"):
-        target = f":{target}"
-    return target
+    key = jump_lookup_key(raw_target)
+    if not key:
+        return ""
+    return f":{key}"
 
 
 _target_line_cache_var: ContextVar[
@@ -111,7 +112,7 @@ def _build_first_target_line(lines: List[str]) -> Dict[str, int]:
     for index, line in enumerate(lines):
         for match in _LABEL_TARGET_PATTERN.finditer(line):
             name = _normalize_label_target(match.group(1))
-            if name not in first_line:
+            if name and name not in first_line:
                 first_line[name] = index
     return first_line
 
@@ -604,7 +605,7 @@ def _begin_delayed_expansion_pass() -> None:
     _delayed_expansion_cache_var.set({})
 
 
-_LEAVES_RE = re.compile(r"exit(?:[\s/)]|$)|goto[\s:]+(?P<label>[^\s&|()]+)", re.I)
+_LEAVES_RE = re.compile(r"exit(?:[\s/)]|$)|goto[\s:]+(?P<label>\S+)", re.I)
 _MAY_RUN_NOTHING_RE = re.compile(r"(?:if|for)\s", re.IGNORECASE)
 _JUMPS = r"\bgoto[\s:]+(?![\s:]|eof\b)|\bcall\s*:"
 _JUMPS_RE = re.compile(_JUMPS, re.I)
@@ -632,9 +633,12 @@ def _leaving_command(body: str) -> Optional[re.Match[str]]:
 
 
 def _continues(line: str) -> bool:
-    """Return True where a line ends in an odd run of carets, so goes on below."""
-    line = line.rstrip("\r\n")
-    return (len(line) - len(line.rstrip("^"))) % 2 == 1
+    """Return True where this physical line joins the next one.
+
+    A caret inside a REM remark does not. A label or ``::`` line that ends in
+    an odd caret does.
+    """
+    return caret_joins_next_physical_line(line)
 
 
 @dataclass
@@ -683,8 +687,9 @@ class _ExitScan:
             depth += body.endswith("(")
             jumps = self.goes_on[index] or bool(_JUMPS_RE.search(flat[index]))
             self.jumps.append(self.jumps[-1] + jumps)
-            if body.startswith(":"):
-                self.labels.setdefault(body.split()[0].lower(), []).append(index)
+            label = label_key_from_line(body)
+            if label is not None:
+                self.labels.setdefault(label, []).append(index)
         self.reads = [False] * (len(lines) + 1)
         for index in range(len(lines) - 1, -1, -1):
             body = self.bodies[index]
@@ -700,7 +705,8 @@ class _ExitScan:
         leaving = _leaving_command(body)
         if leaving is None:
             return False
-        name = str(leaving.group("label") or "eof").lower()
+        raw_label = str(leaving.group("label") or "eof")
+        name = jump_lookup_key(raw_label) or "eof"
         if name == "eof":
             return True
         targets = self.labels.get(":" + name, [])

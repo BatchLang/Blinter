@@ -16,14 +16,16 @@ from blinter.parsing.context import (
     _is_comment_or_label,
     _split_pipe_stages,
     _split_tokens,
+    caret_joins_next_physical_line,
+    jump_lookup_key,
 )
-from blinter.parsing.structure import _update_paren_depth
+from blinter.parsing.structure import _update_paren_depth, label_key_from_line
 from blinter.rules.registry import RULES
 
-# Optional "(" and "@" sit on the command. The group is the literal prefix
-# before the first % or ! expansion, so "goto case_%1" yields "case_".
+# Optional "(" and "@" sit on the command. The operand is cut to a label key
+# before looking for % or !, so "goto plus+%1" is the static key "plus".
 _COMPUTED_JUMP_RE = re.compile(
-    r"^(?:\(\s*)?@?(?:goto(?:\s+:?|:)|call\s+:)([^\s%!]*)[%!]",
+    r"^(?:\(\s*)?@?(?:goto(?:\s+:?|:)|call\s+:)(\S+)",
     re.IGNORECASE,
 )
 _FOR_COMMAND_RE = re.compile(r"^for\b", re.IGNORECASE)
@@ -132,11 +134,18 @@ def _computed_jump_command(segment: str) -> str:
 
 
 def _prefix_of_computed_jump(segment: str) -> str | None:
-    """Return the literal label prefix of a computed jump, or None."""
+    """Return the literal label prefix of a computed jump, or None.
+
+    ``goto plus+%1`` searches for ``plus`` after expansion, so it is not a
+    prefix match. ``goto case_%1`` still reaches labels that start with ``case_``.
+    """
     match = _COMPUTED_JUMP_RE.match(_computed_jump_command(segment))
     if match is None:
         return None
-    return str(match.group(1)).lower()
+    key = jump_lookup_key(str(match.group(1)))
+    if "%" not in key and "!" not in key:
+        return None
+    return key.split("%", 1)[0].split("!", 1)[0]
 
 
 def _logical_command(lines: List[str], index: int) -> str:
@@ -149,7 +158,7 @@ def _logical_command(lines: List[str], index: int) -> str:
     cursor = index
     while cursor < len(lines):
         text = lines[cursor].rstrip("\r\n")
-        if not _caret_continues(lines[cursor]):
+        if not caret_joins_next_physical_line(lines[cursor]):
             parts.append(text)
             break
         parts.append(text[:-1])
@@ -192,8 +201,15 @@ def _computed_jump_prefixes(lines: List[str]) -> set[str]:
     return prefixes
 
 
-_LABEL_NAME_RE = re.compile(r"^:([a-zA-Z_][\w]*)", re.IGNORECASE)
 _LEAVE_WORD_RE = re.compile(r"^(?:exit(?:/|$)|goto(?:[:/]|$))", re.IGNORECASE)
+
+
+def _defined_label_name(line: str) -> str | None:
+    """Return the lookup key of a label line, without the leading colon."""
+    label = label_key_from_line(line.strip())
+    if label is None:
+        return None
+    return label[1:]
 
 
 def _matches_computed_prefix(name: str, prefixes: set[str]) -> bool:
@@ -231,7 +247,7 @@ def _line_always_leaves(line: str) -> bool:
     A caret-continued line is unfinished. ``&&`` and ``||`` may skip the EXIT
     or GOTO, and a pipe runs it in another cmd.exe. IF and FOR may run nothing.
     """
-    if _is_comment_or_label(line) or _caret_continues(line):
+    if _is_comment_or_label(line) or caret_joins_next_physical_line(line):
         return False
     body = _command_body(line)
     if not body:
@@ -246,24 +262,13 @@ def _line_always_leaves(line: str) -> bool:
     return False
 
 
-def _caret_continues(line: str) -> bool:
-    """Return True when an odd run of carets joins this line to the next.
-
-    ``rem`` does not continue. ``::`` does, which matches cmd.exe.
-    """
-    if re.match(r"^@?rem(?:\s|$)", line.strip(), re.IGNORECASE):
-        return False
-    text = line.rstrip("\r\n")
-    return (len(text) - len(text.rstrip("^"))) % 2 == 1
-
-
 def _continuation_mask(lines: List[str]) -> List[bool]:
     """Return True for each line that a previous caret joined to the prior command."""
     mask: List[bool] = []
     pending = False
     for line in lines:
         mask.append(pending)
-        pending = _caret_continues(line)
+        pending = caret_joins_next_physical_line(line)
     return mask
 
 
@@ -328,9 +333,8 @@ def _fallthrough_label_lines(
     for index, line in enumerate(lines, start=1):
         if continued[index - 1] or _is_blank_or_comment(line):
             continue
-        label_match = _LABEL_NAME_RE.match(line.strip())
-        if label_match:
-            name = str(label_match.group(1)).lower()
+        name = _defined_label_name(line)
+        if name is not None:
             if reachable:
                 fallthrough.add(index)
             reachable = _label_restarts_path(name, reachable, referenced, prefixes)
@@ -351,9 +355,9 @@ def _check_unused_labels(lines: List[str]) -> List[LintIssue]:
     for i, line in enumerate(lines, start=1):
         if continued[i - 1]:
             continue
-        label_match = _LABEL_NAME_RE.match(line.strip())
-        if label_match:
-            labels[str(label_match.group(1)).lower()] = i
+        name = _defined_label_name(line)
+        if name is not None:
+            labels[name] = i
             continue
         referenced.update(_goto_and_call_label_names(_logical_command(lines, i - 1)))
 

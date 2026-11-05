@@ -4,6 +4,15 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ## [Unreleased]
 
+### Fixed
+
+- Label lookup keys end at space, tab, `+`, `:`, `&`, `|`, `<`, and `>`. `goto :ok:extra` matches `:ok:other`, `goto plus+zzz` matches `:plus+more`, and `goto lab` matches `:lab&more`. Comma, semicolon, and equals stay in the label line's key, so `goto eq` does not match `:eq=more`
+- A caret inside a REM remark does not join the next physical line, including `echo hi & rem note ^`. `echo rem note ^` still joins, and a label or `::` line that ends in an odd caret still joins
+
+### Changed
+
+- Pinned batch-spec to v0.72.5. Label keys end at space, tab, plus, colon, and redirection operators, and a caret in a REM remark does not continue the line
+
 ## [1.1.66] - 2026-11-05
 
 ### Changed

@@ -8,8 +8,13 @@ from blinter.patterns import (
     _DANGEROUS_CMDS_REGEX,
 )
 
-_GOTO_LABEL_RE = re.compile(r"\bgoto\s+(:?)([a-zA-Z_][\w]*)", re.IGNORECASE)
-_CALL_LABEL_RE = re.compile(r"\bcall\s+:([a-zA-Z_][\w]*)", re.IGNORECASE)
+_GOTO_LABEL_RE = re.compile(r"\bgoto\s+(\S+)", re.IGNORECASE)
+_CALL_LABEL_RE = re.compile(r"\bcall\s+:(\S+)", re.IGNORECASE)
+# Label-line keys end here. Comma, semicolon, and equals stay in the key.
+_LABEL_KEY_ENDS = frozenset(" \t+:&|<>")
+# GOTO/CALL tokens end at command delimiters, then the key cut above applies.
+_JUMP_TOKEN_ENDS = frozenset(" \t,;=&|<>")
+_REM_SCAN_BREAKS = frozenset(' \t&|()<>"')
 _IF_UNARY_PREDICATES = frozenset({"defined", "exist", "errorlevel", "cmdextversion"})
 _IF_COMPARISON_OPERATORS = frozenset({"==", "equ", "neq", "lss", "leq", "gtr", "geq"})
 _SEGMENT_PREFIXES = frozenset({"do", "else"})
@@ -44,6 +49,250 @@ def _is_comment_or_label(line: str) -> bool:
     """Return True when the line is a comment or label definition."""
     stripped = line.strip().lower()
     return _is_comment_line(line) or stripped.startswith(":")
+
+
+def label_line_key(body: str) -> str:
+    """Return the lookup key of the text after a label's leading colon.
+
+    The key ends at space, tab, ``+``, ``:``, ``&``, ``|``, ``<``, or ``>``.
+    Comma, semicolon, equals, and dot stay in the key.
+    """
+    for index, char in enumerate(body):
+        if char in _LABEL_KEY_ENDS:
+            return body[:index]
+    return body
+
+
+def jump_lookup_key(operand: str) -> str:
+    """Return the lowercase key a GOTO or CALL operand searches for.
+
+    Comma, semicolon, and equals end the command token before the label key
+    is cut, so ``goto eq=more`` searches for ``eq`` while a line ``:eq=more``
+    is the key ``eq=more``. ``+``, ``:``, ``&``, ``|``, ``<``, and ``>`` end
+    the key even when they are not command delimiters.
+    """
+    token = operand
+    for index, char in enumerate(operand):
+        if char in _JUMP_TOKEN_ENDS:
+            token = operand[:index]
+            break
+    if token.startswith(":"):
+        token = token[1:]
+    return label_line_key(token).lower()
+
+
+def _expansion_in_key(key: str) -> bool:
+    """Return True when a lookup key is still expanded at runtime."""
+    return "%" in key or "!" in key
+
+
+def caret_joins_next_physical_line(line: str) -> bool:
+    """Return True when an odd trailing caret joins this line to the next.
+
+    A caret inside a REM remark does not join, including ``echo hi & rem note ^``.
+    ``echo rem note ^`` still joins, because that ``rem`` is data. A label or
+    ``::`` line that ends in an odd caret does join, and the next physical
+    lines are part of that label or remark.
+    """
+    text = line.rstrip("\r\n")
+    if (len(text) - len(text.rstrip("^"))) % 2 != 1:
+        return False
+    if _rem_verb_owns_line(text):
+        logger.debug("REM remark does not continue the line: %s", text.strip())
+        return False
+    return True
+
+
+def _rem_verb_owns_line(text: str) -> bool:
+    """Return True when REM is the command verb on this physical line."""
+    index = 0
+    command = True
+    quote = False
+    length = len(text)
+    while index < length:
+        nxt, command, quote, found = _step_rem_scan(text, index, command, quote)
+        if found:
+            return True
+        index = nxt if nxt > index else index + 1
+    return False
+
+
+def _step_rem_scan(
+    text: str, index: int, command: bool, quote: bool
+) -> tuple[int, bool, bool, bool]:
+    """Advance one character or token. The last flag is True when REM owns the line."""
+    char = text[index]
+    if quote or char == '"' or char in " \t":
+        return _step_rem_gap(text, index, command, quote)
+    separated = _step_rem_separator(text, index, command)
+    if separated is not None:
+        return separated
+    if not command:
+        return index + 1, False, False, False
+    return _step_rem_command(text, index)
+
+
+def _step_rem_gap(
+    text: str, index: int, command: bool, quote: bool
+) -> tuple[int, bool, bool, bool]:
+    """Advance through a quote or blank. Quotes are not command verbs."""
+    char = text[index]
+    if quote:
+        return index + 1, command, char != '"', False
+    if char == '"':
+        return index + 1, False, True, False
+    return index + 1, command, False, False
+
+
+def _step_rem_separator(
+    text: str, index: int, command: bool
+) -> tuple[int, bool, bool, bool] | None:
+    """Advance at a separator, or return None when ``index`` is a word."""
+    char = text[index]
+    if char in "&|":
+        if _is_caret_escaped(text, index):
+            return index + 1, command, False, False
+        return index + 1, True, False, False
+    if char in "()":
+        return index + 1, char == "(", False, False
+    return None
+
+
+def _step_rem_command(text: str, index: int) -> tuple[int, bool, bool, bool]:
+    """Advance from a command position. A REM token owns the rest of the line."""
+    if text[index] == "@":
+        return index + 1, True, False, False
+    redirected = _skip_redirect(text, index)
+    if redirected != index:
+        return redirected, True, False, False
+    return _step_rem_word(text, index)
+
+
+def _step_rem_word(text: str, index: int) -> tuple[int, bool, bool, bool]:
+    """Classify the command word at ``index``."""
+    token, after = _read_scan_token(text, index)
+    lowered = token.lower()
+    if _is_rem_token(lowered):
+        return after, False, False, True
+    if lowered == "if":
+        return _after_if_condition(text, after), True, False, False
+    if lowered == "for":
+        return _step_rem_for(text, after)
+    return after, False, False, False
+
+
+def _step_rem_for(text: str, index: int) -> tuple[int, bool, bool, bool]:
+    """Return the command position after FOR's DO, or the end of the line."""
+    after_do = _after_for_do(text, index)
+    if after_do is None:
+        return len(text), False, False, False
+    return after_do, True, False, False
+
+
+def _is_rem_token(token: str) -> bool:
+    """Return True when ``token`` is the REM verb, not a longer command name."""
+    if len(token) < 3 or token[:3] != "rem":
+        return False
+    if len(token) == 3:
+        return True
+    return not (token[3].isalnum() or token[3] == "_")
+
+
+def _read_scan_token(text: str, index: int) -> tuple[str, int]:
+    """Return the next command token and the index after it."""
+    start = index
+    while index < len(text) and text[index] not in _REM_SCAN_BREAKS:
+        if text[index] == "^":
+            index = min(index + 2, len(text))
+            continue
+        index += 1
+    return text[start:index], index
+
+
+def _skip_redirect(text: str, index: int) -> int:
+    """Return the index after a redirection at ``index``, or ``index`` itself."""
+    cursor = index
+    if cursor < len(text) and text[cursor].isdigit():
+        digits = cursor
+        while digits < len(text) and text[digits].isdigit():
+            digits += 1
+        if digits >= len(text) or text[digits] not in "<>":
+            return index
+        cursor = digits
+    if cursor >= len(text) or text[cursor] not in "<>":
+        return index
+    if text.startswith((">>", ">&", "<&"), cursor):
+        cursor += 2
+    else:
+        cursor += 1
+    return _skip_redirect_target(text, cursor)
+
+
+def _skip_redirect_target(text: str, index: int) -> int:
+    """Return the index after a redirection's target."""
+    while index < len(text) and text[index] in " \t":
+        index += 1
+    if index < len(text) and text[index] == '"':
+        closing = text.find('"', index + 1)
+        return len(text) if closing < 0 else closing + 1
+    while index < len(text) and text[index] not in " \t&|()":
+        index += 1
+    return index
+
+
+def _after_if_condition(text: str, index: int) -> int:
+    """Return the index of the command after an IF condition."""
+    token, index = _read_scan_token_ws(text, index)
+    while token.lower() in {"/i", "not"}:
+        token, index = _read_scan_token_ws(text, index)
+    lowered = token.lower()
+    if lowered in _IF_UNARY_PREDICATES:
+        _operand, index = _read_scan_token_ws(text, index)
+        return index
+    if "==" in lowered and lowered != "==":
+        return index
+    operator, after_operator = _read_scan_token_ws(text, index)
+    if operator.lower() in _IF_COMPARISON_OPERATORS:
+        _right, index = _read_scan_token_ws(text, after_operator)
+        return index
+    return index
+
+
+def _read_scan_token_ws(text: str, index: int) -> tuple[str, int]:
+    """Skip spaces and return the next scan token."""
+    while index < len(text) and text[index] in " \t":
+        index += 1
+    return _read_scan_token(text, index)
+
+
+def _after_for_do(text: str, index: int) -> int | None:
+    """Return the index after FOR's DO, outside the IN parentheses."""
+    depth = 0
+    cursor = index
+    while cursor < len(text):
+        char = text[cursor]
+        if char == "(":
+            depth += 1
+            cursor += 1
+            continue
+        if char == ")":
+            depth = max(0, depth - 1)
+            cursor += 1
+            continue
+        if depth == 0 and _scan_word_at(text, cursor, "do"):
+            return cursor + 2
+        cursor += 1
+    return None
+
+
+def _scan_word_at(text: str, index: int, word: str) -> bool:
+    """Return True when ``word`` sits at ``index`` as a whole word."""
+    end = index + len(word)
+    if text[index:end].lower() != word:
+        return False
+    before_ok = index == 0 or not (text[index - 1].isalnum() or text[index - 1] == "_")
+    after_ok = end >= len(text) or not (text[end].isalnum() or text[end] == "_")
+    return before_ok and after_ok
 
 
 def _is_echo_statement(stripped: str) -> bool:
@@ -268,9 +517,12 @@ def _iter_goto_label_refs(line: str) -> Iterator[tuple[str, str]]:
     if not text:
         return
     for match in _GOTO_LABEL_RE.finditer(text):
-        colon = str(match.group(1) or "")
-        name = str(match.group(2))
-        yield colon + name, name.lower()
+        raw = str(match.group(1))
+        key = jump_lookup_key(raw)
+        if not key or _expansion_in_key(key):
+            continue
+        shown = f":{key}" if raw.startswith(":") else key
+        yield shown, key
 
 
 def _goto_and_call_label_names(line: str) -> set[str]:
@@ -280,7 +532,9 @@ def _goto_and_call_label_names(line: str) -> set[str]:
         return set()
     names = {name for _raw, name in _iter_goto_label_refs(line)}
     for match in _CALL_LABEL_RE.finditer(text):
-        names.add(str(match.group(1)).lower())
+        key = jump_lookup_key(str(match.group(1)))
+        if key and not _expansion_in_key(key):
+            names.add(key)
     return names
 
 
@@ -289,7 +543,12 @@ def _call_subroutine_label_names(line: str) -> set[str]:
     text = _executable_jump_text(line)
     if not text:
         return set()
-    return {str(match.group(1)).lower() for match in _CALL_LABEL_RE.finditer(text)}
+    names: set[str] = set()
+    for match in _CALL_LABEL_RE.finditer(text):
+        key = jump_lookup_key(str(match.group(1)))
+        if key and not _expansion_in_key(key):
+            names.add(key)
+    return names
 
 
 def _set_line_without_dangerous_substitution(stripped: str) -> bool:

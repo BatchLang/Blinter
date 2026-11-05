@@ -1,0 +1,8 @@
+{
+  "config": {"enabled_rules": ["W013"]},
+  "description": "Ampersand and pipe end the label key, so :lab&more and :lab|other are both lab",
+  "lines": {"3": ["W013"]},
+  "must_not": [],
+  "rules": ["W013"],
+  "tags": ["syntax"]
+}
