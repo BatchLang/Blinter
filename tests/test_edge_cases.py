@@ -77,6 +77,8 @@ from blinter.parsing.context import (
     _is_comment_line,
     _is_endlocal_command,
     _is_setlocal_command,
+    caret_joins_next_physical_line,
+    grouped_if_has_no_condition,
 )
 from blinter.parsing.embedded import _detect_embedded_script_blocks
 from blinter.parsing.structure import (
@@ -2417,6 +2419,19 @@ class TestGlobalChecks:
         assert len(s010_issues) == 1
         assert s010_issues[0].line_number == 3
         assert "never reached" in s010_issues[0].context.lower()
+
+    def test_quote_and_rem_paren_caret_follow_batch_spec(self) -> None:
+        """A caret inside a quote does not join, and rem) joins unless grouped."""
+        assert caret_joins_next_physical_line('echo "hello^') is False
+        assert caret_joins_next_physical_line('echo "hello" ^') is True
+        assert caret_joins_next_physical_line('echo ^"hello^') is True
+        assert caret_joins_next_physical_line("echo hi & rem note ^") is False
+        assert caret_joins_next_physical_line("echo hi & rem) note ^") is True
+        assert caret_joins_next_physical_line("rem) note ^", depth_before=1) is False
+        assert grouped_if_has_no_condition("(if)") is True
+        assert grouped_if_has_no_condition("echo (if)") is False
+        assert grouped_if_has_no_condition("if)") is False
+        assert grouped_if_has_no_condition("if)", depth_before=1) is True
 
     def test_label_after_exit_or_chained_goto_triggers_s010(self) -> None:
         """EXIT, or GOTO after ``&``, leaves the following label unreachable."""

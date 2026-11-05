@@ -7,7 +7,12 @@ import re
 from typing import Dict, List, Optional, Tuple
 
 from blinter.logging_config import logger
-from blinter.parsing.context import _is_blank_or_comment, _is_caret_escaped
+from blinter.parsing.context import (
+    _is_blank_or_comment,
+    _is_caret_escaped,
+    caret_joins_next_physical_line,
+)
+from blinter.parsing.structure import _build_paren_depth_before
 from blinter.patterns import COMMAND_CASING_KEYWORDS
 
 # REM or :: at the start of a command segment, after optional ``(`` groups.
@@ -502,7 +507,28 @@ def _command_keyword(code: str, name: str, offset: int) -> Optional[str]:
     return None
 
 
-def _command_words(code: str) -> List[str]:
+def _glued_paren_hides_keyword(
+    code: str, pos: int, groups: List[Optional[int]], depth_before: int
+) -> bool:
+    """Return True when ``)`` follows a keyword and closes no open group.
+
+    ``call)`` is not CALL. ``(call)`` is CALL, because ``)`` closes the group
+    that is already open.
+    """
+    if pos >= len(code) or code[pos] != ")":
+        return False
+    if _is_caret_escaped(code, pos):
+        return False
+    if depth_before > 0 or groups:
+        return False
+    logger.debug(
+        "Keyword glued to ')' is not a command: %s",
+        code[max(0, pos - 8) : pos + 1],
+    )
+    return True
+
+
+def _command_words(code: str, *, depth_before: int = 0) -> List[str]:
     """Return the keywords in code where a command starts, as this scan reads it.
 
     A command starts the line, or follows ``&`` or ``|`` where they split
@@ -541,6 +567,9 @@ def _command_words(code: str) -> List[str]:
                 pos = _read_token(code, pos, "&|()", depth=depth)[2]
             continue
         keyword = _command_keyword(code, name, offset)
+        if keyword and _glued_paren_hides_keyword(code, pos, parens[0], depth_before):
+            command = False
+            continue
         if keyword:
             words.append(keyword)
         after = _after_command_word(code, lowered, pos, offset, depth)
@@ -558,6 +587,7 @@ def _collect_cmd_cases(lines: List[str]) -> Dict[str, List[Tuple[int, str]]]:
     """Collect command casing patterns from file lines."""
     command_cases: Dict[str, List[Tuple[int, str]]] = {}
     continued = False
+    depths = _build_paren_depth_before(lines)
 
     for line_num, line in enumerate(lines, 1):
         # cmd.exe usually joins a line that ends in an odd caret run to the next
@@ -570,7 +600,8 @@ def _collect_cmd_cases(lines: List[str]) -> Dict[str, List[Tuple[int, str]]]:
         # after ``:: x ^`` cmd.exe joins it to the comment, so it does not run
         # (T3 in https://github.com/fametrano/Blinter/actions/runs/41658084012).
         escaped = continued and _LEADING_CARET_SEPARATOR_RE.match(line) is not None
-        continued = _separator_level(line, len(line.rstrip("\r\n"))) > 0
+        depth_before = depths[line_num - 1] if line_num - 1 < len(depths) else 0
+        continued = caret_joins_next_physical_line(line, depth_before=depth_before)
         stripped = line.strip()
         if _is_blank_or_comment(stripped):
             continue
@@ -594,7 +625,10 @@ def _collect_cmd_cases(lines: List[str]) -> Dict[str, List[Tuple[int, str]]]:
             for keyword in _ARGUMENT_CASE_KEYWORDS
             for match in _COMMAND_CASE_RE[keyword].finditer(code)
         ]
-        found.extend((word.casefold(), word) for word in _command_words(code))
+        found.extend(
+            (word.casefold(), word)
+            for word in _command_words(code, depth_before=depth_before)
+        )
         for keyword, actual_case in found:
             command_cases.setdefault(keyword, []).append((line_num, actual_case))
 

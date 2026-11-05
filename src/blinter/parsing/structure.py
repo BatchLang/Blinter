@@ -632,13 +632,14 @@ def _leaving_command(body: str) -> Optional[re.Match[str]]:
     return _LEAVES_RE.match(parts[-1].strip().lstrip("(@").lstrip())
 
 
-def _continues(line: str) -> bool:
+def _continues(line: str, *, depth_before: int = 0) -> bool:
     """Return True where this physical line joins the next one.
 
-    A caret inside a REM remark does not. A label or ``::`` line that ends in
-    an odd caret does.
+    A caret inside an open quote or a REM remark does not. ``rem)`` continues
+    unless that ``)`` closes a group already open. A label or ``::`` line that
+    ends in an odd caret does.
     """
-    return caret_joins_next_physical_line(line)
+    return caret_joins_next_physical_line(line, depth_before=depth_before)
 
 
 @dataclass
@@ -674,7 +675,11 @@ class _ExitScan:
     def __init__(self, lines: List[str]) -> None:
         self.bodies = [_command_body(line) for line in lines]
         flat = [body.replace("^", "") for body in self.bodies]
-        self.goes_on = [_continues(line) for line in lines]
+        depths_before = _build_paren_depth_before(lines)
+        self.goes_on = [
+            _continues(line, depth_before=depths_before[index])
+            for index, line in enumerate(lines)
+        ]
         self.sets = [_is_setlocal_command(line) for line in lines]
         self.ends = [_is_endlocal_command(line) for line in lines]
         self.labels: Dict[str, List[int]] = {}

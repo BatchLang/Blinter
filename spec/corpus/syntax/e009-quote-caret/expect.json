@@ -1,0 +1,8 @@
+{
+  "config": {"enabled_rules": ["E009"]},
+  "description": "An unclosed quote ends at the physical line even when the line ends in a caret",
+  "lines": {"2": ["E009"]},
+  "must_not": [],
+  "rules": ["E009"],
+  "tags": ["syntax"]
+}

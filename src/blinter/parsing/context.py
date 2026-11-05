@@ -86,31 +86,124 @@ def _expansion_in_key(key: str) -> bool:
     return "%" in key or "!" in key
 
 
-def caret_joins_next_physical_line(line: str) -> bool:
+def caret_joins_next_physical_line(line: str, *, depth_before: int = 0) -> bool:
     """Return True when an odd trailing caret joins this line to the next.
 
-    A caret inside a REM remark does not join, including ``echo hi & rem note ^``.
-    ``echo rem note ^`` still joins, because that ``rem`` is data. A label or
-    ``::`` line that ends in an odd caret does join, and the next physical
-    lines are part of that label or remark.
+    A caret inside an unclosed double quote does not join: the quote ends at
+    the physical line, and the next line is its own command. A caret inside a
+    REM remark does not join, including ``echo hi & rem note ^``. ``rem)``
+    is that remark only when the ``)`` closes a group already open;
+    otherwise the caret still joins. ``echo rem note ^`` still joins, because
+    that ``rem`` is data. A label or ``::`` line that ends in an odd caret
+    does join, and the next physical lines are part of that label or remark.
     """
     text = line.rstrip("\r\n")
     if (len(text) - len(text.rstrip("^"))) % 2 != 1:
         return False
-    if _rem_verb_owns_line(text):
+    if _double_quote_open_at_end(text):
+        logger.debug("Caret inside an open quote does not continue: %s", text.strip())
+        return False
+    if _rem_verb_owns_line(text, depth_before=depth_before):
         logger.debug("REM remark does not continue the line: %s", text.strip())
         return False
     return True
 
 
-def _rem_verb_owns_line(text: str) -> bool:
+def _double_quote_open_at_end(text: str) -> bool:
+    """Return True when a double quote is still open at the end of ``text``.
+
+    ``""`` inside a quote is one escaped quote. A caret outside a quote
+    escapes the next character, including a quote. A caret inside a quote
+    does not.
+    """
+    index = 0
+    in_quote = False
+    length = len(text)
+    while index < length:
+        index, in_quote = _step_double_quote(text, index, in_quote)
+    return in_quote
+
+
+def _step_double_quote(text: str, index: int, in_quote: bool) -> tuple[int, bool]:
+    """Advance one quote-state step and return the next index and state."""
+    if in_quote:
+        return _step_inside_double_quote(text, index)
+    if text[index] == "^" and index + 1 < len(text):
+        return index + 2, False
+    if text[index] == '"':
+        return index + 1, True
+    return index + 1, False
+
+
+def _step_inside_double_quote(text: str, index: int) -> tuple[int, bool]:
+    """Advance inside a double quote. ``""`` stays inside the quote."""
+    if text[index] != '"':
+        return index + 1, True
+    if index + 1 < len(text) and text[index + 1] == '"':
+        return index + 2, True
+    return index + 1, False
+
+
+def _open_paren_depth(text: str) -> int:
+    """Return how many ``(`` groups in ``text`` are still open.
+
+    A quote ends at the next quote or at the end of this text. An odd caret
+    escapes the following parenthesis.
+    """
+    depth = 0
+    index = 0
+    length = len(text)
+    while index < length:
+        index, depth = _step_paren_depth(text, index, depth)
+    return depth
+
+
+def _step_paren_depth(text: str, index: int, depth: int) -> tuple[int, int]:
+    """Advance one parenthesis-depth step."""
+    char = text[index]
+    if char == '"':
+        return _skip_quote_for_depth(text, index), depth
+    if char == "^":
+        return _skip_caret_for_depth(text, index), depth
+    if char == "(":
+        return index + 1, depth + 1
+    if char == ")" and depth > 0:
+        return index + 1, depth - 1
+    return index + 1, depth
+
+
+def _skip_quote_for_depth(text: str, index: int) -> int:
+    """Return the index after a quote that ends at the next quote."""
+    end = index + 1
+    length = len(text)
+    while end < length and text[end] not in '"\n':
+        end += 1
+    if end < length and text[end] == '"':
+        return end + 1
+    return end
+
+
+def _skip_caret_for_depth(text: str, index: int) -> int:
+    """Return the index after a caret run, consuming an escaped parenthesis."""
+    end = index
+    length = len(text)
+    while end < length and text[end] == "^":
+        end += 1
+    if (end - index) % 2 == 1 and end < length and text[end] in "()":
+        return end + 1
+    return end
+
+
+def _rem_verb_owns_line(text: str, *, depth_before: int = 0) -> bool:
     """Return True when REM is the command verb on this physical line."""
     index = 0
     command = True
     quote = False
     length = len(text)
     while index < length:
-        nxt, command, quote, found = _step_rem_scan(text, index, command, quote)
+        nxt, command, quote, found = _step_rem_scan(
+            text, index, command, quote, depth_before
+        )
         if found:
             return True
         index = nxt if nxt > index else index + 1
@@ -118,7 +211,7 @@ def _rem_verb_owns_line(text: str) -> bool:
 
 
 def _step_rem_scan(
-    text: str, index: int, command: bool, quote: bool
+    text: str, index: int, command: bool, quote: bool, depth_before: int
 ) -> tuple[int, bool, bool, bool]:
     """Advance one character or token. The last flag is True when REM owns the line."""
     char = text[index]
@@ -129,7 +222,7 @@ def _step_rem_scan(
         return separated
     if not command:
         return index + 1, False, False, False
-    return _step_rem_command(text, index)
+    return _step_rem_command(text, index, depth_before)
 
 
 def _step_rem_gap(
@@ -158,27 +251,154 @@ def _step_rem_separator(
     return None
 
 
-def _step_rem_command(text: str, index: int) -> tuple[int, bool, bool, bool]:
+def _step_rem_command(
+    text: str, index: int, depth_before: int
+) -> tuple[int, bool, bool, bool]:
     """Advance from a command position. A REM token owns the rest of the line."""
     if text[index] == "@":
         return index + 1, True, False, False
     redirected = _skip_redirect(text, index)
     if redirected != index:
         return redirected, True, False, False
-    return _step_rem_word(text, index)
+    return _step_rem_word(text, index, depth_before)
 
 
-def _step_rem_word(text: str, index: int) -> tuple[int, bool, bool, bool]:
+def _step_rem_word(
+    text: str, index: int, depth_before: int
+) -> tuple[int, bool, bool, bool]:
     """Classify the command word at ``index``."""
     token, after = _read_scan_token(text, index)
     lowered = token.lower()
     if _is_rem_token(lowered):
+        if _rem_paren_rejects(text, index, after, depth_before):
+            return after, False, False, False
         return after, False, False, True
     if lowered == "if":
         return _after_if_condition(text, after), True, False, False
     if lowered == "for":
         return _step_rem_for(text, after)
     return after, False, False, False
+
+
+def _rem_paren_rejects(text: str, start: int, after: int, depth_before: int) -> bool:
+    """Return True when ``rem)`` is not REM because ``)`` closes no group."""
+    if after >= len(text) or text[after] != ")":
+        return False
+    if _is_caret_escaped(text, after):
+        return False
+    if _open_paren_depth(text[:start]) + depth_before > 0:
+        return False
+    logger.debug("rem) is not REM; ')' closes no open group: %s", text.strip())
+    return True
+
+
+def _rem_remark_consumes_paren(text: str, index: int, depth_before: int) -> bool:
+    """Return True when ``)`` at ``index`` is the body of a REM remark.
+
+    ``(rem) note`` is a remark: the ``)`` closes a group that is already
+    open, so REM stays the keyword and the rest of the line is comment text.
+    ``rem)`` with no group open is not REM.
+    """
+    if index < 3 or text[index] != ")" or _is_caret_escaped(text, index):
+        return False
+    if text[index - 3 : index].lower() != "rem":
+        return False
+    if index > 3 and (text[index - 4].isalnum() or text[index - 4] == "_"):
+        return False
+    return _rem_verb_owns_line(text[:index], depth_before=depth_before)
+
+
+def grouped_if_has_no_condition(text: str, *, depth_before: int = 0) -> bool:
+    """Return True when ``)`` closes a command-position IF that has no condition."""
+    index = 0
+    depth = depth_before
+    command = True
+    length = len(text)
+    while index < length:
+        found, nxt, depth, command = _step_grouped_if(text, index, depth, command)
+        if found:
+            logger.debug("Bare IF closed by ')': %s", text.strip())
+            return True
+        index = nxt if nxt > index else index + 1
+    return False
+
+
+def _step_grouped_if(
+    text: str, index: int, depth: int, command: bool
+) -> tuple[bool, int, int, bool]:
+    """Advance one grouped-IF step. The first flag is True when IF has no condition."""
+    stepped = _grouped_if_gap(text, index, depth, command)
+    if stepped is not None:
+        return stepped
+    if not command:
+        return False, index + 1, depth, False
+    return _step_grouped_if_word(text, index, depth)
+
+
+def _grouped_if_gap(
+    text: str, index: int, depth: int, command: bool
+) -> tuple[bool, int, int, bool] | None:
+    """Return the step for a quote, caret, blank, or separator, else None."""
+    char = text[index]
+    if char == '"':
+        return False, _skip_quote_for_depth(text, index), depth, False
+    if char == "^" and index + 1 < len(text):
+        return False, index + 2, depth, command
+    if char in " \t":
+        return False, index + 1, depth, command
+    if char in "&|()" and not _grouped_separator_escaped(text, index, char):
+        return _grouped_if_separator(index, depth, command, char)
+    return None
+
+
+def _grouped_separator_escaped(text: str, index: int, char: str) -> bool:
+    """Return True when a caret escapes ``&`` or ``|``."""
+    return char in "&|" and _is_caret_escaped(text, index)
+
+
+def _grouped_if_separator(
+    index: int, depth: int, command: bool, char: str
+) -> tuple[bool, int, int, bool]:
+    """Advance at ``&``, ``|``, ``(``, or ``)``."""
+    if char in "&|":
+        return False, index + 1, depth, True
+    if char == "(" and command:
+        return False, index + 1, depth + 1, True
+    if char == ")":
+        next_depth = max(0, depth - 1) if command else depth
+        return False, index + 1, next_depth, False
+    return False, index + 1, depth, command
+
+
+def _step_grouped_if_word(
+    text: str, index: int, depth: int
+) -> tuple[bool, int, int, bool]:
+    """Classify the command word while looking for a bare grouped IF."""
+    if text[index] == "@":
+        return False, index + 1, depth, True
+    token, after = _read_scan_token(text, index)
+    lowered = token.lower()
+    if lowered == "echo":
+        return False, after, depth, False
+    if lowered == "if" and _if_closed_without_condition(text, after, depth):
+        return True, after, depth, False
+    if lowered == "if":
+        return False, _after_if_condition(text, after), depth, True
+    if lowered == "for":
+        after_do = _after_for_do(text, after)
+        return False, len(text) if after_do is None else after_do, depth, True
+    return False, after, depth, False
+
+
+def _if_closed_without_condition(text: str, index: int, depth: int) -> bool:
+    """Return True when IF has only optional space and then ``)`` inside a group."""
+    if depth <= 0:
+        return False
+    while index < len(text) and text[index] in " \t":
+        index += 1
+    return (
+        index < len(text) and text[index] == ")" and not _is_caret_escaped(text, index)
+    )
 
 
 def _step_rem_for(text: str, index: int) -> tuple[int, bool, bool, bool]:

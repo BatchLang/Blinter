@@ -19,7 +19,10 @@ from blinter.parsing.context import (
     _is_blank_or_comment,
     _is_caret_escaped,
     _is_comment_line,
+    _rem_remark_consumes_paren,
     _split_tokens,
+    caret_joins_next_physical_line,
+    grouped_if_has_no_condition,
     jump_lookup_key,
 )
 from blinter.parsing.structure import (
@@ -165,12 +168,17 @@ def _check_if_exists_typo(stripped: str, line_num: int) -> List[LintIssue]:
     ]
 
 
-def _check_if_statement_formatting(stripped: str, line_num: int) -> List[LintIssue]:
+def _check_if_statement_formatting(
+    stripped: str, line_num: int, lines: List[str] | None = None
+) -> List[LintIssue]:
     """Check for IF statement formatting issues (E003)."""
     issues: List[LintIssue] = []
     issues.extend(_check_if_exists_typo(stripped, line_num))
     if issues:
         return issues
+    bare_if = _check_grouped_bare_if(stripped, line_num, lines)
+    if bare_if:
+        return bare_if
     if re.match(r'if(?=["\'%!])', stripped, re.IGNORECASE) or re.match(
         r"if\(", stripped, re.IGNORECASE
     ):
@@ -226,6 +234,31 @@ def _check_if_statement_formatting(stripped: str, line_num: int) -> List[LintIss
             )
     issues.extend(_check_if_equals_paren(stripped, line_num))
     return issues
+
+
+def _check_grouped_bare_if(
+    stripped: str, line_num: int, lines: List[str] | None
+) -> List[LintIssue]:
+    """Flag ``(if)`` and ``if)`` inside a group (E003).
+
+    The ``)`` closes a group that is already open, so IF stays the keyword
+    and cmd.exe rejects the missing condition. ``if)`` with no group open is
+    not IF. ``echo (if)`` prints its argument.
+    """
+    depth_before = 0
+    if lines is not None:
+        depth_before = _paren_depth_before_line(lines, line_num)
+    if not grouped_if_has_no_condition(stripped, depth_before=depth_before):
+        return []
+    return [
+        LintIssue(
+            line_number=line_num,
+            rule=RULES["E003"],
+            context=(
+                "IF with no condition is a syntax error; ')' closes the IF keyword"
+            ),
+        )
+    ]
 
 
 _IF_PREFIX_TOKENS = frozenset({"/i", "not"})
@@ -614,9 +647,8 @@ def _check_quotes(line: str, line_num: int) -> List[LintIssue]:
         return issues
 
     quote_count = _count_unmatched_batch_quotes(line)
-    line_continues = line.rstrip().endswith("^")
 
-    if quote_count % 2 != 0 and not line_continues:
+    if quote_count % 2 != 0 and not caret_joins_next_physical_line(line):
         if not _is_e009_special_case_exemption(stripped, line):
             issues.append(
                 LintIssue(
@@ -1083,7 +1115,9 @@ def _first_unquoted_open_paren(text: str) -> Optional[int]:
     return None
 
 
-def _invalid_token_after_close_paren(text: str) -> Optional[str]:
+def _invalid_token_after_close_paren(
+    text: str, *, depth_before: int = 0
+) -> Optional[str]:
     """Return the unexpected token after an inner ')' if cmd.exe would reject it."""
     in_quotes = False
     for index, char in enumerate(text):
@@ -1092,6 +1126,9 @@ def _invalid_token_after_close_paren(text: str) -> Optional[str]:
             continue
         if in_quotes or char != ")" or _is_caret_escaped(text, index):
             continue
+        if _rem_remark_consumes_paren(text, index, depth_before):
+            # (rem) note is a remark: ')' is comment text, not a group closer.
+            return None
         remainder = text[index + 1 :].lstrip()
         if not remainder or _VALID_AFTER_CLOSE_PAREN_RE.match(remainder):
             continue
@@ -1132,7 +1169,8 @@ def _check_text_after_close_paren_in_block(
         depth_before = _paren_depth_before_line(lines, line_num)
     unexpected: Optional[str] = None
     for region in _regions_inside_paren_blocks(stripped, depth_before):
-        unexpected = _invalid_token_after_close_paren(region)
+        region_depth = depth_before if depth_before > 0 else 1
+        unexpected = _invalid_token_after_close_paren(region, depth_before=region_depth)
         if unexpected is not None:
             break
     if unexpected is None:
@@ -1164,7 +1202,7 @@ def _check_syntax_errors(
     # Use helper functions to check for various syntax errors
     issues.extend(_check_goto_labels(stripped, line_num, labels))
     issues.extend(_check_call_labels(stripped, line_num, labels))
-    issues.extend(_check_if_statement_formatting(stripped, line_num))
+    issues.extend(_check_if_statement_formatting(stripped, line_num, lines))
     issues.extend(_check_errorlevel_syntax(stripped, line_num))
     issues.extend(_check_if_exist_mixing(stripped, line_num))
     issues.extend(_check_path_syntax(stripped, line_num))

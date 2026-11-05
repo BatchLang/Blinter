@@ -1,0 +1,8 @@
+{
+  "config": {"enabled_rules": ["S003"]},
+  "description": "call) is not the CALL keyword, so it does not disagree with CALL (S003 negative)",
+  "lines": {},
+  "must_not": ["S003"],
+  "rules": [],
+  "tags": ["syntax"]
+}

@@ -2,16 +2,21 @@
 
 All notable changes to Blinter are documented in this file. Release tags follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.1.67] - 2026-11-05
 
 ### Fixed
 
 - Label lookup keys end at space, tab, `+`, `:`, `&`, `|`, `<`, and `>`. `goto :ok:extra` matches `:ok:other`, `goto plus+zzz` matches `:plus+more`, and `goto lab` matches `:lab&more`. Comma, semicolon, and equals stay in the label line's key, so `goto eq` does not match `:eq=more`
 - A caret inside a REM remark does not join the next physical line, including `echo hi & rem note ^`. `echo rem note ^` still joins, and a label or `::` line that ends in an odd caret still joins
+- A caret inside an unclosed double quote does not join the next physical line. `echo "note ^` leaves the following command in place, and E009 still reports the unclosed quote. A caret after a closed quote still joins
+- `call)` is not the CALL keyword, so it does not affect S003 casing. `(call)` is CALL. `rem)` is a remark only when `)` closes a group that is already open, so `(rem) note` is not text after a group closer (E042). `(if)` and `if)` inside a group are E003
+- A quoted `FOR /R` root such as `"D:\eol files"` is a path, not a FOR /F option string. `%%~qf` is not reported as an invalid percent-tilde parameter
 
 ### Changed
 
+- Pinned batch-spec to v0.72.6. Quotes end at the physical line, a keyword immediately before `)` stays a keyword only when that `)` closes an open group, and FOR /F option strings apply only after `/F`
 - Pinned batch-spec to v0.72.5. Label keys end at space, tab, plus, colon, and redirection operators, and a caret in a REM remark does not continue the line
+- The MegaLinter install pin is 1.1.67
 
 ## [1.1.66] - 2026-11-05
 
@@ -739,6 +744,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 Older 1.0.x releases are available on the [GitHub Releases](https://github.com/BatchLang/Blinter/releases) page.
 
+[1.1.67]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.67
 [1.1.66]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.66
 [1.1.65]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.65
 [1.1.64]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.64

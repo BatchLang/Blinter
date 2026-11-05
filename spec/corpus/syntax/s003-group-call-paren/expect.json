@@ -1,0 +1,8 @@
+{
+  "config": {"enabled_rules": ["S003"]},
+  "description": "(call) is the CALL keyword, so its casing is compared with CALL",
+  "lines": {"3": ["S003"]},
+  "must_not": [],
+  "rules": ["S003"],
+  "tags": ["syntax"]
+}

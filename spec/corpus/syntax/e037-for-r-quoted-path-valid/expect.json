@@ -1,0 +1,8 @@
+{
+  "config": {"enabled_rules": ["E037", "E038"]},
+  "description": "A quoted FOR /R root is a path, not a FOR /F option string (E037 E038 negative)",
+  "lines": {},
+  "must_not": ["E037", "E038"],
+  "rules": [],
+  "tags": ["syntax"]
+}

@@ -1,0 +1,8 @@
+{
+  "config": {"enabled_rules": ["E003"]},
+  "description": "if) inside an open group is IF with no condition",
+  "lines": {"3": ["E003"]},
+  "must_not": [],
+  "rules": ["E003"],
+  "tags": ["syntax"]
+}

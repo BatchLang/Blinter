@@ -26,6 +26,7 @@ entries:
   - syntax/e042-text-after-paren-in-block
   - syntax/e042-nested-if-in-for
   - syntax/e042-text-after-paren-valid
+  - syntax/e042-rem-paren-remark-valid
   - syntax/e042-same-line-block
   - syntax/e042-programfiles-x86-valid
 - construct: GOTO label resolution and unreachable flow
@@ -75,6 +76,8 @@ entries:
   corpus:
   - syntax/e003-if-format
   - syntax/e003-if-trailing-assign-valid
+  - syntax/e003-group-if
+  - syntax/e003-group-if-next-line
   - syntax/e004-if-exist-mix
   - syntax/e036-if-exists-typo
   - syntax/e036-if-exist-valid
@@ -197,6 +200,7 @@ entries:
   - E028
   corpus:
   - syntax/e009-mismatched-quotes
+  - syntax/e009-quote-caret
   - syntax/e011-bang-invalid-expansion
   - syntax/e011-invalid-expansion
   - syntax/e028-complex-quotes
@@ -358,6 +362,7 @@ entries:
   - syntax/e019-percent-tilde-dp0-adjacent-valid
   - syntax/e019-for-metavar-bare-tilde-valid
   - syntax/e019-for-metavar-adjacent-literal-valid
+  - syntax/e019-for-tilde-qf-valid
   - syntax/e024-invalid-modifier-combo
   - syntax/e025-tilde-wrong-context
   - syntax/w051-param-10-ambiguous
@@ -671,6 +676,8 @@ entries:
   - syntax/s002-echo-off-with-at-valid
   - syntax/s003-consistent-casing-valid
   - syntax/s003-cmd-after-separator-valid
+  - syntax/s003-call-paren-valid
+  - syntax/s003-group-call-paren
   - syntax/s004-no-trailing-space-valid
   - syntax/s007-cmd-extension-valid
   - syntax/s008-commented-block-valid
@@ -687,6 +694,8 @@ entries:
   - syntax/s018-caret-swallowed-call-valid
   - syntax/s018-echo-rem-caret-swallows-valid
   - syntax/s018-rem-and-caret-keeps-call
+  - syntax/s018-quote-caret-keeps-call
+  - syntax/s018-closed-quote-caret-swallows-valid
   - integration/s018-caret-joined-call
   - syntax/s019-named-numbers-valid
   - syntax/s020-wrapped-line-valid
@@ -842,6 +851,7 @@ entries:
   - syntax/w037-for-f-no-eol
   - syntax/e037-for-f-eol-multi
   - syntax/e037-for-f-eol-valid
+  - syntax/e037-for-r-quoted-path-valid
   - syntax/e038-for-f-skip-zero
   - syntax/e038-for-f-skip-invalid
   - syntax/e038-for-f-skip-variable-valid

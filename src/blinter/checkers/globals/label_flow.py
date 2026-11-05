@@ -19,7 +19,11 @@ from blinter.parsing.context import (
     caret_joins_next_physical_line,
     jump_lookup_key,
 )
-from blinter.parsing.structure import _update_paren_depth, label_key_from_line
+from blinter.parsing.structure import (
+    _build_paren_depth_before,
+    _update_paren_depth,
+    label_key_from_line,
+)
 from blinter.rules.registry import RULES
 
 # Optional "(" and "@" sit on the command. The operand is cut to a label key
@@ -148,21 +152,29 @@ def _prefix_of_computed_jump(segment: str) -> str | None:
     return key.split("%", 1)[0].split("!", 1)[0]
 
 
-def _logical_command(lines: List[str], index: int) -> str:
+def _logical_command(
+    lines: List[str], index: int, depths: List[int] | None = None
+) -> str:
     """Join a caret-continued command into the single line cmd runs.
 
-    Only the caret that escapes the newline is removed. ``rem`` does not
-    continue, so a following ``exit`` stays its own command.
+    Only the caret that escapes the newline is removed. A caret inside an
+    open quote or a REM remark does not continue, so a following ``exit``
+    stays its own command. ``rem)`` continues unless that ``)`` closes a
+    group that is already open.
     """
+    if depths is None:
+        depths = _build_paren_depth_before(lines)
     parts: List[str] = []
     cursor = index
+    depth = depths[index] if index < len(depths) else 0
     while cursor < len(lines):
         text = lines[cursor].rstrip("\r\n")
-        if not caret_joins_next_physical_line(lines[cursor]):
+        if not caret_joins_next_physical_line(lines[cursor], depth_before=depth):
             parts.append(text)
             break
         parts.append(text[:-1])
         logger.debug("Caret continues command onto the next line: %s", text.strip())
+        depth = max(_update_paren_depth(lines[cursor].strip(), depth), 0)
         cursor += 1
     return "".join(parts)
 
@@ -177,6 +189,7 @@ def _computed_jump_prefixes(lines: List[str]) -> set[str]:
     command, not its own jump.
     """
     prefixes: set[str] = set()
+    depths = _build_paren_depth_before(lines)
     continued = _continuation_mask(lines)
     for index, line in enumerate(lines):
         if continued[index]:
@@ -188,7 +201,7 @@ def _computed_jump_prefixes(lines: List[str]) -> set[str]:
                     line.strip(),
                 )
             continue
-        for segment in _command_segments(_logical_command(lines, index)):
+        for segment in _command_segments(_logical_command(lines, index, depths)):
             prefix = _prefix_of_computed_jump(segment)
             if prefix is None:
                 continue
@@ -241,13 +254,15 @@ def _is_leave_prefix(token: str) -> bool:
     return lower in {"do", "else"} or "<" in token or ">" in token
 
 
-def _line_always_leaves(line: str) -> bool:
+def _line_always_leaves(line: str, *, depth_before: int = 0) -> bool:
     """Return True when the next line cannot run after this top-level line.
 
     A caret-continued line is unfinished. ``&&`` and ``||`` may skip the EXIT
     or GOTO, and a pipe runs it in another cmd.exe. IF and FOR may run nothing.
     """
-    if _is_comment_or_label(line) or caret_joins_next_physical_line(line):
+    if _is_comment_or_label(line) or caret_joins_next_physical_line(
+        line, depth_before=depth_before
+    ):
         return False
     body = _command_body(line)
     if not body:
@@ -264,11 +279,14 @@ def _line_always_leaves(line: str) -> bool:
 
 def _continuation_mask(lines: List[str]) -> List[bool]:
     """Return True for each line that a previous caret joined to the prior command."""
+    depths = _build_paren_depth_before(lines)
     mask: List[bool] = []
     pending = False
-    for line in lines:
+    for index, line in enumerate(lines):
         mask.append(pending)
-        pending = caret_joins_next_physical_line(line)
+        pending = caret_joins_next_physical_line(
+            line, depth_before=depths[index] if index < len(depths) else 0
+        )
     return mask
 
 
@@ -311,7 +329,11 @@ def _step_fallthrough(
         entered.extend([reachable] * delta)
     elif delta < 0:
         reachable = _close_blocks(reachable, entered, delta, line)
-    if depth == 0 and new_depth == 0 and _line_always_leaves(command):
+    if (
+        depth == 0
+        and new_depth == 0
+        and _line_always_leaves(command, depth_before=depth)
+    ):
         reachable = False
     return new_depth, reachable
 
@@ -330,6 +352,7 @@ def _fallthrough_label_lines(
     depth = 0
     entered: List[bool] = []
     continued = _continuation_mask(lines)
+    depths = _build_paren_depth_before(lines)
     for index, line in enumerate(lines, start=1):
         if continued[index - 1] or _is_blank_or_comment(line):
             continue
@@ -339,7 +362,7 @@ def _fallthrough_label_lines(
                 fallthrough.add(index)
             reachable = _label_restarts_path(name, reachable, referenced, prefixes)
             continue
-        command = _logical_command(lines, index - 1)
+        command = _logical_command(lines, index - 1, depths)
         depth, reachable = _step_fallthrough(line, depth, reachable, entered, command)
     return fallthrough
 
@@ -351,6 +374,7 @@ def _check_unused_labels(lines: List[str]) -> List[LintIssue]:
     referenced: set[str] = set()
     computed_prefixes = _computed_jump_prefixes(lines)
     continued = _continuation_mask(lines)
+    depths = _build_paren_depth_before(lines)
 
     for i, line in enumerate(lines, start=1):
         if continued[i - 1]:
@@ -359,7 +383,9 @@ def _check_unused_labels(lines: List[str]) -> List[LintIssue]:
         if name is not None:
             labels[name] = i
             continue
-        referenced.update(_goto_and_call_label_names(_logical_command(lines, i - 1)))
+        referenced.update(
+            _goto_and_call_label_names(_logical_command(lines, i - 1, depths))
+        )
 
     fallthrough = _fallthrough_label_lines(lines, referenced, computed_prefixes)
     for label_name, line_num in labels.items():
@@ -408,10 +434,13 @@ def _called_subroutine_names(lines: List[str]) -> set[str]:
     """
     called: set[str] = set()
     continued = _continuation_mask(lines)
+    depths = _build_paren_depth_before(lines)
     for index, line in enumerate(lines):
         if continued[index] or _is_comment_or_label(line):
             continue
-        called.update(_call_subroutine_label_names(_logical_command(lines, index)))
+        called.update(
+            _call_subroutine_label_names(_logical_command(lines, index, depths))
+        )
     logger.debug("CALL subroutine targets: %s", sorted(called))
     return called
 
