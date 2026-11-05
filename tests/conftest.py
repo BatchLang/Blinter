@@ -143,6 +143,31 @@ def patch_valid_encoding_path(read_data: bytes = b"test content\n") -> Any:
     )
 
 
+# These modules import or execute git-checkout tooling. An sdist has no scripts/.
+CHECKOUT_ONLY_TEST_MODULES = frozenset(
+    {
+        "test_batch_spec_pin.py",
+        "test_install_benchmark.py",
+        "test_installer_script_parity.py",
+        "test_megalinter_plugin.py",
+        "test_publish_github_release.py",
+        "test_release_tooling.py",
+        "test_unix_installer_scripts.py",
+        "test_verify.py",
+    }
+)
+
+
+def pytest_ignore_collect(collection_path: Path, config: pytest.Config) -> bool | None:
+    """Skip dev-script tests when this tree is an sdist without ``scripts/``."""
+    if collection_path.name not in CHECKOUT_ONLY_TEST_MODULES:
+        return None
+    scripts = Path(config.rootpath) / "scripts"
+    if scripts.is_dir():
+        return None
+    return True
+
+
 def get_project_version() -> str:
     """Return the package version from pyproject.toml."""
     project_root = Path(__file__).resolve().parent.parent

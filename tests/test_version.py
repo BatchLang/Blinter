@@ -1,82 +1,168 @@
-"""Tests for package version resolution."""
-
-# pylint: disable=too-many-lines
+"""Tests for package version resolution and the published source distribution."""
 
 from importlib.metadata import PackageNotFoundError, version
-import os
 from pathlib import Path
 import re
 import shutil
 import subprocess
 import sys
+import tarfile
 import tomllib
-from types import ModuleType
+import warnings
+import zipfile
 
 import pytest
 from pytest_mock import MockerFixture
 
 from blinter._version import _fallback_version, _pyproject_path, get_version
 from blinter.rules.registry import RULE_COUNT
-from scripts.build_exe import (
-    COMPANY_NAME,
-    FILE_DESCRIPTION,
-    ICON_PATH,
-    MAIN_FILE,
-    NATIVE_EXTENSION_SUFFIXES,
-    NOFOLLOW_IMPORT_TO,
-    ONEFILE_TEMPDIR_SPEC,
-    OUTPUT_DIR,
-    OUTPUT_FILENAME,
-    PACKAGE_DIR,
-    PRODUCT_NAME,
-    PYTHON_FLAGS,
-    TYPED_MARKER,
-    _is_windows,
-    _log_bundled_native_extensions,
-    _read_project_version,
-    _validate_inputs,
-    _write_build_version,
-    assert_pure_python_charset_normalizer,
-    build_nuitka_command,
-    main,
-    nuitka_environment,
-    run_nuitka,
-)
-from scripts.ci_release import (
-    append_github_output,
-    decide_release,
-    main as ci_release_main,
-    publish_should_release,
-    publish_version,
-    read_previous_version,
-    read_project_version,
-    read_version_file,
-    release_tag_exists,
-)
-from scripts.extract_release_notes import (
-    extract_latest_section,
-    main as extract_release_notes_main,
-    write_github_release_notes,
-)
-from tests.conftest import get_project_version
+from tests.conftest import CHECKOUT_ONLY_TEST_MODULES, get_project_version
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _UV_EXECUTABLE = shutil.which("uv")
-_NETWORK_WMI_NOFOLLOW: tuple[str, ...] = (
-    "ssl",
-    "_ssl",
-    "socket",
-    "_socket",
-    "wmi",
-    "_wmi",
+_SDIST_PATHS = (
+    ".coveragerc",
+    "pytest.ini",
+    "src/blinter/__init__.py",
+    "tests/conftest.py",
+)
+_WHEEL_EXCLUDED_PREFIXES = ("scripts/", "spec/", "tests/")
+_SDIST_OMITTED_PREFIXES = (
+    ".github/",
+    "mega-linter-plugin-blinter/",
+    "scripts/",
+    "vendor/",
 )
 
 
-def _module_with_file(name: str, path: Path) -> ModuleType:
-    """Return a module-like object whose __file__ points at path."""
-    module = ModuleType(name)
-    module.__file__ = str(path)
-    return module
+def _sdist_relative_name(member_name: str) -> str:
+    """Return a source-tree path from an sdist member name."""
+    normalized = member_name.replace("\\", "/")
+    separator = normalized.find("/")
+    if separator == -1:
+        return normalized
+    return normalized[separator + 1 :]
+
+
+def _corpus_byte_sample() -> Path:
+    """Return a corpus file, preferring one that carries CRLF bytes."""
+    corpus = _REPO_ROOT / "spec" / "corpus"
+    fallback: Path | None = None
+    for path in sorted(corpus.rglob("*")):
+        if not path.is_file():
+            continue
+        data = path.read_bytes()
+        if b"\r\n" in data:
+            return path
+        if fallback is None:
+            fallback = path
+    if fallback is None:
+        raise AssertionError("spec/corpus has no files")
+    return fallback
+
+
+def _build_distributions(output_dir: Path) -> tuple[Path, Path]:
+    """Build an sdist and a wheel into ``output_dir``."""
+    assert _UV_EXECUTABLE is not None
+    result = subprocess.run(
+        [
+            _UV_EXECUTABLE,
+            "build",
+            "--sdist",
+            "--wheel",
+            "--out-dir",
+            str(output_dir),
+        ],
+        cwd=_REPO_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=180,
+    )
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+    sdists = sorted(output_dir.glob("*.tar.gz"))
+    wheels = sorted(output_dir.glob("*.whl"))
+    assert len(sdists) == 1
+    assert len(wheels) == 1
+    return sdists[0], wheels[0]
+
+
+def _assert_sdist_members(archive: Path) -> None:
+    """The sdist carries the suite and corpus, and preserves corpus bytes."""
+    sample = _corpus_byte_sample()
+    sample_name = sample.relative_to(_REPO_ROOT).as_posix()
+    with tarfile.open(archive, "r:gz") as tar:
+        names = {
+            _sdist_relative_name(member.name)
+            for member in tar.getmembers()
+            if member.isfile()
+        }
+        missing = [path for path in _SDIST_PATHS if path not in names]
+        assert missing == []
+        assert any(name.startswith("spec/corpus/") for name in names)
+        leaked = [
+            name
+            for name in names
+            if name.startswith(_SDIST_OMITTED_PREFIXES) or name == "tests/pytest.log"
+        ]
+        assert leaked == []
+        archived = tar.extractfile(
+            next(
+                member
+                for member in tar.getmembers()
+                if _sdist_relative_name(member.name) == sample_name
+            )
+        )
+        assert archived is not None
+        assert archived.read() == sample.read_bytes()
+
+
+def _assert_wheel_is_package_only(archive: Path) -> None:
+    """Wheels install the package. Tests and dev scripts stay out."""
+    with zipfile.ZipFile(archive) as wheel:
+        names = wheel.namelist()
+    assert any(name.startswith("blinter/") for name in names)
+    leaked = [name for name in names if name.startswith(_WHEEL_EXCLUDED_PREFIXES)]
+    assert leaked == []
+
+
+def _extract_sdist(archive: Path, destination: Path) -> Path:
+    """Unpack an sdist and return its top-level directory."""
+    with tarfile.open(archive, "r:gz") as tar:
+        # Python 3.12+ warns when extractall is called without a filter.
+        # This archive was just built in the same test.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            tar.extractall(destination)
+    roots = [path for path in destination.iterdir() if path.is_dir()]
+    assert len(roots) == 1
+    return roots[0]
+
+
+def _assert_sdist_collects_library_tests(unpacked: Path) -> None:
+    """Collection from the sdist reaches library tests and skips dev scripts."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "--collect-only",
+            "-q",
+            "--override-ini=addopts=",
+            "--override-ini=log_file=",
+        ],
+        cwd=unpacked,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=180,
+    )
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+    collected = result.stdout
+    assert "tests/test_lint_functionality.py::" in collected
+    assert "tests/test_spec_corpus.py::" in collected
+    for module_name in sorted(CHECKOUT_ONLY_TEST_MODULES):
+        assert f"tests/{module_name}::" not in collected
 
 
 class TestVersion:
@@ -195,468 +281,6 @@ class TestVersion:
         ), f"README must state **{RULE_COUNT}** rules explicitly"
 
 
-def _assert_build_version_present_for_nuitka(generated: Path) -> int:
-    """Nuitka must be able to compile the generated module."""
-    project_version = get_project_version()
-    assert generated.read_text(encoding="utf-8") == f'VERSION = "{project_version}"\n'
-    return 0
-
-
-@pytest.fixture(name="isolated_build_version")
-def fixture_isolated_build_version(mocker: MockerFixture, tmp_path: Path) -> Path:
-    """Send the version module main() generates to tmp_path.
-
-    The real path is a single file in the source tree, so parallel xdist workers
-    that each ran main() would delete it from under one another.
-    """
-    destination = tmp_path / "_build_version.py"
-    mocker.patch("scripts.build_exe._build_version_path", return_value=destination)
-    return destination
-
-
-class TestBuildExe:
-    """Tests for the Nuitka Windows executable build script."""
-
-    def test_read_project_version_matches_pyproject(self) -> None:
-        """Script should read the same version as test helpers."""
-
-        repo_root = Path(__file__).resolve().parent.parent
-        assert (
-            _read_project_version(repo_root / "pyproject.toml") == get_project_version()
-        )
-
-    def test_write_build_version_emits_constant(self, tmp_path: Path) -> None:
-        """The Nuitka build stamps a single VERSION assignment."""
-        _write_build_version(tmp_path, "1.2.3")
-        generated = tmp_path / "src" / "blinter" / "_build_version.py"
-        assert generated.read_text(encoding="utf-8") == 'VERSION = "1.2.3"\n'
-
-    def test_write_build_version_rejects_unsafe_characters(
-        self, tmp_path: Path
-    ) -> None:
-        """Quotes, backslashes, and newlines must not become generated Python."""
-        with pytest.raises(ValueError, match="quotes"):
-            _write_build_version(tmp_path, '1.2.3"\n')
-        assert not (tmp_path / "src" / "blinter" / "_build_version.py").exists()
-
-    def test_validate_inputs_requires_pyproject(self, tmp_path: Path) -> None:
-        """Build validation should fail loudly when pyproject.toml is missing."""
-        with pytest.raises(FileNotFoundError, match="pyproject.toml"):
-            _validate_inputs(tmp_path)
-
-    def test_nuitka_environment_prepends_src(self, tmp_path: Path) -> None:
-        """Nuitka must import the src/ layout package during compilation."""
-        env = nuitka_environment(tmp_path)
-        src_dir = str(tmp_path / "src")
-        pythonpath = env["PYTHONPATH"]
-        assert pythonpath == src_dir or pythonpath.startswith(src_dir + os.pathsep)
-
-    def test_build_command_includes_windows_metadata(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Nuitka command must embed icon, version, and the blinter package."""
-
-        monkeypatch.delenv("BLINTER_NUITKA_ALLOW_DOWNLOADS", raising=False)
-        project_version = get_project_version()
-        command = build_nuitka_command(
-            version=project_version,
-            python_executable=sys.executable,
-            windows=True,
-            mingw=False,
-        )
-        joined = " ".join(command)
-        assert command[:3] == [sys.executable, "-m", "nuitka"]
-        assert "--mode=onefile" in command
-        assert "--assume-yes-for-downloads" not in command
-        monkeypatch.setenv("BLINTER_NUITKA_ALLOW_DOWNLOADS", "1")
-        allowed = build_nuitka_command(
-            version=project_version,
-            python_executable=sys.executable,
-            windows=True,
-            mingw=False,
-        )
-        assert "--assume-yes-for-downloads" in allowed
-        assert "--msvc=latest" in command
-        assert "--mingw64" not in command
-        assert f"--output-filename={OUTPUT_FILENAME}" in command
-        assert f"--output-dir={OUTPUT_DIR.as_posix()}" in command
-        assert "--include-package=blinter" not in command
-        assert "--include-package-data=blinter" not in command
-        assert "--include-module=charset_normalizer" in command
-        assert (
-            "--include-data-files=pyproject.toml=blinter/pyproject.toml" not in command
-        )
-        assert "--python-flag=-m" in command
-        assert "--file-reference-choice=runtime" not in command
-        assert "--include-windows-runtime-dlls=yes" in command
-        assert f"--windows-icon-from-ico={ICON_PATH.as_posix()}" in command
-        assert f"--company-name={COMPANY_NAME}" in command
-        assert f"--product-name={PRODUCT_NAME}" in command
-        assert f"--file-version={project_version}" in command
-        assert f"--product-version={project_version}" in command
-        assert f"--file-description={FILE_DESCRIPTION}" in command
-        assert command[-1] == PACKAGE_DIR.as_posix()
-        assert "blinter.exe" in joined
-
-    def test_build_command_applies_size_and_speed_flags(self) -> None:
-        """Onefile builds must stay compressed, cached, LTO-enabled, and UPX-free."""
-        command = build_nuitka_command(
-            version="1.2.3",
-            python_executable=sys.executable,
-            windows=True,
-        )
-        assert "--lto=yes" in command
-        assert "--deployment" in command
-        assert "--noinclude-default-mode=nofollow" in command
-        assert f"--onefile-tempdir-spec={ONEFILE_TEMPDIR_SPEC}" in command
-        assert "--onefile-cache-mode=cached" in command
-        assert "--onefile-no-compression" not in command
-        assert "--upx" not in command
-        assert not any(part.startswith("--upx") for part in command)
-        for python_flag in PYTHON_FLAGS:
-            assert f"--python-flag={python_flag}" in command
-        for module_name in NOFOLLOW_IMPORT_TO:
-            assert f"--nofollow-import-to={module_name}" in command
-        for module_name in _NETWORK_WMI_NOFOLLOW:
-            assert module_name in NOFOLLOW_IMPORT_TO
-
-    def test_ci_installs_charset_normalizer_without_binary_wheels(self) -> None:
-        """Both compile jobs install charset-normalizer from source."""
-        ci_text = (_REPO_ROOT / ".github" / "workflows" / "CI.yml").read_text(
-            encoding="utf-8"
-        )
-        installer = (_REPO_ROOT / "scripts" / "install_nuitka_venv.py").read_text(
-            encoding="utf-8"
-        )
-        assert ci_text.count("python scripts/install_nuitka_venv.py") == 2
-        assert "--no-binary" in installer
-        assert "charset-normalizer" in installer
-        assert ci_text.count('CHARSET_NORMALIZER_USE_MYPYC: "0"') == 2
-        assert "install_nuitka_build.py" not in ci_text
-        assert "run_venv.py" not in ci_text
-        assert "test_exe_smoke.ps1" not in ci_text
-        assert ci_text.count("scripts/test_exe_smoke.py") == 2
-        assert "ubuntu-24.04" in ci_text
-        assert "ubuntu-24.04-arm" in ci_text
-        assert "ubuntu-22.04" not in ci_text
-        assert "macos-15-intel" in ci_text
-        assert "needs: [check-version, test-windows-exe]" in ci_text
-        assert "needs: [check-version, test-unix-exe]" in ci_text
-        assert "needs: [check-version, build-windows, build-unix]" in ci_text
-        assert 'pattern: "*-build-*"' in ci_text
-        windows_package = ci_text.split("  build-windows:", maxsplit=1)[1].split(
-            "  build-unix:",
-            maxsplit=1,
-        )[0]
-        unix_package = ci_text.split("  build-unix:", maxsplit=1)[1].split(
-            "  build-wheels:",
-            maxsplit=1,
-        )[0]
-        assert "build_exe.py" not in windows_package
-        assert "build_exe.py" not in unix_package
-        assert "python scripts/package_executable.py" in windows_package
-        assert "python scripts/package_executable.py" in unix_package
-
-    def test_preflight_rejects_native_charset_normalizer(
-        self, mocker: MockerFixture, tmp_path: Path
-    ) -> None:
-        """A charset_normalizer .pyd speedup must abort the Nuitka build."""
-        init_py = tmp_path / "__init__.py"
-        init_py.write_text("# package\n", encoding="utf-8")
-        md_pyd = tmp_path / "md.pyd"
-        md_pyd.write_bytes(b"native")
-        cd_py = tmp_path / "cd.py"
-        cd_py.write_text("# cd\n", encoding="utf-8")
-        imported = {
-            "charset_normalizer": _module_with_file("charset_normalizer", init_py),
-            "charset_normalizer.md": _module_with_file("charset_normalizer.md", md_pyd),
-            "charset_normalizer.cd": _module_with_file("charset_normalizer.cd", cd_py),
-        }
-
-        def fake_import(name: str) -> ModuleType:
-            module = imported.get(name)
-            if module is None:
-                raise ImportError(name)
-            return module
-
-        mocker.patch(
-            "scripts.build_exe.importlib.import_module", side_effect=fake_import
-        )
-        with pytest.raises(RuntimeError, match="pure Python"):
-            assert_pure_python_charset_normalizer()
-
-    def test_preflight_accepts_pure_python_charset_normalizer(
-        self, mocker: MockerFixture, tmp_path: Path
-    ) -> None:
-        """Pure-Python charset_normalizer modules must pass the Nuitka preflight."""
-        init_py = tmp_path / "__init__.py"
-        init_py.write_text("# package\n", encoding="utf-8")
-        md_py = tmp_path / "md.py"
-        md_py.write_text("# md\n", encoding="utf-8")
-        cd_py = tmp_path / "cd.py"
-        cd_py.write_text("# cd\n", encoding="utf-8")
-        imported = {
-            "charset_normalizer": _module_with_file("charset_normalizer", init_py),
-            "charset_normalizer.md": _module_with_file("charset_normalizer.md", md_py),
-            "charset_normalizer.cd": _module_with_file("charset_normalizer.cd", cd_py),
-        }
-
-        def fake_import(name: str) -> ModuleType:
-            module = imported.get(name)
-            if module is None:
-                raise ImportError(name)
-            return module
-
-        mocker.patch(
-            "scripts.build_exe.importlib.import_module", side_effect=fake_import
-        )
-        assert_pure_python_charset_normalizer()
-
-    def test_preflight_fails_when_charset_normalizer_missing(
-        self, mocker: MockerFixture
-    ) -> None:
-        """The Nuitka build must fail loudly if charset_normalizer is not installed."""
-        mocker.patch(
-            "scripts.build_exe.importlib.import_module",
-            side_effect=ImportError("missing"),
-        )
-        with pytest.raises(RuntimeError, match="must be installed"):
-            assert_pure_python_charset_normalizer()
-
-    def test_preflight_skips_optional_submodule_and_namespace_module(
-        self, mocker: MockerFixture, tmp_path: Path
-    ) -> None:
-        """Optional md/cd ImportError and missing __file__ must not abort the build."""
-        init_py = tmp_path / "__init__.py"
-        init_py.write_text("# package\n", encoding="utf-8")
-        package = _module_with_file("charset_normalizer", init_py)
-        namespace = ModuleType("charset_normalizer.md")
-
-        def fake_import(name: str) -> ModuleType:
-            if name == "charset_normalizer":
-                return package
-            if name == "charset_normalizer.md":
-                return namespace
-            raise ImportError(name)
-
-        mocker.patch(
-            "scripts.build_exe.importlib.import_module", side_effect=fake_import
-        )
-        assert_pure_python_charset_normalizer()
-
-    def test_log_bundled_native_extensions_lists_pyds(
-        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        """Post-build inventory must log leftover .pyd files under dist/."""
-        dist_dir = tmp_path / OUTPUT_DIR
-        nested = dist_dir / "blinter.dist"
-        nested.mkdir(parents=True)
-        (nested / "_ssl.pyd").write_bytes(b"pyd")
-        (dist_dir / OUTPUT_FILENAME).write_bytes(b"exe")
-        caplog.set_level("INFO")
-        _log_bundled_native_extensions(tmp_path)
-        assert "_ssl.pyd" in caplog.text
-
-    def test_log_bundled_native_extensions_handles_missing_dist(
-        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        """Inventory must warn when dist/ was not created."""
-        caplog.set_level("WARNING")
-        _log_bundled_native_extensions(tmp_path)
-        assert "cannot inventory natives" in caplog.text
-
-    def test_log_bundled_native_extensions_when_empty(
-        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        """Inventory must log when the dist tree has no leftover natives."""
-        (tmp_path / OUTPUT_DIR).mkdir()
-        caplog.set_level("INFO")
-        _log_bundled_native_extensions(tmp_path)
-        assert "No leftover native extension files" in caplog.text
-
-    def test_build_command_uses_mingw_when_requested(self) -> None:
-        """Local MinGW builds must opt into the experimental 3.13+ flag."""
-        command = build_nuitka_command(
-            version="1.2.3",
-            python_executable=sys.executable,
-            windows=True,
-            mingw=True,
-        )
-        assert "--mingw64" in command
-        assert "--experimental=force-mingw64" in command
-        assert "--msvc=latest" not in command
-        assert "--include-windows-runtime-dlls=yes" not in command
-
-    def test_build_command_omits_windows_flags_off_windows(self) -> None:
-        """Non-Windows invocations should not pass MSVC or PE resource flags."""
-        command = build_nuitka_command(
-            version="1.2.3",
-            python_executable=sys.executable,
-            windows=False,
-        )
-        assert "--msvc=latest" not in command
-        assert "--mingw64" not in command
-        assert "--include-windows-runtime-dlls=yes" not in command
-        assert not any(part.startswith("--windows-icon-from-ico=") for part in command)
-        assert not any(part.startswith("--file-description=") for part in command)
-        assert "--macos-sign-identity" not in " ".join(command)
-        assert "--output-filename=blinter" in command
-        assert "--file-version=1.2.3" in command
-        assert "--product-version=1.2.3" in command
-        assert f"--company-name={COMPANY_NAME}" in command
-        assert "--lto=yes" in command
-        assert command[-1] == PACKAGE_DIR.as_posix()
-        assert ".dylib" in NATIVE_EXTENSION_SUFFIXES
-        assert ".so" in NATIVE_EXTENSION_SUFFIXES
-
-    def test_application_icon_asset_exists(self) -> None:
-        """The ICO referenced by the Nuitka build must be present."""
-        repo_root = Path(__file__).resolve().parent.parent
-        assert (repo_root / ICON_PATH).is_file(), "Application icon asset is missing"
-        assert (repo_root / MAIN_FILE).is_file(), "package __main__ module is missing"
-        assert (repo_root / TYPED_MARKER).is_file(), "py.typed marker is missing"
-        _validate_inputs(repo_root)
-
-    def test_read_project_version_rejects_missing_version(self, tmp_path: Path) -> None:
-        """Invalid pyproject.toml must fail before Nuitka is launched."""
-        pyproject = tmp_path / "pyproject.toml"
-        pyproject.write_text("[project]\nname = 'Blinter'\n", encoding="utf-8")
-        with pytest.raises(ValueError, match="project.version"):
-            _read_project_version(pyproject)
-
-    def test_run_nuitka_returns_subprocess_exit_code(
-        self, mocker: MockerFixture, tmp_path: Path
-    ) -> None:
-        """A Nuitka compiler failure should surface its exit code."""
-        mocker.patch(
-            "scripts.build_exe.subprocess.run",
-            return_value=mocker.Mock(returncode=7),
-        )
-        assert run_nuitka([sys.executable, "-m", "nuitka"], tmp_path) == 7
-
-    def test_run_nuitka_fails_when_output_missing(
-        self, mocker: MockerFixture, tmp_path: Path
-    ) -> None:
-        """Success from Nuitka without dist/blinter.exe is still a build failure."""
-        mocker.patch(
-            "scripts.build_exe.subprocess.run",
-            return_value=mocker.Mock(returncode=0),
-        )
-        assert run_nuitka([sys.executable, "-m", "nuitka"], tmp_path) == 1
-
-    def test_run_nuitka_succeeds_when_exe_exists(
-        self, mocker: MockerFixture, tmp_path: Path
-    ) -> None:
-        """A completed onefile build must leave dist/blinter.exe in place."""
-        dist_dir = tmp_path / OUTPUT_DIR
-        dist_dir.mkdir()
-        (dist_dir / OUTPUT_FILENAME).write_bytes(b"exe")
-        mocker.patch(
-            "scripts.build_exe.subprocess.run",
-            return_value=mocker.Mock(returncode=0),
-        )
-        output_flag = f"--output-filename={OUTPUT_FILENAME}"
-        assert run_nuitka([sys.executable, "-m", "nuitka", output_flag], tmp_path) == 0
-
-    def test_main_returns_2_when_inputs_missing(
-        self, mocker: MockerFixture, tmp_path: Path
-    ) -> None:
-        """CLI should exit 2 when required build inputs are absent."""
-        mocker.patch("scripts.build_exe.ROOT", tmp_path)
-        assert main([]) == 2
-
-    def test_is_windows_matches_os_name(self) -> None:
-        """Platform detection must follow os.name without mutating the process."""
-        assert _is_windows() is (os.name == "nt")
-
-    def test_main_invokes_nuitka_with_mingw_flag(
-        self, mocker: MockerFixture, isolated_build_version: Path
-    ) -> None:
-        """--mingw must reach the Nuitka command line."""
-        repo_root = Path(__file__).resolve().parent.parent
-        mocker.patch("scripts.build_exe.ROOT", repo_root)
-        mocker.patch("scripts.build_exe._is_windows", return_value=True)
-        mocker.patch(
-            "scripts.build_exe.assert_pure_python_charset_normalizer",
-            return_value=None,
-        )
-        run = mocker.patch(
-            "scripts.build_exe.run_nuitka",
-            side_effect=lambda _command, _root: (
-                _assert_build_version_present_for_nuitka(isolated_build_version)
-            ),
-        )
-        assert main(["--mingw"]) == 0
-        assert not isolated_build_version.is_file()
-        command = run.call_args[0][0]
-        assert "--mingw64" in command
-        assert "--experimental=force-mingw64" in command
-        assert run.call_args[0][1] == repo_root
-
-    def test_main_omits_windows_flags_when_not_windows(
-        self, mocker: MockerFixture, isolated_build_version: Path
-    ) -> None:
-        """POSIX hosts must not receive MSVC or MinGW flags even with --mingw."""
-        repo_root = Path(__file__).resolve().parent.parent
-        mocker.patch("scripts.build_exe.ROOT", repo_root)
-        mocker.patch("scripts.build_exe._is_windows", return_value=False)
-        mocker.patch(
-            "scripts.build_exe.assert_pure_python_charset_normalizer",
-            return_value=None,
-        )
-        run = mocker.patch(
-            "scripts.build_exe.run_nuitka",
-            side_effect=lambda _command, _root: (
-                _assert_build_version_present_for_nuitka(isolated_build_version)
-            ),
-        )
-        assert main(["--mingw"]) == 0
-        assert not isolated_build_version.is_file()
-        command = run.call_args[0][0]
-        assert "--mingw64" not in command
-        assert "--msvc=latest" not in command
-        assert not any(part.startswith("--windows-icon-from-ico=") for part in command)
-        assert "--output-filename=blinter" in command
-        assert any(part.startswith("--file-version=") for part in command)
-        assert "--lto=yes" in command
-
-    def test_main_reports_launch_failures(
-        self, mocker: MockerFixture, isolated_build_version: Path
-    ) -> None:
-        """OS errors starting Nuitka should return exit code 1."""
-
-        def _fail_after_version_is_present(_command: list[str], _root: Path) -> int:
-            _assert_build_version_present_for_nuitka(isolated_build_version)
-            raise OSError("nuitka missing")
-
-        repo_root = Path(__file__).resolve().parent.parent
-        mocker.patch("scripts.build_exe.ROOT", repo_root)
-        mocker.patch(
-            "scripts.build_exe.assert_pure_python_charset_normalizer",
-            return_value=None,
-        )
-        mocker.patch(
-            "scripts.build_exe.run_nuitka",
-            side_effect=_fail_after_version_is_present,
-        )
-        assert main([]) == 1
-        assert not isolated_build_version.is_file()
-
-    def test_main_returns_2_when_charset_normalizer_is_native(
-        self, mocker: MockerFixture
-    ) -> None:
-        """A native charset_normalizer wheel must fail before Nuitka starts."""
-        repo_root = Path(__file__).resolve().parent.parent
-        mocker.patch("scripts.build_exe.ROOT", repo_root)
-        mocker.patch(
-            "scripts.build_exe.assert_pure_python_charset_normalizer",
-            side_effect=RuntimeError("native speedup"),
-        )
-        run = mocker.patch("scripts.build_exe.run_nuitka", return_value=0)
-        assert main([]) == 2
-        run.assert_not_called()
-
-
 class TestUvSupport:
     """Tests that uv remains a documented, resolvable install path."""
 
@@ -666,13 +290,17 @@ class TestUvSupport:
         assert "uv tool install Blinter" in readme
         assert "uvx blinter" in readme
 
+    @pytest.mark.skipif(
+        not (_REPO_ROOT / "CONTRIBUTING.md").is_file(),
+        reason="CONTRIBUTING.md is part of the git checkout",
+    )
     def test_contributing_documents_uv_sync(self) -> None:
         """CONTRIBUTING must document uv sync with the dev extra."""
         contributing = (_REPO_ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
         assert "uv sync --extra dev" in contributing
 
-    def test_pyproject_declares_uv_package_and_dev_extra(self) -> None:
-        """pyproject.toml must keep the uv package flag and pip dev extra."""
+    def test_pyproject_declares_package_extras_and_sdist_inputs(self) -> None:
+        """pyproject.toml publishes a test extra and the sdist file set."""
         with (_REPO_ROOT / "pyproject.toml").open("rb") as pyproject_file:
             pyproject_data: object = tomllib.load(pyproject_file)
         assert isinstance(pyproject_data, dict)
@@ -681,13 +309,25 @@ class TestUvSupport:
         uv_object: object = tool_object.get("uv")
         assert isinstance(uv_object, dict)
         assert uv_object.get("package") is True
+        backend_object: object = uv_object.get("build-backend")
+        assert isinstance(backend_object, dict)
+        source_include: object = backend_object.get("source-include")
+        assert source_include == [
+            ".coveragerc",
+            "pytest.ini",
+            "spec/corpus/**",
+            "tests/**",
+        ]
         project_object: object = pyproject_data.get("project")
         assert isinstance(project_object, dict)
         extras_object: object = project_object.get("optional-dependencies")
         assert isinstance(extras_object, dict)
         dev_extra: object = extras_object.get("dev")
+        test_extra: object = extras_object.get("test")
         assert isinstance(dev_extra, list)
-        assert len(dev_extra) > 0
+        assert isinstance(test_extra, list)
+        assert "blinter[test]" in dev_extra
+        assert "pytest" in test_extra
 
     @pytest.mark.skipif(_UV_EXECUTABLE is None, reason="uv is not installed")
     def test_uv_resolves_dev_extra(self) -> None:
@@ -714,438 +354,13 @@ class TestUvSupport:
         assert "charset-normalizer" in compiled or "charset_normalizer" in compiled
         assert "pytest" in compiled
 
-
-class TestExtractReleaseNotes:
-    """Tests for changelog section extraction used by GitHub Releases."""
-
-    def test_skips_unreleased_and_returns_latest_version(self, tmp_path: Path) -> None:
-        """Unreleased notes must not replace the latest versioned section."""
-        changelog = tmp_path / "CHANGELOG.md"
-        changelog.write_text(
-            "# Changelog\n\n"
-            "## [Unreleased]\n\n"
-            "### Added\n\n"
-            "- In-progress work\n\n"
-            "## [1.2.3] - 2026-01-01\n\n"
-            "### Fixed\n\n"
-            "- Released fix\n\n"
-            "## [1.2.2] - 2025-12-01\n\n"
-            "### Added\n\n"
-            "- Older change\n",
-            encoding="utf-8",
-        )
-        section = extract_latest_section(changelog)
-        assert "[1.2.3]" in section
-        assert "Released fix" in section
-        assert "Unreleased" not in section
-        assert "In-progress work" not in section
-
-    def test_extracts_first_section_when_no_unreleased(self, tmp_path: Path) -> None:
-        """The newest versioned heading is used when Unreleased is absent."""
-        changelog = tmp_path / "CHANGELOG.md"
-        changelog.write_text(
-            "## [9.9.9] - 2026-09-01\n\nOnly this.\n",
-            encoding="utf-8",
-        )
-        assert "9.9.9" in extract_latest_section(changelog)
-
-    def test_extracts_the_section_for_a_requested_version(self, tmp_path: Path) -> None:
-        """A requested version selects its own section, not the newest one."""
-        changelog = tmp_path / "CHANGELOG.md"
-        changelog.write_text(
-            "## [Unreleased]\n\n- Work\n\n"
-            "## [1.2.3] - 2026-01-01\n\n- Newest\n\n"
-            "## [1.2.2] - 2025-12-01\n\n- Older change\n",
-            encoding="utf-8",
-        )
-        section = extract_latest_section(changelog, "1.2.2")
-        assert "Older change" in section
-        assert "Newest" not in section
-
-    def test_missing_requested_version_is_an_error(self, tmp_path: Path) -> None:
-        """A version bump without a matching changelog section fails the release."""
-        changelog = tmp_path / "CHANGELOG.md"
-        changelog.write_text("## [1.2.3] - 2026-01-01\n\n- Newest\n", encoding="utf-8")
-        with pytest.raises(SystemExit, match="No changelog section for version 9.9.9"):
-            extract_latest_section(changelog, "9.9.9")
-
-    def test_repo_changelog_has_a_section_for_the_project_version(self) -> None:
-        """The version in pyproject.toml always has release notes."""
-        project_version = read_version_file(_REPO_ROOT / "pyproject.toml")
-        section = extract_latest_section(_REPO_ROOT / "CHANGELOG.md", project_version)
-        assert section.startswith(f"## [{project_version}]")
-
-    def test_github_output_cli_accepts_a_version(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        tmp_path: Path,
-    ) -> None:
-        """--github-output --version writes the requested section."""
-        notes_dir = tmp_path / "runner"
-        notes_dir.mkdir()
-        output_file = tmp_path / "github_output.txt"
-        monkeypatch.setenv("RUNNER_TEMP", str(notes_dir))
-        monkeypatch.setenv("GITHUB_OUTPUT", str(output_file))
-        project_version = read_version_file(_REPO_ROOT / "pyproject.toml")
-        extract_release_notes_main(["--github-output", "--version", project_version])
-        notes_path = notes_dir / "release-notes.md"
-        assert notes_path.read_text(encoding="utf-8").startswith(
-            f"## [{project_version}]"
-        )
-
-    def test_unknown_arguments_print_usage(self) -> None:
-        """Unsupported arguments exit with the usage text."""
-        with pytest.raises(SystemExit, match="--version VERSION"):
-            extract_release_notes_main(["--version", "1.0.0"])
-
-    def test_repo_changelog_latest_versioned_section_is_non_empty(self) -> None:
-        """The repository changelog must yield a versioned release section."""
-        section = extract_latest_section(_REPO_ROOT / "CHANGELOG.md")
-        assert section.startswith("## [")
-        assert not section.lower().startswith("## [unreleased]")
-        assert len(section) > 20
-
-    def test_github_output_writes_notes_file_and_path(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        tmp_path: Path,
-    ) -> None:
-        """--github-output stores the notes path and the same section text."""
-        changelog = tmp_path / "CHANGELOG.md"
-        changelog.write_text(
-            "## [1.2.3] - 2026-01-01\n\n### Fixed\n\n- Released fix\n",
-            encoding="utf-8",
-        )
-        notes_dir = tmp_path / "runner"
-        notes_dir.mkdir()
-        output_file = tmp_path / "github_output.txt"
-        monkeypatch.setenv("GITHUB_OUTPUT", str(output_file))
-        notes_path = write_github_release_notes(changelog, notes_dir)
-        assert notes_path == notes_dir / "release-notes.md"
-        assert notes_path.read_text(encoding="utf-8") == extract_latest_section(
-            changelog
-        )
-        assert output_file.read_text(encoding="utf-8") == f"path={notes_path}\n"
-
-    def test_github_output_cli_uses_runner_temp(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        tmp_path: Path,
-    ) -> None:
-        """The CLI flag reads RUNNER_TEMP and the default changelog."""
-        notes_dir = tmp_path / "runner"
-        notes_dir.mkdir()
-        output_file = tmp_path / "github_output.txt"
-        monkeypatch.setenv("RUNNER_TEMP", str(notes_dir))
-        monkeypatch.setenv("GITHUB_OUTPUT", str(output_file))
-        extract_release_notes_main(["--github-output"])
-        notes_path = notes_dir / "release-notes.md"
-        assert notes_path.read_text(encoding="utf-8") == extract_latest_section()
-        assert output_file.read_text(encoding="utf-8") == f"path={notes_path}\n"
-        assert output_file.read_text(encoding="utf-8").count("\n") == 1
-
-    def test_github_output_requires_runner_temp(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Missing RUNNER_TEMP is an error when the notes directory is not passed."""
-        monkeypatch.delenv("RUNNER_TEMP", raising=False)
-        with pytest.raises(SystemExit, match="RUNNER_TEMP is not set"):
-            write_github_release_notes(_REPO_ROOT / "CHANGELOG.md")
-
-
-class TestCiRelease:
-    """Tests for the CI version and release-decision script."""
-
-    def test_reads_version_from_pyproject_text(self) -> None:
-        """A quoted project.version is returned without quotes."""
-        text = '[project]\nname = "Blinter"\nversion = "1.2.3"\n'
-        assert read_project_version(text) == "1.2.3"
-
-    def test_missing_version_exits(self) -> None:
-        """pyproject.toml without project.version fails the release step."""
-        with pytest.raises(SystemExit, match="Missing project.version"):
-            read_project_version('[project]\nname = "Blinter"\n')
-
-    def test_invalid_toml_exits(self) -> None:
-        """Unparseable pyproject.toml fails with the parse error."""
-        with pytest.raises(SystemExit, match="Could not parse pyproject.toml"):
-            read_project_version("version = ")
-
-    def test_missing_file_exits(self, tmp_path: Path) -> None:
-        """A missing pyproject.toml path fails before git or Actions output."""
-        missing = tmp_path / "pyproject.toml"
-        with pytest.raises(SystemExit, match="pyproject.toml not found"):
-            read_version_file(missing)
-
-    def test_codeql_action_steps_share_one_version(self) -> None:
-        """CodeQL rejects a workflow whose github/codeql-action steps differ."""
-        pins: list[str] = []
-        workflow_dir = _REPO_ROOT / ".github" / "workflows"
-        for path in workflow_dir.glob("*.yml"):
-            text = path.read_text(encoding="utf-8")
-            pins.extend(
-                re.findall(
-                    r"github/codeql-action/[\w.-]+@([0-9a-f]{40})",
-                    text,
-                )
-            )
-        assert len(pins) >= 2
-        assert len(set(pins)) == 1
-        dependabot = (_REPO_ROOT / ".github" / "dependabot.yml").read_text(
-            encoding="utf-8"
-        )
-        assert "github/codeql-action*" in dependabot
-
-    def test_release_gate_wiring_in_ci_workflow(self) -> None:
-        """Manual releases need confirmation and the gate ignores dependency-graph."""
-        ci_text = (_REPO_ROOT / ".github" / "workflows" / "CI.yml").read_text(
-            encoding="utf-8"
-        )
-        assert "confirm_release:" in ci_text
-        assert "CONFIRM_RELEASE: ${{ inputs.confirm_release }}" in ci_text
-        gate = ci_text.split("  check-version:", maxsplit=1)[1].split(
-            "  build-windows:", maxsplit=1
-        )[0]
-        needs = gate.split("if:", maxsplit=1)[0]
-        assert "dependency-graph" not in needs
-        assert '--version "$VERSION"' in ci_text
-        assert "twine upload --skip-existing dist/*" in ci_text
-
-    def test_windows_ci_runs_installer_and_uninstaller(self) -> None:
-        """Windows CI must execute the install and uninstall batch scripts."""
-        ci_text = (_REPO_ROOT / ".github" / "workflows" / "CI.yml").read_text(
-            encoding="utf-8"
-        )
-        windows_job = ci_text.split("quality-windows:", maxsplit=1)[1].split(
-            "test-python:", maxsplit=1
-        )[0]
-        assert "test_install_scripts.ps1" in windows_job
-
-    def test_workflow_dispatch_skips_a_released_version_without_confirmation(
-        self,
-    ) -> None:
-        """A manual run cannot replace the assets of an already tagged version."""
-        assert (
-            decide_release("workflow_dispatch", "1.2.3", "1.2.3", tag_exists=True)
-            is False
-        )
-
-    def test_workflow_dispatch_releases_when_confirmed(self) -> None:
-        """An explicit confirmation re-publishes an existing version."""
-        assert (
-            decide_release(
-                "workflow_dispatch",
-                "1.2.3",
-                "1.2.3",
-                tag_exists=True,
-                confirm_release=True,
-            )
-            is True
-        )
-
-    def test_workflow_dispatch_releases_when_the_tag_is_missing(self) -> None:
-        """A manual run can finish a release whose tag was never created."""
-        assert (
-            decide_release("workflow_dispatch", "1.2.3", "1.2.3", tag_exists=False)
-            is True
-        )
-
-    def test_unchanged_version_skips_release(self) -> None:
-        """A push with the same version does not publish."""
-        assert decide_release("push", "1.2.3", "1.2.3") is False
-
-    def test_version_bump_releases(self) -> None:
-        """A push with a new version publishes."""
-        assert decide_release("push", "1.2.4", "1.2.3") is True
-
-    def test_same_version_releases_when_its_tag_is_missing(self) -> None:
-        """A failed release is published again when the version tag does not exist."""
-        assert decide_release("push", "1.2.3", "1.2.3", tag_exists=False) is True
-
-    def test_version_command_writes_single_output_line(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        tmp_path: Path,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        """The version subcommand appends one version= line."""
-        pyproject = tmp_path / "pyproject.toml"
-        pyproject.write_text(
-            '[project]\nversion = "9.8.7"\n',
-            encoding="utf-8",
-        )
-        output_file = tmp_path / "github_output.txt"
-        monkeypatch.setenv("GITHUB_OUTPUT", str(output_file))
-        parsed_version = publish_version(pyproject)
-        assert parsed_version == "9.8.7"
-        assert output_file.read_text(encoding="utf-8") == "version=9.8.7\n"
-        assert capsys.readouterr().out.strip() == "Project version: 9.8.7"
-
-    def test_should_release_skips_when_git_version_matches(
-        self,
-        mocker: MockerFixture,
-        monkeypatch: pytest.MonkeyPatch,
-        tmp_path: Path,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        """An unchanged parent version writes should_release=false."""
-        current = (_REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
-        mocker.patch(
-            "scripts.ci_release.subprocess.check_output",
-            return_value=current,
-        )
-        output_file = tmp_path / "github_output.txt"
-        monkeypatch.setenv("GITHUB_OUTPUT", str(output_file))
-        monkeypatch.setenv("GITHUB_EVENT_NAME", "push")
-        assert publish_should_release() is False
-        assert output_file.read_text(encoding="utf-8") == "should_release=false\n"
-        assert "skipping release" in capsys.readouterr().out
-
-    def test_should_release_when_the_version_tag_is_missing(
-        self,
-        mocker: MockerFixture,
-        monkeypatch: pytest.MonkeyPatch,
-        tmp_path: Path,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        """An unpublished tag writes should_release=true without a version bump."""
-        current = (_REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
-
-        def fake_check_output(args: list[str], **_kwargs: object) -> str:
-            if args[1] == "show":
-                return current
-            if args[1] == "ls-remote":
-                return ""
-            raise AssertionError(args)
-
-        mocker.patch(
-            "scripts.ci_release.subprocess.check_output",
-            side_effect=fake_check_output,
-        )
-        output_file = tmp_path / "github_output.txt"
-        monkeypatch.setenv("GITHUB_OUTPUT", str(output_file))
-        monkeypatch.setenv("GITHUB_EVENT_NAME", "push")
-        assert publish_should_release() is True
-        assert output_file.read_text(encoding="utf-8") == "should_release=true\n"
-        assert "no release tag" in capsys.readouterr().out
-
-    def test_missing_tag_lookup_exits(self, mocker: MockerFixture) -> None:
-        """A failed tag query stops the release decision."""
-        mocker.patch(
-            "scripts.ci_release.subprocess.check_output",
-            side_effect=subprocess.CalledProcessError(128, ["git", "ls-remote"]),
-        )
-        with pytest.raises(SystemExit, match="refs/tags/v1.2.3"):
-            release_tag_exists("1.2.3")
-
-    def test_should_release_when_git_version_changes(
-        self,
-        mocker: MockerFixture,
-        monkeypatch: pytest.MonkeyPatch,
-        tmp_path: Path,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        """A parent version bump writes should_release=true."""
-        mocker.patch(
-            "scripts.ci_release.subprocess.check_output",
-            return_value='[project]\nversion = "0.0.1"\n',
-        )
-        output_file = tmp_path / "github_output.txt"
-        monkeypatch.setenv("GITHUB_OUTPUT", str(output_file))
-        monkeypatch.setenv("GITHUB_EVENT_NAME", "push")
-        assert publish_should_release() is True
-        assert output_file.read_text(encoding="utf-8") == "should_release=true\n"
-        assert "Version bumped:" in capsys.readouterr().out
-
-    @pytest.fixture(name="dispatch_output")
-    def fixture_dispatch_output(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-    ) -> Path:
-        """Point the release decision at a manual-dispatch GITHUB_OUTPUT file."""
-        output_file = tmp_path / "github_output.txt"
-        monkeypatch.setenv("GITHUB_OUTPUT", str(output_file))
-        monkeypatch.setenv("GITHUB_EVENT_NAME", "workflow_dispatch")
-        return output_file
-
-    @pytest.mark.parametrize(
-        "scenario",
-        [
-            ("deadbeef\trefs/tags/v1\n", "", False, "confirm_release was not set"),
-            ("deadbeef\trefs/tags/v1\n", "true", True, "releasing version"),
-            ("", "", True, "releasing version"),
-        ],
-        ids=["tag-unconfirmed", "tag-confirmed", "tag-missing"],
-    )
-    def test_workflow_dispatch_decision_uses_tag_and_confirmation(
-        self,
-        mocker: MockerFixture,
-        dispatch_output: Path,
-        capsys: pytest.CaptureFixture[str],
-        scenario: tuple[str, str, bool, str],
-    ) -> None:
-        """Manual dispatch checks the tag, never git show, and honors confirmation."""
-        tag_listing, confirm, expected, message = scenario
-
-        def fake_check_output(args: list[str], **_kwargs: object) -> str:
-            if args[1] == "ls-remote":
-                return tag_listing
-            raise AssertionError(f"unexpected git call: {args}")
-
-        mocker.patch(
-            "scripts.ci_release.subprocess.check_output",
-            side_effect=fake_check_output,
-        )
-        mocker.patch.dict(os.environ, {"CONFIRM_RELEASE": confirm})
-        assert publish_should_release() is expected
-        assert dispatch_output.read_text(encoding="utf-8") == (
-            f"should_release={'true' if expected else 'false'}\n"
-        )
-        assert message in capsys.readouterr().out
-
-    def test_previous_version_git_failure(self, mocker: MockerFixture) -> None:
-        """A missing parent commit fails the release decision."""
-        mocker.patch(
-            "scripts.ci_release.subprocess.check_output",
-            side_effect=subprocess.CalledProcessError(128, ["git", "show"]),
-        )
-        with pytest.raises(
-            SystemExit,
-            match="Could not read previous version from pyproject.toml",
-        ):
-            read_previous_version()
-
-    def test_append_rejects_multiline_values(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-    ) -> None:
-        """GITHUB_OUTPUT values stay on one line."""
-        monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "github_output.txt"))
-        with pytest.raises(SystemExit, match="must be a single line"):
-            append_github_output("version", "1.0.0\n2.0.0")
-
-    def test_append_requires_github_output(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Local runs without the Actions env var fail loudly."""
-        monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
-        with pytest.raises(SystemExit, match="GITHUB_OUTPUT is not set"):
-            append_github_output("version", "1.0.0")
-
-    def test_cli_version_command(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        tmp_path: Path,
-    ) -> None:
-        """The version CLI writes the repository version as one output line."""
-        output_file = tmp_path / "github_output.txt"
-        monkeypatch.setenv("GITHUB_OUTPUT", str(output_file))
-        ci_release_main(["version"])
-        expected = read_project_version(
-            (_REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
-        )
-        assert output_file.read_text(encoding="utf-8") == f"version={expected}\n"
-        assert output_file.read_text(encoding="utf-8").count("\n") == 1
-
-    def test_cli_unknown_command_exits(self) -> None:
-        """An unknown subcommand is a usage error."""
-        with pytest.raises(SystemExit, match="Unknown command"):
-            ci_release_main(["nope"])
+    @pytest.mark.skipif(_UV_EXECUTABLE is None, reason="uv is not installed")
+    def test_sdist_includes_tests_and_wheel_does_not(self, tmp_path: Path) -> None:
+        """Packagers can collect the suite from the sdist. The wheel is the package."""
+        output_dir = tmp_path / "dist"
+        output_dir.mkdir()
+        sdist, wheel = _build_distributions(output_dir)
+        _assert_sdist_members(sdist)
+        _assert_wheel_is_package_only(wheel)
+        unpacked = _extract_sdist(sdist, tmp_path / "unpacked")
+        _assert_sdist_collects_library_tests(unpacked)

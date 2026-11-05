@@ -20,6 +20,12 @@ uv sync --extra dev                       # or: pip install -e ".[dev]"
 
 `vendor/batch-spec` is a pinned submodule (version recorded in `spec/batch-spec.lock`). Generators and the SSOT audit fail without it.
 
+## Source distribution
+
+`uv build` uses the `uv_build` backend. The sdist includes `tests/`, `pytest.ini`, `.coveragerc`, and `spec/corpus/` so a downstream packager can run the suite (`pip install .[test]`, then `pytest`). `scripts/` stays in the git checkout: release tooling, installers, generators, benchmarks, and the cmd.exe oracle. Wheels contain the `blinter` package only.
+
+`tests/conftest.py` skips checkout-only modules when `scripts/` is absent. A test that must run from the sdist cannot import `scripts` at module level. Keep corpus line endings byte-for-byte; the sdist copies those files as they are in the tree.
+
 ## Commands
 
 ```bash

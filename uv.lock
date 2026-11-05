@@ -183,7 +183,7 @@ wheels = [
 
 [[package]]
 name = "blinter"
-version = "1.1.64"
+version = "1.1.65"
 source = { editable = "." }
 dependencies = [
     { name = "charset-normalizer" },
@@ -212,32 +212,41 @@ dev = [
     { name = "types-pyyaml" },
     { name = "yamllint" },
 ]
+test = [
+    { name = "hypothesis" },
+    { name = "jsonschema" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "pytest-mock" },
+    { name = "pytest-timeout" },
+]
 
 [package.metadata]
 requires-dist = [
     { name = "autopep8", marker = "extra == 'dev'" },
     { name = "bandit", marker = "extra == 'dev'" },
     { name = "black", marker = "extra == 'dev'" },
+    { name = "blinter", extras = ["test"], marker = "extra == 'dev'" },
     { name = "charset-normalizer", specifier = ">=3.5.2,<4" },
-    { name = "hypothesis", marker = "extra == 'dev'" },
+    { name = "hypothesis", marker = "extra == 'test'" },
     { name = "isort", marker = "extra == 'dev'" },
-    { name = "jsonschema", marker = "extra == 'dev'" },
+    { name = "jsonschema", marker = "extra == 'test'" },
     { name = "mypy", marker = "extra == 'dev'" },
     { name = "pip-audit", marker = "extra == 'dev'" },
     { name = "pylint", marker = "extra == 'dev'" },
     { name = "pymarkdownlnt", marker = "extra == 'dev'" },
     { name = "pyproject-fmt", marker = "extra == 'dev'" },
-    { name = "pytest", marker = "extra == 'dev'" },
-    { name = "pytest-cov", marker = "extra == 'dev'" },
-    { name = "pytest-mock", marker = "extra == 'dev'" },
-    { name = "pytest-timeout", marker = "extra == 'dev'" },
+    { name = "pytest", marker = "extra == 'test'" },
+    { name = "pytest-cov", marker = "extra == 'test'" },
+    { name = "pytest-mock", marker = "extra == 'test'" },
+    { name = "pytest-timeout", marker = "extra == 'test'" },
     { name = "pytest-xdist", marker = "extra == 'dev'" },
     { name = "pyyaml", marker = "extra == 'dev'" },
     { name = "shellcheck-py", marker = "extra == 'dev'" },
     { name = "types-pyyaml", marker = "extra == 'dev'" },
     { name = "yamllint", marker = "extra == 'dev'" },
 ]
-provides-extras = ["dev"]
+provides-extras = ["dev", "test"]
 
 [[package]]
 name = "boolean-py"

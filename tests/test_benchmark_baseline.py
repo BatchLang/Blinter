@@ -30,6 +30,10 @@ _BENCHMARK_RUNNER = (
 
 
 @pytest.mark.skipif(
+    not (_REPO / "scripts" / "benchmark_lint.py").is_file(),
+    reason="scripts/benchmark_lint.py is a dev script and is omitted from the sdist",
+)
+@pytest.mark.skipif(
     _skips_absolute_cpu_baseline(),
     reason="Intel macOS CPU time is several times the committed ceiling",
 )

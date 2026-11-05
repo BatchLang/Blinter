@@ -3,8 +3,8 @@ build-backend = "uv_build"
 requires = [ "uv-build>=0.13.1,<0.14" ]
 
 [project]
-name = "blinter"
-version = "1.1.64"
+name = "Blinter"
+version = "1.1.65"
 description = """\
   Blinter is a linter for Windows batch files. It provides comprehensive static analysis to identify syntax errors, \
   security vulnerabilities, performance issues and style problems.\
@@ -57,23 +57,26 @@ optional-dependencies.dev = [
   "autopep8",
   "bandit",
   "black",
-  "hypothesis",
+  "blinter[test]",
   "isort",
-  "jsonschema",
   "mypy",
   "pip-audit",
   "pylint",
   "pymarkdownlnt",
   "pyproject-fmt",
-  "pytest",
-  "pytest-cov",
-  "pytest-mock",
-  "pytest-timeout",
   "pytest-xdist",
   "pyyaml",
   "shellcheck-py",
   "types-pyyaml",
   "yamllint",
+]
+optional-dependencies.test = [
+  "hypothesis",
+  "jsonschema",
+  "pytest",
+  "pytest-cov",
+  "pytest-mock",
+  "pytest-timeout",
 ]
 urls.Documentation = "https://github.com/BatchLang/Blinter/tree/main/docs"
 urls.Homepage = "https://github.com/BatchLang/Blinter"
@@ -83,6 +86,18 @@ scripts.blinter = "blinter.cli.main:main"
 
 [tool.uv]
 package = true
+# Downstream packagers run the suite from the sdist. scripts/ stays in git.
+build-backend.source-exclude = [
+  "tests/.hypothesis/**",
+  "tests/.pytest_cache/**",
+  "tests/pytest.log",
+]
+build-backend.source-include = [
+  ".coveragerc",
+  "pytest.ini",
+  "spec/corpus/**",
+  "tests/**",
+]
 build-backend.wheel-exclude = [ "_build_version.pyi" ]
 
 [tool.black]

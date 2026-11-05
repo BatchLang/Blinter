@@ -63,6 +63,7 @@ uv run python scripts/verify.py --fix
 - Add or extend tests under `tests/` using [pytest](https://docs.pytest.org/).
 - Rule changes should include corpus fixtures under `spec/corpus/` when applicable.
 - Run `uv run python -m pytest` locally; CI runs the suite on Ubuntu, macOS, and Windows across Python 3.11–3.15. `pytest.ini` writes coverage reports and `tests/pytest.log` on every run. Pass `--override-ini=addopts=` and `--override-ini=log_file=` when a one-node run should not.
+- The PyPI sdist includes `tests/` and `spec/corpus/`. Install the `test` extra to run that suite. Tests of `scripts/` run from a git checkout, where `scripts/` is present.
 - A single corpus case is `uv run python -m pytest tests/test_spec_corpus.py -k <case-directory>`. `-k` matches the directory name. A docs-only prose change is `uv run python -m pymarkdown --strict-config scan <file>`. Catalog or README rule-count edits also need `uv run python scripts/spec/generate_docs.py --check`.
 
 CI runs the same gate with `python scripts/verify.py --skip-pytest` on Ubuntu, and `python scripts/verify.py --windows-only` on Windows. pytest itself runs in a separate OS and Python matrix job (see `.github/workflows/CI.yml`). `--skip-pytest` skips only pytest.
