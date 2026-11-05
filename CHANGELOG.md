@@ -26,6 +26,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 - The optional `batch-script-examples` folder, its baseline check, and the `needs_corpus` tests are removed. Rule fixtures stay in `spec/corpus`
 - `scripts/spec/cmd_oracle.py --case` runs one corpus case
 - yamllint no longer checks YAML newlines. `.gitattributes` already stores YAML as LF, and a Windows `core.autocrlf` checkout is CRLF
+- The synthetic and label benchmark medians are remeasured now that files over 2500 lines run the full checks. The ceiling remains twice the measured median
 
 ## [1.1.63] - 2026-11-04
 

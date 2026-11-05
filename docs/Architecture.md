@@ -211,7 +211,8 @@ They differ where the platform does:
 - The latest tag comes from the redirect of `releases/latest`, and the digest comes from the release `SHA256SUMS`, so the script needs no JSON parser and does not use the rate-limited GitHub API.
 - `arm64` is refused on a non-ARM host. `x64` is refused on ARM Linux, which has no emulation layer, and allowed on Apple Silicon through Rosetta. Linux also needs glibc 2.39 or newer, matching the build floor.
 - The install goes to `${XDG_DATA_HOME:-$HOME/.local/share}/blinter/bin`, with `installed_release.txt` beside it. The new binary is staged and renamed into place, because overwriting a running binary fails on Linux.
-- PATH is set by a block between `# >>> blinter >>>` and `# <<< blinter <<<`. The installer always writes `~/.profile`, creates `~/.zshrc` on macOS when it is missing, and updates `~/.bashrc`, `~/.bash_profile`, and a Linux `~/.zshrc` only when those files already exist. Both scripts carry the same awk filter that strips the block, so the uninstaller removes exactly what the installer wrote and a block with no end marker is reported rather than truncating the file.
+- PATH is set by a block between `# >>> blinter >>>` and `# <<< blinter <<<`. The installer always writes `~/.profile`, creates `~/.zshrc` on macOS when it is missing, and updates `~/.bashrc`, `~/.bash_profile`, and a Linux `~/.zshrc` only when those files already exist.
+- Both scripts carry the same awk filter that strips the block, so the uninstaller removes exactly what the installer wrote and a block with no end marker is reported rather than truncating the file.
 - The uninstaller does not stop running processes, because deleting a running executable is safe on Linux and macOS.
 
 Both scripts stay compatible with Bash 3.2, the version macOS ships.
