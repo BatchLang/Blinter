@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "SET /A unary minus is a valid operator sequence (E022 negative)",
+  "lines": {},
+  "must_not": [
+    "E022"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

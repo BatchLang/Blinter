@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+import subprocess
 import tempfile
 from typing import List
 from unittest.mock import mock_open, patch
@@ -16,12 +17,14 @@ from blinter import (
     main,
     read_file_with_encoding,
 )
+from blinter.baseline import entries_from_findings, load_baseline
 from blinter.checkers.security import _check_security_issues
 from blinter.checkers.syntax import _check_syntax_errors
 from blinter.checkers.warnings import _check_warning_issues
 from blinter.constants import ABSOLUTE_MAX_LINE_LENGTH, MAX_LINE_LENGTH
-from blinter.io.discovery import is_path_under_root
+from blinter.io.discovery import is_path_under_root, is_unc_path
 from blinter.io.encoding import _detect_line_endings
+from blinter.rules.registry import RULES
 from tests.conftest import patch_valid_encoding_path
 
 
@@ -565,7 +568,7 @@ class TestAdditionalErrorHandling:
                 os.unlink(temp_file_path)
 
 
-class TestDiscoverySandbox:  # pylint: disable=too-few-public-methods
+class TestDiscoverySandbox:
     """Test directory discovery containment."""
 
     def test_find_batch_files_filters_outside_root(self, tmp_path: Path) -> None:
@@ -625,3 +628,60 @@ class TestDiscoverySandbox:  # pylint: disable=too-few-public-methods
 
         with pytest.raises(ValueError, match="exceeding the limit"):
             find_batch_files(scan_dir, max_scan_files=2)
+
+    def test_unc_path_is_rejected_without_resolve(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """UNC strings never reach Path.resolve."""
+
+        def fail_resolve(self: Path) -> Path:
+            raise AssertionError(f"resolve called for {self}")
+
+        monkeypatch.setattr(Path, "resolve", fail_resolve)
+        unc = Path(r"\\192.0.2.1\share\script.bat")
+        assert is_unc_path(unc) is True
+        assert is_unc_path(r"\\?\UNC\192.0.2.1\share\script.bat") is True
+        assert is_unc_path(r"\\?\C:\script.bat") is False
+        assert is_path_under_root(unc, tmp_path) is False
+
+    def test_directory_walk_does_not_follow_junction(self, tmp_path: Path) -> None:
+        """A directory junction is not walked into another tree."""
+        scan_dir = tmp_path / "project"
+        nested = scan_dir / "nested"
+        outside = tmp_path / "outside"
+        scan_dir.mkdir()
+        nested.mkdir()
+        outside.mkdir()
+        (nested / "local.bat").write_text("@echo off\n", encoding="utf-8")
+        (outside / "secret.bat").write_text("@echo off\n", encoding="utf-8")
+        junction = scan_dir / "link"
+        completed = subprocess.run(
+            ["cmd", "/c", "mklink", "/J", str(junction), str(outside)],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if completed.returncode != 0:
+            pytest.skip(f"junction creation failed: {completed.stderr}")
+        names = {path.name for path in find_batch_files(scan_dir)}
+        assert names == {"local.bat"}
+
+    def test_baseline_accepts_blank_line_text(self, tmp_path: Path) -> None:
+        """A finding on a blank line can be stored and loaded."""
+        script = tmp_path / "blank.cmd"
+        script.write_text("@echo off\n   \n", encoding="utf-8")
+        issue = LintIssue(
+            line_number=2,
+            rule=RULES["S004"],
+            context="whitespace",
+            file_path=str(script),
+        )
+        entries = entries_from_findings([issue], tmp_path, {})
+        assert entries[0].text == ""
+        baseline_path = tmp_path / "baseline.json"
+        baseline_path.write_text(
+            '[{"code": "S004", "file": "blank.cmd", "text": ""}]\n',
+            encoding="utf-8",
+        )
+        loaded = load_baseline(baseline_path)
+        assert loaded[0].text == ""

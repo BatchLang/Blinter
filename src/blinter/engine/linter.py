@@ -21,6 +21,7 @@ from blinter.checkers.orchestration import (
 )
 from blinter.engine.dependencies import _collect_called_vars
 from blinter.engine.lines_cache import store_cached_lines
+from blinter.io.discovery import is_unc_path
 from blinter.io.encoding import _validate_and_read_file
 from blinter.logging_config import logger
 from blinter.models import BlinterConfig, LintIssue, RuleSeverity
@@ -87,7 +88,8 @@ def lint_batch_file(  # pylint: disable=too-many-locals
 
     scan_root = config.scan_root
     if scan_root is None:
-        scan_root = str(Path(file_path).parent.resolve())
+        parent = Path(file_path).parent
+        scan_root = str(parent if is_unc_path(parent) else parent.resolve())
 
     # Read and validate file
     lines, _encoding_used, line_ending_info, overlong_lines = _validate_and_read_file(

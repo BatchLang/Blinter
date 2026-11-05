@@ -1,0 +1,17 @@
+{
+  "config": {},
+  "description": "A command after 2>&1 is still chained (SEC013)",
+  "lines": {
+    "2": [
+      "SEC013"
+    ]
+  },
+  "must_not": [],
+  "oracle": "skip",
+  "rules": [
+    "SEC013"
+  ],
+  "tags": [
+    "integration"
+  ]
+}

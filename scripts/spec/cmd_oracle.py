@@ -215,6 +215,11 @@ _UNSAFE_CHECKS: tuple[Callable[[str, Path], str | None], ...] = (
     _reg_unsafe,
     _wmic_unsafe,
     _regex_reason(r"\bshutdown\b", "shutdown"),
+    _regex_reason(
+        r"\b(?:format|diskpart|bcdedit|setx|schtasks)\b",
+        "persistent system change",
+    ),
+    _regex_reason(r"\breg\s+add\b", "reg add"),
     _goto_loop_unsafe,
 )
 

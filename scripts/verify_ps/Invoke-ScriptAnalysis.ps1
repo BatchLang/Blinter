@@ -44,7 +44,7 @@ if ($files.Count -eq 0) {
 Write-Output "Analyzing $($files.Count) PowerShell files"
 $issues = @()
 foreach ($file in $files) {
-    $issues += Invoke-ScriptAnalyzer -Path $file.FullName -Settings $SettingsPath -Severity Warning
+    $issues += Invoke-ScriptAnalyzer -Path $file.FullName -Settings $SettingsPath -Severity Error, Warning
 }
 
 if ($issues.Count -gt 0) {

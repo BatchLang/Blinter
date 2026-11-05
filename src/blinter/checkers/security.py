@@ -6,10 +6,7 @@ from typing import (
     Optional,
 )
 
-from blinter.checkers.cmd_extended import (
-    check_sec001_same_line,
-    check_sec001_setp_dataflow,
-)
+from blinter.checkers.cmd_extended import check_sec001_same_line
 from blinter.models import LintIssue
 from blinter.parsing.context import (
     _is_command_in_safe_context,
@@ -36,7 +33,11 @@ def _in_order(*parts: str) -> str:
     return r"\A" + "".join(f"(?>.*?(?:{part}))" for part in parts)
 
 
-_ADMIN_COMMANDS: tuple[str, ...] = ("reg add hklm", "reg delete hklm", "sc ")
+_ADMIN_COMMAND_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"\breg\s+add\s+hklm\b", re.IGNORECASE), "reg add hklm"),
+    (re.compile(r"\breg\s+delete\s+hklm\b", re.IGNORECASE), "reg delete hklm"),
+    (re.compile(r"\bsc\b", re.IGNORECASE), "sc"),
+)
 _EXECUTION_POLICY_BYPASS_PATTERN = _in_order("powershell", r"-executionpolicy\s+bypass")
 _HOSTS_REDIRECT_PATTERNS: tuple[str, ...] = (
     _in_order(">>", "hosts"),
@@ -172,7 +173,7 @@ def _check_sec003_where_substitution(
 ) -> Optional[LintIssue]:
     """SEC003: WHERE with dangerous commands in command substitution."""
     where_match = re.search(
-        rf"where\s+({_DANGEROUS_CMDS_REGEX})", stripped, re.IGNORECASE
+        rf"\bwhere\s+({_DANGEROUS_CMDS_REGEX})\b", stripped, re.IGNORECASE
     )
     if not where_match:
         return None
@@ -241,19 +242,19 @@ def _check_privilege_security(
     if line and _is_safe_ctx_for_privilege(line):
         return issues
 
-    for cmd in _ADMIN_COMMANDS:
-        if cmd in stripped.lower():
+    for pattern, command_name in _ADMIN_COMMAND_PATTERNS:
+        if pattern.search(stripped):
             if not _should_skip_sec005(lines, line_num):
                 _append_sec005_issue(
                     issues,
                     line_num,
-                    f"Command '{cmd.strip()}' may require administrator privileges",
+                    f"Command '{command_name}' may require administrator privileges",
                 )
             break
 
     # Check for net commands that aren't privilege checks
     # Use word boundary to match "net" as a command, not as part of words like "internet"
-    if re.search(r"\bnet\s+", stripped.lower()):
+    if re.search(r"(?<![\w.])net\s+", stripped, re.IGNORECASE):
         is_privilege_check = any(
             re.search(pattern, stripped.lower())
             for pattern in _NET_PRIVILEGE_CHECK_PATTERNS
@@ -468,7 +469,5 @@ def _check_security_issues(
     issues.extend(_check_path_security(line, stripped, line_num))
     issues.extend(_check_info_disclosure_sec(line, stripped, line_num))
     issues.extend(_check_malware_security(line, stripped, line_num))
-    if lines is not None and line_num == 1:
-        issues.extend(check_sec001_setp_dataflow(lines))
 
     return issues

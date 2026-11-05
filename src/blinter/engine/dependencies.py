@@ -12,7 +12,7 @@ from typing import (
 
 from blinter.constants import MAX_FOLLOW_CALL_DEPTH, MAX_FOLLOW_CALL_FILES
 from blinter.engine.lines_cache import get_cached_lines
-from blinter.io.discovery import is_path_under_root
+from blinter.io.discovery import is_path_under_root, is_unc_path
 from blinter.io.encoding import _validate_and_read_file
 from blinter.logging_config import logger
 from blinter.parsing.context import _is_blank_or_comment
@@ -142,6 +142,9 @@ def _resolve_script_path(
     Returns:
         Resolved Path object, or None if resolution fails or path is outside scan_root
     """
+    if is_unc_path(script_path_str):
+        logger.debug("Skipping UNC script path: %s", script_path_str)
+        return None
     script_path_str = script_path_str.replace("\\", "/")
     if "%~dp0" in script_path_str:
         script_path_str = script_path_str.replace("%~dp0", "")
@@ -155,6 +158,10 @@ def _resolve_script_path(
             resolved = batch_dir / script_path_str
         else:
             resolved = script_path
+
+    if is_unc_path(resolved):
+        logger.debug("Skipping UNC script path: %s", resolved)
+        return None
 
     try:
         if scan_root is not None and not _is_within_scan_root(resolved, scan_root):

@@ -6,6 +6,13 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ### Fixed
 
+- Files longer than 2500 lines still receive the security, warning, style, and unreachable-code checks. Parenthesis depth for unreachable code is computed once per file
+- `CALL` of an external program is E014 only when that name is also a defined label. `SET /A` accepts a unary minus such as `5*-1`. `where deleted` is not SEC003, and `sc` inside another word is not SEC005. Command chaining after `2>&1` is still SEC013. SET /P dataflow (SEC001) runs even when the first line is skipped as an embedded header
+- Label names end at whitespace and `+:=,;`, matching cmd.exe, so `goto start` reaches `:start rem entry`. `REM LINT:IGNORE-LINE` is recognized after `&` on the same line
+- `--update-baseline` can record a finding on a blank line. Follow-calls rejects UNC paths before `Path.resolve`, and directory scans do not walk junctions or directory symlinks
+- Text output strips terminal escape sequences. `--fail-on error` and `--follow-calls` help text matches the exit-code rules
+- The Windows installer broadcasts a settings change after writing a `REG_EXPAND_SZ` user PATH. The uninstaller reads stop-script errors separately from process IDs. The quality gate requires Pester 5 or newer and reports PSScriptAnalyzer errors
+- The cmd.exe oracle also refuses `format`, `diskpart`, `bcdedit`, `setx`, `schtasks`, and `reg add`. Nuitka toolchain downloads require `BLINTER_NUITKA_ALLOW_DOWNLOADS=1`
 - On Windows, `scripts/verify.py` launches the lint benchmark through `runpy`, matching the regression test. Executing `scripts/benchmark_lint.py` as a script exceeds the committed CPU ceiling
 - Child Python tools started by `scripts/verify.py` use UTF-8, so isort checks source files that contain characters outside the console code page
 - `syntax/for-f-delims-only-valid` records the FOR /F rules that `delims=` must not raise. The conditional SETLOCAL fixture is no longer listed under pairing rules it does not assert

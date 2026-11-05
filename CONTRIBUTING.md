@@ -65,7 +65,7 @@ uv run python scripts/verify.py --fix
 - Run `uv run python -m pytest` locally; CI runs the suite on Ubuntu, macOS, and Windows across Python 3.11–3.15. `pytest.ini` writes coverage reports and `tests/pytest.log` on every run. Pass `--override-ini=addopts=` and `--override-ini=log_file=` when a one-node run should not.
 - A single corpus case is `uv run python -m pytest tests/test_spec_corpus.py -k <case-directory>`. `-k` matches the directory name. A docs-only prose change is `uv run python -m pymarkdown --strict-config scan <file>`. Catalog or README rule-count edits also need `uv run python scripts/spec/generate_docs.py --check`.
 
-CI runs the same gate with `python scripts/verify.py --skip-pytest` on Ubuntu, and `python scripts/verify.py --windows-only` on Windows. pytest itself runs in a separate OS and Python matrix job (see `.github/workflows/CI.yml`). `--skip-pytest` skips only pytest. `--windows-only` runs the cmd.exe oracle, PSScriptAnalyzer, Pester, and the install-script lint.
+CI runs the same gate with `python scripts/verify.py --skip-pytest` on Ubuntu, and `python scripts/verify.py --windows-only` on Windows. pytest itself runs in a separate OS and Python matrix job (see `.github/workflows/CI.yml`). `--skip-pytest` skips only pytest. `--windows-only` runs the cmd.exe oracle, `scripts/verify_ps/Install-VerifyModules.ps1` (which can install modules from PSGallery), PSScriptAnalyzer, Pester, and the install-script lint, including `scripts/test_install_scripts.ps1`. The `quality-unix` job runs `scripts/test_install_scripts.sh`.
 
 ## Rule and Spec Changes
 

@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "where deleted is not a WHERE of the del command (SEC003 negative)",
+  "lines": {},
+  "must_not": [
+    "SEC003"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

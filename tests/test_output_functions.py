@@ -358,6 +358,15 @@ class TestOutputFormatting:
         assert "Context: GOTO points to non-existent label 'missing_label'" in output
         assert "Context: Script should start with @ECHO OFF" in output
 
+    def test_terminal_escapes_are_stripped_from_text_output(self) -> None:
+        """CSI sequences in a context are not written to the terminal."""
+        issues = [
+            self.create_lint_issue(1, "E002", "label \x1b[31mred\x1b[0m name"),
+        ]
+        output = self.capture_stdout(print_detailed, issues)
+        assert "\x1b" not in output
+        assert "label red name" in output
+
     def test_empty_context_handling(self) -> None:
         """Test proper handling when context is empty."""
         issues = [

@@ -18,7 +18,7 @@ src/blinter/
     structure.py       # Labels, SET variables, script structure
     context.py         # Comment/safe-context helpers and caret escapes
     command_scan.py    # Where a command starts (S003 reads this)
-    embedded.py        # PowerShell/VBScript block detection
+    embedded.py        # PowerShell, VBScript, C#, and JScript block detection
   checkers/
     orchestration.py   # _process_file_checks, _filter_issues_by_config
     syntax.py          # Error-level syntax rules
@@ -47,6 +47,7 @@ src/blinter/
   cli/
     args.py            # Argument parsing
     main.py            # CLI orchestration and multi-file processing
+  baseline.py          # --baseline accept and stale-entry reporting
 ```
 
 ## Data flow
@@ -139,7 +140,7 @@ In text mode, a run where every file fails to read exits 1 without a JSON or SAR
 | ANTLR grammar, expansion rules, command catalog, cmd-help | [`vendor/batch-spec`](../vendor/batch-spec) ([`BatchLang/batch-spec`](https://github.com/BatchLang/batch-spec), pinned in [`spec/batch-spec.lock`](../spec/batch-spec.lock)) |
 | [`spec/data/rules.yaml`](../spec/data/rules.yaml) | Rule catalog (`checker: regex`; see `RULE_COUNT`) |
 | [`spec/data/commands-linter.yaml`](../spec/data/commands-linter.yaml) | Security/style command policy (merged with batch-spec `commands.yaml` for `patterns.py`; pins W009 `older_windows_commands`) |
-| [`spec/corpus/`](../spec/corpus/) | 451 committed fixtures + `expect.json` oracles |
+| [`spec/corpus/`](../spec/corpus/) | 460 committed fixtures + `expect.json` oracles |
 | [`spec/audit/`](../spec/audit/) | Reference matrix and audit baselines |
 
 Clone with `git clone --recurse-submodules` or run `git submodule update --init --recursive` after checkout.
@@ -152,7 +153,7 @@ benchmark baseline, and pytest. Windows then runs PowerShell module prerequisite
 PSScriptAnalyzer, Pester, and the install-script lint. The oracle runs once, before the
 generator checks.
 CI's quality job runs `python scripts/verify.py --skip-pytest` because pytest has its own matrix job.
-The Windows job runs `python scripts/verify.py --windows-only`.
+The Windows job runs `python scripts/verify.py --windows-only`, which also runs `scripts/verify_ps/Install-VerifyModules.ps1` (it can install Pester 5 and PSScriptAnalyzer from PSGallery) and `scripts/test_install_scripts.ps1`. The `quality-unix` job runs `scripts/test_install_scripts.sh`.
 
 `patterns.py` `BUILTIN_COMMANDS` is generated as the union of batch-spec `builtin_commands` and
 `common_external_tools` so stock Windows utilities and common dev tools both suppress E012/E014.
@@ -162,7 +163,7 @@ Deprecated/removed command tables come from batch-spec `commands.yaml` unchanged
 
 Corpus policy: every rule in `rules.yaml` must have at least one corpus assertion (see `audit_ssot.py` coverage checks).
 
-**Performance gate:** [`scripts/benchmark_lint.py`](../scripts/benchmark_lint.py) with `--check-baseline` compares the synthetic-file median against [`spec/benchmark/synthetic-baseline.json`](../spec/benchmark/synthetic-baseline.json).
+**Performance gate:** [`scripts/benchmark_lint.py`](../scripts/benchmark_lint.py) with `--runs 3 --check-baseline`, launched through `runpy` as `scripts/verify.py` does, compares the synthetic-file median against [`spec/benchmark/synthetic-baseline.json`](../spec/benchmark/synthetic-baseline.json). Executing the script directly exceeds that ceiling on Windows.
 That absolute CPU-time ceiling is not applied on Intel macOS, which is several times slower than the hosts used to record it.
 The scaling checks in the same test module still run there.
 
@@ -210,7 +211,7 @@ They differ where the platform does:
 - The latest tag comes from the redirect of `releases/latest`, and the digest comes from the release `SHA256SUMS`, so the script needs no JSON parser and does not use the rate-limited GitHub API.
 - `arm64` is refused on a non-ARM host. `x64` is refused on ARM Linux, which has no emulation layer, and allowed on Apple Silicon through Rosetta. Linux also needs glibc 2.39 or newer, matching the build floor.
 - The install goes to `${XDG_DATA_HOME:-$HOME/.local/share}/blinter/bin`, with `installed_release.txt` beside it. The new binary is staged and renamed into place, because overwriting a running binary fails on Linux.
-- PATH is set by a block between `# >>> blinter >>>` and `# <<< blinter <<<` in `~/.profile`, `~/.bashrc`, `~/.zshrc` and `~/.bash_profile`. Both scripts carry the same awk filter that strips the block, so the uninstaller removes exactly what the installer wrote and a block with no end marker is reported rather than truncating the file.
+- PATH is set by a block between `# >>> blinter >>>` and `# <<< blinter <<<`. The installer always writes `~/.profile`, creates `~/.zshrc` on macOS when it is missing, and updates `~/.bashrc`, `~/.bash_profile`, and a Linux `~/.zshrc` only when those files already exist. Both scripts carry the same awk filter that strips the block, so the uninstaller removes exactly what the installer wrote and a block with no end marker is reported rather than truncating the file.
 - The uninstaller does not stop running processes, because deleting a running executable is safe on Linux and macOS.
 
 Both scripts stay compatible with Bash 3.2, the version macOS ships.

@@ -102,7 +102,7 @@ Every rule in `rules.yaml` must have at least one corpus assertion. `spec/corpus
 - Tests live in `tests/`. Add to the existing topical file (for example `tests/test_sarif_output.py`) rather than creating a similarly named new one.
 - Corpus-driven rule tests run through `tests/test_spec_corpus.py`; add a corpus case instead of a bespoke test when the behavior is a rule diagnostic.
 - Unix installer tests run the real scripts under bash with stand-ins from `tests/unix_stubs/`.
-- Performance is gated by `py scripts/benchmark_lint.py --check-baseline` against `spec/benchmark/synthetic-baseline.json`.
+- Performance is gated by the `runpy` launch in `spec/README.md` (`benchmark_lint.py --runs 3 --check-baseline`) against `spec/benchmark/synthetic-baseline.json`. Executing `scripts/benchmark_lint.py` directly puts `scripts/` on `sys.path` and exceeds the Windows CPU ceiling.
 
 ## Versioning and releases
 

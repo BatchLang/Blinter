@@ -3,6 +3,7 @@
 from collections import defaultdict
 import importlib
 from pathlib import Path
+import re
 import sys
 from typing import (
     DefaultDict,
@@ -18,6 +19,16 @@ from blinter._version import __version__
 from blinter.models import LintIssue, RuleSeverity
 from blinter.paths import path_basename
 from blinter.rules.registry import RULES
+
+_TERMINAL_ESCAPE = re.compile(
+    r"\x1b(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\))"
+)
+
+
+def _strip_terminal_escapes(text: str) -> str:
+    """Remove CSI and OSC sequences so text output cannot restyle the terminal."""
+    return _TERMINAL_ESCAPE.sub("", text)
+
 
 # Nuitka injects this module only into the standalone executable.
 try:
@@ -70,16 +81,18 @@ Options:
   --max-line-length <n>  Set maximum line length for S011 and S020 rules (default: 100).
   --no-recursive      When processing directories, don't search subdirectories (default: recursive).
   --fail-on <level>   Exit 1 when an issue is at or above this severity.
-                     Levels: error, security (default), warning, performance, style, none.
+                     Levels, most to least severe: error, security (default),
+                     warning, performance, style, none.
+                     error fails only on Error findings and ignores Security.
   --baseline <path>   Accept findings recorded in this JSON file. A new finding
                      still follows --fail-on. A recorded finding that no longer
                      matches exits 1.
   --update-baseline   Rewrite the --baseline file from the current findings.
                      Requires --baseline. Entries for files that were not scanned
                      are kept.
-  --follow-calls      Scan scripts called by CALL statements from each seed file.
-                     Variable context may be collected transitively; each seed file
-                     lints its direct CALL targets only.
+  --follow-calls      Follow CALL targets from each seed file, up to 20 levels
+                     and 100 files. Findings in called scripts are reported, and
+                     they do not change the exit code.
   --output <path>     Write a structured report to the given file path. The file is
                      JSON unless --format sarif is also set.
   --format <fmt>      Suppress human-readable stdout and emit json or sarif.
@@ -146,8 +159,8 @@ Examples:
   blinter project\\scripts --output results.sarif --format sarif
       Write SARIF to a file with no human-readable stdout.
 
-  blinter /project/scripts --summary --severity
-      Shows summary, detailed errors and severity info for all batch files in directory.
+  blinter /project/scripts --summary
+      Shows a summary for every batch file in the directory.
 
 If no <path> is specified or '--help' is passed, this help menu will be displayed.
 """
@@ -290,7 +303,9 @@ def _get_unique_contexts(rule_issues: List[LintIssue]) -> List[str]:
     Returns:
         List of unique context strings
     """
-    contexts = [issue.context for issue in rule_issues if issue.context]
+    contexts = [
+        _strip_terminal_escapes(issue.context) for issue in rule_issues if issue.context
+    ]
     if not contexts:
         return []
 

@@ -1,0 +1,16 @@
+{
+  "config": {},
+  "description": "Two labels with the same name and different comments are duplicates",
+  "lines": {
+    "3": [
+      "W013"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "W013"
+  ],
+  "tags": [
+    "integration"
+  ]
+}

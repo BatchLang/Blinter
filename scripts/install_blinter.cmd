@@ -499,6 +499,16 @@ REM Write PowerShell script to add Blinter bin directory to user PATH
 :write_update_path_script
 (
 echo #Requires -Version 5.1
+echo function Send-BlinterSettingChange {
+echo     if (-not ('Blinter.UserPathNotify' -as [type]^)^) {
+echo         Add-Type -Namespace Blinter -Name UserPathNotify -MemberDefinition @'
+echo [System.Runtime.InteropServices.DllImport("user32.dll", CharSet=System.Runtime.InteropServices.CharSet.Auto, SetLastError=true^)]
+echo public static System.IntPtr SendMessageTimeout(System.IntPtr hWnd, int Msg, System.UIntPtr wParam, string lParam, int fuFlags, int uTimeout, out System.UIntPtr lpdwResult^);
+echo '@
+echo     }
+echo     $notifyResult = [System.UIntPtr]::Zero
+echo     [void][Blinter.UserPathNotify]::SendMessageTimeout([System.IntPtr]0xffff, 0x001A, [System.UIntPtr]::Zero, 'Environment', 2, 5000, [ref]$notifyResult^)
+echo }
 echo try {
 echo     $binPath = $env:BLINTER_BIN
 echo     $kindName = 'String'
@@ -540,6 +550,7 @@ echo     if (-not $alreadyPresent^) {
 echo         if (-not $path^) { $newPath = $binPath } else { $newPath = $path.TrimEnd(';'^) + ';' + $binPath }
 echo         if ($kindName -eq 'ExpandString' -and $key^) {
 echo             $key.SetValue('Path', $newPath, [Microsoft.Win32.RegistryValueKind]::ExpandString^)
+echo             Send-BlinterSettingChange
 echo             Write-Host 'Blinter added to User PATH permanently'
 echo         } else {
 echo             [Environment]::SetEnvironmentVariable('Path', $newPath, 'User'^)

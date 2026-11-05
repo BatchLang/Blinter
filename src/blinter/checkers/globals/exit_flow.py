@@ -11,7 +11,7 @@ from typing import (
 
 from blinter.models import LintIssue
 from blinter.parsing.context import _is_blank_or_comment
-from blinter.parsing.structure import _update_paren_depth
+from blinter.parsing.structure import _update_paren_depth, label_key_from_line
 from blinter.rules.registry import RULES
 
 
@@ -141,12 +141,9 @@ def _build_label_index(lines: List[str]) -> Dict[str, int]:
     """Map normalized label names to zero-based line indices."""
     labels: Dict[str, int] = {}
     for index, line in enumerate(lines):
-        stripped = line.strip().lower()
-        if not stripped.startswith(":") or stripped.startswith("::"):
-            continue
-        label_content = stripped[1:]
-        if re.search(r"[a-zA-Z0-9]", label_content):
-            labels[stripped] = index
+        label = label_key_from_line(line.strip())
+        if label is not None:
+            labels[label] = index
     return labels
 
 
@@ -348,15 +345,25 @@ def _check_nested_paren_mismatch(lines: List[str]) -> List[LintIssue]:
     return issues
 
 
+def _paren_depths_after_lines(lines: List[str]) -> List[int]:
+    """Return the parenthesis depth after each line, in one forward pass."""
+    depth = 0
+    depths: List[int] = []
+    for line in lines:
+        depth = _update_paren_depth(line.strip().lower(), depth)
+        depths.append(depth)
+    return depths
+
+
 def _check_unreachable_code(lines: List[str]) -> List[LintIssue]:
     """Check for unreachable code after EXIT or GOTO statements."""
     issues: List[LintIssue] = []
+    depths = _paren_depths_after_lines(lines)
 
     for i, line in enumerate(lines):
         stripped = line.strip().lower()
         if re.match(r"(exit\s|goto\s)", stripped):
-            # Find unreachable code after this EXIT/GOTO
-            unreachable_line = _find_truly_unreachable_code(lines, i)
+            unreachable_line = _find_truly_unreachable_code(lines, i, depths[i])
             if unreachable_line is not None:
                 command = stripped.split()[0].upper()
                 issues.append(
@@ -373,22 +380,24 @@ def _check_unreachable_code(lines: List[str]) -> List[LintIssue]:
 
 
 def _find_truly_unreachable_code(
-    lines: List[str], exit_line_index: int
+    lines: List[str],
+    exit_line_index: int,
+    exit_paren_depth: Optional[int] = None,
 ) -> Optional[int]:
     """Find truly unreachable code, considering batch file control flow properly."""
-    exit_paren_depth = _calculate_exit_paren_depth(lines, exit_line_index)
+    if exit_paren_depth is None:
+        exit_paren_depth = _calculate_exit_paren_depth(lines, exit_line_index)
     return _scan_for_unreachable_code(lines, exit_line_index, exit_paren_depth)
 
 
 def _calculate_exit_paren_depth(lines: List[str], exit_line_index: int) -> int:
     """Calculate the parentheses depth at the EXIT statement."""
-    current_paren_depth = 0
-
-    for i in range(exit_line_index + 1):
-        line = lines[i].strip().lower()
-        current_paren_depth = _update_paren_depth(line, current_paren_depth)
-
-    return current_paren_depth
+    if exit_line_index < 0 or not lines:
+        return 0
+    depths = _paren_depths_after_lines(lines)
+    if exit_line_index >= len(depths):
+        return depths[-1]
+    return depths[exit_line_index]
 
 
 def _scan_for_unreachable_code(

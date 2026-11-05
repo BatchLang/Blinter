@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "A label comment does not change the name GOTO uses (E002 negative)",
+  "lines": {},
+  "must_not": [
+    "E002"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

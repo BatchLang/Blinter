@@ -14,7 +14,6 @@ from blinter.checkers.globals.for_scope import (
     _check_for_var_case_mismatch,
 )
 from blinter.checkers.globals.label_flow import _check_unused_labels
-from blinter.constants import LARGE_FILE_LINE_THRESHOLD
 from blinter.models import LintIssue
 from blinter.parsing.context import (
     _is_comment_line,
@@ -128,12 +127,6 @@ def _check_new_global_rules(lines: List[str], file_path: str) -> List[LintIssue]
     issues: List[LintIssue] = []
 
     issues.extend(_check_bat_cmd_differences(lines, file_path))
-
-    if len(lines) > LARGE_FILE_LINE_THRESHOLD:
-        issues.extend(_check_setlocal_redundancy(lines))
-        issues.extend(_check_error_handling_warnings(lines))
-        return issues
-
     issues.extend(_check_advanced_global_patterns(lines, file_path))
     issues.extend(_check_code_documentation(lines))
     issues.extend(_check_setlocal_redundancy(lines))

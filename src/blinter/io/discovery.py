@@ -1,5 +1,6 @@
 """Batch file discovery in directories and paths."""
 
+import os
 from pathlib import Path
 from typing import List, Optional, Union
 
@@ -7,6 +8,41 @@ from blinter.constants import MAX_SCAN_FILES
 from blinter.logging_config import logger
 
 _BATCH_SUFFIXES = frozenset({".bat", ".cmd"})
+_FILE_ATTRIBUTE_REPARSE_POINT = 0x400
+
+
+def is_unc_path(path: Path | str) -> bool:
+    """Return True for a UNC path, including ``\\\\?\\UNC\\`` forms.
+
+    ``Path.resolve`` on Windows calls ``GetFinalPathNameByHandle``, which opens
+    the path. Callers must reject these strings before resolve or exists.
+    """
+    text = os.fspath(path).replace("/", "\\")
+    if text.startswith("\\\\?\\UNC\\") or text.startswith("\\\\.\\UNC\\"):
+        return True
+    if text.startswith("\\\\?\\") or text.startswith("\\\\.\\"):
+        return False
+    return text.startswith("\\\\")
+
+
+def _is_reparse_directory(path: Path) -> bool:
+    """Return True for a symlink, junction, or other directory reparse point."""
+    try:
+        if path.is_symlink():
+            return True
+        junction_attr: object = getattr(path, "is_junction", None)
+        junction_result: object = False
+        if callable(junction_attr):
+            junction_result = junction_attr()
+        if junction_result is True:
+            return True
+        stat_result = path.lstat()
+    except OSError:
+        return True
+    attributes_obj: object = getattr(stat_result, "st_file_attributes", 0)
+    if isinstance(attributes_obj, int) and not isinstance(attributes_obj, bool):
+        return bool(attributes_obj & _FILE_ATTRIBUTE_REPARSE_POINT)
+    return False
 
 
 def _resolved_is_under_root(resolved: Path, root_resolved: Path) -> bool:
@@ -21,6 +57,8 @@ def _resolved_is_under_root(resolved: Path, root_resolved: Path) -> bool:
 def is_path_under_root(path: Path, root: Path) -> bool:
     """Return True when path resolves inside root without symlink escape."""
     try:
+        if is_unc_path(path) or is_unc_path(root):
+            raise ValueError("UNC path")
         root_resolved = root.resolve()
         candidate = path if path.is_absolute() else Path.cwd() / path
         resolved = candidate.resolve()
@@ -95,13 +133,7 @@ def find_batch_files(
         raise ValueError(f"File '{path}' is not a batch file (.bat or .cmd)")
 
     if path_obj.is_dir():
-        # Find all batch files in directory
-        batch_files: List[Path] = []
-
-        candidates = path_obj.rglob("*") if recursive else path_obj.iterdir()
-        for candidate in candidates:
-            if candidate.is_file() and candidate.suffix.lower() in _BATCH_SUFFIXES:
-                batch_files.append(candidate)
+        batch_files = _collect_batch_files(path_obj, recursive=recursive)
 
         if root is not None:
             batch_files = [
@@ -123,3 +155,51 @@ def find_batch_files(
         return batch_files
 
     raise ValueError(f"Path '{path}' is neither a file nor a directory")
+
+
+def _is_batch_file(path: Path) -> bool:
+    """Return True for a real batch file, not a symlink to one."""
+    if path.suffix.lower() not in _BATCH_SUFFIXES:
+        return False
+    try:
+        if path.is_symlink():
+            return False
+    except OSError:
+        return False
+    try:
+        return path.is_file()
+    except OSError:
+        return False
+
+
+def _collect_batch_files(root: Path, *, recursive: bool) -> List[Path]:
+    """Return batch files under root without following symlinks or junctions."""
+    batch_files: List[Path] = []
+    if not recursive:
+        try:
+            children = list(root.iterdir())
+        except OSError as scan_error:
+            logger.debug("Cannot list %s: %s", root, scan_error)
+            return batch_files
+        for candidate in children:
+            if _is_reparse_directory(candidate):
+                continue
+            if _is_batch_file(candidate):
+                batch_files.append(candidate)
+        return batch_files
+
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+        current = Path(dirpath)
+        kept: List[str] = []
+        for name in dirnames:
+            child = current / name
+            if _is_reparse_directory(child):
+                logger.debug("Skipping reparse directory %s", child)
+                continue
+            kept.append(name)
+        dirnames[:] = kept
+        for name in filenames:
+            candidate = current / name
+            if _is_batch_file(candidate):
+                batch_files.append(candidate)
+    return batch_files

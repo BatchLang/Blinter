@@ -90,7 +90,9 @@ def _is_dynamic_jump_target(target: str) -> bool:
     return _DYNAMIC_JUMP_RE.search(body) is not None
 
 
-def _check_call_labels(stripped: str, line_num: int) -> List[LintIssue]:
+def _check_call_labels(
+    stripped: str, line_num: int, labels: Dict[str, int]
+) -> List[LintIssue]:
     """Check for CALL label issues (E014)."""
     issues: List[LintIssue] = []
     call_match = re.match(r"call\s+(:?\S+)", stripped, re.IGNORECASE)
@@ -101,13 +103,13 @@ def _check_call_labels(stripped: str, line_num: int) -> List[LintIssue]:
     if _is_dynamic_jump_target(call_label_text) or call_label_text.startswith(":"):
         return issues
 
-    # Check if this looks like a label call (not an external program)
-    # Skip if it contains path separators, extensions, or is a known command
+    call_name = call_label_text.lower()
+    # An external name is only a missing-colon label when that label exists.
     if (
-        not re.search(r"[\\/.:]|\.(?:bat|cmd|exe|com)$", call_label_text.lower())
-        and call_label_text.lower() not in BUILTIN_COMMANDS
+        f":{call_name}" in labels
+        and call_name not in BUILTIN_COMMANDS
+        and not re.search(r"[\\/]|\.(?:bat|cmd|exe|com)$", call_name)
     ):
-        # This appears to be a label call without colon
         issues.append(
             LintIssue(
                 line_number=line_num,
@@ -646,10 +648,25 @@ def _check_for_loop_syntax(stripped: str, line_num: int) -> List[LintIssue]:
     return issues
 
 
+def _has_indirect_bang_expansion(stripped: str) -> bool:
+    """Return True for !%var%! or !%~n1! without backtracking across the line."""
+    start = 0
+    while True:
+        open_at = stripped.find("!", start)
+        if open_at < 0:
+            return False
+        close_at = stripped.find("!", open_at + 1)
+        if close_at < 0:
+            return False
+        inner = stripped[open_at + 1 : close_at]
+        if "%" in inner or re.fullmatch(r"%~?[a-z0-9]+", inner, re.IGNORECASE):
+            return True
+        start = close_at
+
+
 def _has_special_variable_patterns(stripped: str) -> bool:
     """Check if line contains special variable patterns that should skip E011 checks."""
-    # Check for indirect variable expansion patterns like !%1!, !%var%!, or !%~n1!
-    if re.search(r"!([^!]*%[^%!]+%?[^!]*|%~?[a-z0-9]+)!", stripped, re.IGNORECASE):
+    if _has_indirect_bang_expansion(stripped):
         return True
 
     # Check for dynamic variable assignment like set "%1=value" or set "%%~a=value"
@@ -1145,7 +1162,7 @@ def _check_syntax_errors(
 
     # Use helper functions to check for various syntax errors
     issues.extend(_check_goto_labels(stripped, line_num, labels))
-    issues.extend(_check_call_labels(stripped, line_num))
+    issues.extend(_check_call_labels(stripped, line_num, labels))
     issues.extend(_check_if_statement_formatting(stripped, line_num))
     issues.extend(_check_errorlevel_syntax(stripped, line_num))
     issues.extend(_check_if_exist_mixing(stripped, line_num))

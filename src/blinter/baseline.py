@@ -137,7 +137,7 @@ def _as_mapping(value: object, location: str) -> dict[str, object]:
 
 
 def _require_text(mapping: dict[str, object], location: str) -> dict[str, str]:
-    """Return the three entry strings, rejecting missing, extra, or blank fields."""
+    """Return the three entry strings. ``text`` may be empty for a blank line."""
     unknown = set(mapping) - _ENTRY_FIELDS
     missing = _ENTRY_FIELDS - set(mapping)
     if unknown or missing:
@@ -145,9 +145,12 @@ def _require_text(mapping: dict[str, object], location: str) -> dict[str, str]:
     texts: dict[str, str] = {}
     for key in ("code", "file", "text"):
         value = mapping[key]
-        if not isinstance(value, str) or not value.strip():
+        if not isinstance(value, str):
+            raise ValueError(f"{location} field '{key}' must be a string")
+        stripped_value = value.strip()
+        if key != "text" and not stripped_value:
             raise ValueError(f"{location} field '{key}' must be a non-empty string")
-        texts[key] = value.strip()
+        texts[key] = stripped_value
     return texts
 
 
@@ -262,11 +265,6 @@ def entries_from_findings(
                 f"Finding {issue.rule.code} on line {issue.line_number} has no file path"
             )
         text = _trimmed_line(issue, lines_cache, read_cache)
-        if not text:
-            raise ValueError(
-                f"Finding {issue.rule.code} on line {issue.line_number} of "
-                f"'{issue.file_path}' is on a blank line and cannot be baselined"
-            )
         entries.append(
             BaselineEntry(
                 code=issue.rule.code.upper(),

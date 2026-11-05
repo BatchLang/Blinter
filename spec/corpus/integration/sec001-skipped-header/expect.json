@@ -1,0 +1,17 @@
+{
+  "config": {},
+  "description": "SET /P dataflow still runs when line 1 is an embedded header",
+  "lines": {
+    "3": [
+      "SEC001"
+    ]
+  },
+  "must_not": [],
+  "oracle": "skip",
+  "rules": [
+    "SEC001"
+  ],
+  "tags": [
+    "integration"
+  ]
+}

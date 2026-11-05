@@ -854,8 +854,12 @@ def _set_a_has_bad_ops(expression: str) -> bool:
         second = expression[index + 1]
         if first in operator_chars and second in operator_chars:
             pair = first + second
-            if pair not in _VALID_SET_A_OPERATOR_PAIRS:
-                return True
+            if pair in _VALID_SET_A_OPERATOR_PAIRS:
+                continue
+            # 5*-1 is a unary sign after another operator. ++ and -- stay invalid.
+            if second in "+-" and first not in "+-":
+                continue
+            return True
     return False
 
 

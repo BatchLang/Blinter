@@ -121,10 +121,12 @@ echo.
 set PROCESSES_KILLED=0
 set "PS_STOP_BLINTER=%BLINTER_TEMP%_stop.ps1"
 set "PS_STOP_OUT=%BLINTER_TEMP%_stop.out"
+set "PS_STOP_ERR=%BLINTER_TEMP%_stop.err"
 call :write_stop_blinter_script
-powershell -NoProfile -ExecutionPolicy RemoteSigned -File "!PS_STOP_BLINTER!" > "!PS_STOP_OUT!" 2>&1
+powershell -NoProfile -ExecutionPolicy RemoteSigned -File "!PS_STOP_BLINTER!" > "!PS_STOP_OUT!" 2> "!PS_STOP_ERR!"
 if !errorlevel! neq 0 (
     echo WARNING: Failed to stop the installed blinter.exe.
+    if exist "!PS_STOP_ERR!" type "!PS_STOP_ERR!"
     echo.
 )
 for /f "usebackq delims=" %%p in ("!PS_STOP_OUT!") do (
@@ -133,6 +135,7 @@ for /f "usebackq delims=" %%p in ("!PS_STOP_OUT!") do (
 )
 if exist "!PS_STOP_BLINTER!" del /F /Q "!PS_STOP_BLINTER!" >nul 2>&1
 if exist "!PS_STOP_OUT!" del /F /Q "!PS_STOP_OUT!" >nul 2>&1
+if exist "!PS_STOP_ERR!" del /F /Q "!PS_STOP_ERR!" >nul 2>&1
 
 if !PROCESSES_KILLED! equ 0 (
     echo No running Blinter processes found.
@@ -256,6 +259,16 @@ REM Write PowerShell script to remove Blinter bin directory from user PATH
 :write_remove_path_script
 (
 echo #Requires -Version 5.1
+echo function Send-BlinterSettingChange {
+echo     if (-not ('Blinter.UserPathNotify' -as [type]^)^) {
+echo         Add-Type -Namespace Blinter -Name UserPathNotify -MemberDefinition @'
+echo [System.Runtime.InteropServices.DllImport("user32.dll", CharSet=System.Runtime.InteropServices.CharSet.Auto, SetLastError=true^)]
+echo public static System.IntPtr SendMessageTimeout(System.IntPtr hWnd, int Msg, System.UIntPtr wParam, string lParam, int fuFlags, int uTimeout, out System.UIntPtr lpdwResult^);
+echo '@
+echo     }
+echo     $notifyResult = [System.UIntPtr]::Zero
+echo     [void][Blinter.UserPathNotify]::SendMessageTimeout([System.IntPtr]0xffff, 0x001A, [System.UIntPtr]::Zero, 'Environment', 2, 5000, [ref]$notifyResult^)
+echo }
 echo try {
 echo     $binPath = $env:BLINTER_BIN
 echo     $kindName = 'String'
@@ -294,6 +307,7 @@ echo     if ($pathArray -contains $binPath^) {
 echo         $newPath = (@($pathArray ^| Where-Object { $_ -ne $binPath }^) -join ';'^)
 echo         if ($kindName -eq 'ExpandString' -and $key^) {
 echo             $key.SetValue('Path', $newPath, [Microsoft.Win32.RegistryValueKind]::ExpandString^)
+echo             Send-BlinterSettingChange
 echo         } else {
 echo             [Environment]::SetEnvironmentVariable('Path', $newPath, 'User'^)
 echo         }

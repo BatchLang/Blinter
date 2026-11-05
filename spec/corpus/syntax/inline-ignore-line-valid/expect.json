@@ -1,0 +1,14 @@
+{
+  "config": {},
+  "description": "REM LINT:IGNORE-LINE after & suppresses the same line",
+  "lines": {},
+  "must_not": [
+    "W002",
+    "W025"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

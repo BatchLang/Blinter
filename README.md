@@ -74,17 +74,36 @@ Run without installing:
 uvx blinter
 ```
 
+**From a git checkout**
+
+```bash
+git clone --recurse-submodules https://github.com/BatchLang/Blinter.git
+cd Blinter
+uv sync --extra dev
+uv run python -m blinter path\to\script.cmd
+```
+
+`uv run` uses this checkout. A bare `python -m blinter` can import a different copy already installed for your user. Corpus files under `spec/corpus/` keep their committed line endings; linting one can report E018, and that is the line-ending rule doing its job.
+
 **Option 3: Standalone executable**
 
 If you prefer a standalone executable over pip or uv, use the one-line installer for your system.
 
-**Windows (cmd):**
+**Windows (Command Prompt):**
+
+Run this from `cmd.exe`. PowerShell 5.1 aliases `curl` to `Invoke-WebRequest` and does not accept `&&`.
 
 ```cmd
 curl -fL --proto =https https://raw.githubusercontent.com/BatchLang/Blinter/refs/heads/main/scripts/install_blinter.cmd -o install_blinter.cmd && (call install_blinter.cmd || cd .) && del install_blinter.cmd
 ```
 
-This installs the latest `blinter.exe` for your PC's architecture to `%LOCALAPPDATA%\Programs\Blinter\bin`, adds it to your user `PATH`, and handles updates automatically.
+PowerShell:
+
+```powershell
+curl.exe -fL --proto =https https://raw.githubusercontent.com/BatchLang/Blinter/refs/heads/main/scripts/install_blinter.cmd -o install_blinter.cmd; cmd /c "call install_blinter.cmd & del install_blinter.cmd"
+```
+
+This installs the latest `blinter.exe` for your PC's architecture to `%LOCALAPPDATA%\Programs\Blinter\bin` and adds it to your user `PATH`. Run the installer again to update. It does not update on its own.
 To choose the build yourself, add `x64` or `arm64` after `call install_blinter.cmd`.
 `arm64` is refused on a PC that is not ARM64.
 On ARM64, `x64` still installs and runs through emulation, but `arm64` is the native build and the default.
@@ -338,7 +357,13 @@ ECHO Unmatched quotes "
 
 ```batch
 REM LINT:IGNORE
-REM This line and the next will be ignored for all rules
+ECHO This next line is ignored for all rules
+```
+
+A suppression can also sit after `&` on the same physical line:
+
+```batch
+copy a b & REM LINT:IGNORE-LINE
 ```
 
 **Supported formats:**
@@ -498,7 +523,7 @@ The `blinter` CLI exit codes:
 | Code | Meaning |
 |------|---------|
 | **0** | Success: no findings at or above the failure threshold, and every discovered primary file was processed |
-| **1** | Lint failure: any finding at or above the failure threshold, CLI/path errors, no processable files, any skipped primary target files, or all discovered files failed to read |
+| **1** | Lint failure: any finding at or above the failure threshold, stale baseline entries, CLI/path errors, no processable files, any skipped primary target files, or all discovered files failed to read |
 | **2** | Unexpected internal error |
 
 The default threshold is Security, so Error and Security findings are fatal and Warning, Performance, and Style findings are not. `--fail-on` or `fail_on` in `blinter.ini` changes that threshold. `none` never fails because of findings.

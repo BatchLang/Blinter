@@ -20,7 +20,10 @@ from blinter.checkers.advanced import (
     _check_enhanced_performance,
     _check_enhanced_security_rules,
 )
-from blinter.checkers.cmd_extended import check_extended_warning_file
+from blinter.checkers.cmd_extended import (
+    check_extended_warning_file,
+    check_sec001_setp_dataflow,
+)
 from blinter.checkers.globals import (
     _check_cmd_case_consistency,
     _check_code_duplication,
@@ -45,7 +48,6 @@ from blinter.checkers.syntax import (
 )
 from blinter.checkers.vars import _check_undefined_variables
 from blinter.checkers.warnings import _check_warning_issues
-from blinter.constants import LARGE_FILE_LINE_THRESHOLD
 from blinter.models import BlinterConfig, LintIssue
 from blinter.rules.helpers import _has_any_enabled_rules, _rule_codes_with_prefix
 
@@ -152,8 +154,7 @@ def _append_line_checks(  # pylint: disable=too-many-arguments,too-many-position
                 has_literal_exclamations,
             )
         )
-        if len(lines) <= LARGE_FILE_LINE_THRESHOLD:
-            issues.extend(_check_advanced_performance(lines, line_number, line))
+        issues.extend(_check_advanced_performance(lines, line_number, line))
 
 
 def _append_global_checks(  # pylint: disable=too-many-arguments,too-many-positional-arguments
@@ -177,14 +178,14 @@ def _append_global_checks(  # pylint: disable=too-many-arguments,too-many-positi
 
     if run_warnings:
         issues.extend(_check_missing_exit_statement(lines))
-        if len(lines) <= LARGE_FILE_LINE_THRESHOLD:
-            issues.extend(_check_unreachable_code(lines))
+        issues.extend(_check_unreachable_code(lines))
         issues.extend(_check_code_duplication(lines))
         issues.extend(_check_enhanced_commands(lines))
         issues.extend(_check_missing_pause(lines))
         issues.extend(check_extended_warning_file(lines, file_path=""))
 
     if run_security:
+        issues.extend(check_sec001_setp_dataflow(lines))
         issues.extend(_check_enhanced_security_rules(lines))
 
     if run_performance:
@@ -195,8 +196,7 @@ def _append_global_checks(  # pylint: disable=too-many-arguments,too-many-positi
     if run_style:
         issues.extend(_check_inconsistent_indentation(lines))
         issues.extend(_check_missing_header_doc(lines))
-        if len(lines) <= LARGE_FILE_LINE_THRESHOLD:
-            issues.extend(_check_cmd_case_consistency(lines))
+        issues.extend(_check_cmd_case_consistency(lines))
         issues.extend(_check_advanced_style_rules(lines, config.max_line_length))
 
 

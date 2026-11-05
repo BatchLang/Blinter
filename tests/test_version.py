@@ -251,9 +251,12 @@ class TestBuildExe:
         pythonpath = env["PYTHONPATH"]
         assert pythonpath == src_dir or pythonpath.startswith(src_dir + os.pathsep)
 
-    def test_build_command_includes_windows_metadata(self) -> None:
+    def test_build_command_includes_windows_metadata(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Nuitka command must embed icon, version, and the blinter package."""
 
+        monkeypatch.delenv("BLINTER_NUITKA_ALLOW_DOWNLOADS", raising=False)
         project_version = get_project_version()
         command = build_nuitka_command(
             version=project_version,
@@ -264,7 +267,15 @@ class TestBuildExe:
         joined = " ".join(command)
         assert command[:3] == [sys.executable, "-m", "nuitka"]
         assert "--mode=onefile" in command
-        assert "--assume-yes-for-downloads" in command
+        assert "--assume-yes-for-downloads" not in command
+        monkeypatch.setenv("BLINTER_NUITKA_ALLOW_DOWNLOADS", "1")
+        allowed = build_nuitka_command(
+            version=project_version,
+            python_executable=sys.executable,
+            windows=True,
+            mingw=False,
+        )
+        assert "--assume-yes-for-downloads" in allowed
         assert "--msvc=latest" in command
         assert "--mingw64" not in command
         assert f"--output-filename={OUTPUT_FILENAME}" in command

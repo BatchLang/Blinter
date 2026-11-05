@@ -270,11 +270,17 @@ class TestSyntaxErrorChecking:
         assert len(issues) == 0  # Should not trigger E014
 
     def test_call_without_colon_to_label_looking_name(self) -> None:
-        """Test CALL to what looks like a label without colon."""
-        labels: Dict[str, int] = {}
+        """Test CALL to a defined label without a colon."""
+        labels: Dict[str, int] = {":mylabel": 3}
         issues = _check_syntax_errors("CALL mylabel", 1, labels)
         assert len(issues) == 1
         assert "E014" in issues[0].rule.code
+
+    def test_call_external_name_without_label_is_not_e014(self) -> None:
+        """CALL of an external name is not E014 when no such label exists."""
+        labels: Dict[str, int] = {}
+        issues = _check_syntax_errors("CALL gradlew build", 1, labels)
+        assert all(issue.rule.code != "E014" for issue in issues)
 
     def test_goto_missing_label_edge_case(self) -> None:
         """Test GOTO with missing label edge case."""
@@ -1867,6 +1873,7 @@ class TestSetAArithmeticE022:
             "SET /A @WATCHCOUNT+=%%c",
             "SET /A %~2=%%~M + 2",
             'set /a "gprdays=(!gpr!+1440-1)/1440"',
+            "set /a x=5*-1",
         ]
         for line in valid_lines:
             issues = _check_set_a_arithmetic(line.strip(), 1)
@@ -1875,6 +1882,11 @@ class TestSetAArithmeticE022:
 
 class TestSecurityChecking:
     """Test security level checking edge cases."""
+
+    def test_sc_inside_a_label_is_not_sec005(self) -> None:
+        """SEC005 matches the sc command, not the letters inside another word."""
+        issues = _check_security_issues("call :process_misc x", 1)
+        assert all(issue.rule.code != "SEC005" for issue in issues)
 
     def test_command_injection_pattern(self) -> None:
         """Test detection of potential command injection."""

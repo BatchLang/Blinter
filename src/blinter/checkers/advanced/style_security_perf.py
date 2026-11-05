@@ -712,9 +712,8 @@ def _uses_only_system_variables(stripped: str) -> bool:
 
 def _has_unsafe_command_chaining(stripped: str) -> bool:
     """Return True when & or | chain commands beyond I/O redirection."""
-    potential_chaining: List[str] = cast(List[str], re.findall(r"[&|]", stripped))
-    for match in potential_chaining:
-        match_pos = stripped.find(match)
+    for match in re.finditer(r"[&|]", stripped):
+        match_pos = match.start()
         context = stripped[max(0, match_pos - 3) : match_pos + 3]
         if "2>&1" not in context and ">&1" not in context:
             return True

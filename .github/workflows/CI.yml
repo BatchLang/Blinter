@@ -40,7 +40,7 @@ jobs:
           activate-environment: true
 
       - name: Install dependencies
-        run: uv pip install -e ".[dev]"
+        run: uv sync --extra dev --frozen
 
       - name: Run quality checks
         run: python scripts/verify.py --skip-pytest
@@ -62,7 +62,7 @@ jobs:
           activate-environment: true
 
       - name: Install dependencies
-        run: uv pip install -e ".[dev]"
+        run: uv sync --extra dev --frozen
 
       - name: Run Windows verification checks
         run: python scripts/verify.py --windows-only
@@ -105,7 +105,7 @@ jobs:
           activate-environment: true
 
       - name: Install dependencies
-        run: uv pip install -e ".[dev]"
+        run: uv sync --extra dev --frozen
 
       - name: Lint shell scripts
         run: shellcheck scripts/*.sh tests/unix_stubs/*
@@ -136,7 +136,7 @@ jobs:
           activate-environment: true
 
       - name: Install dependencies
-        run: uv pip install -e ".[dev]"
+        run: uv sync --extra dev --frozen
 
       - name: Run tests
         run: python -m pytest
@@ -168,14 +168,11 @@ jobs:
       - name: Install Nuitka build dependencies
         env:
           CHARSET_NORMALIZER_USE_MYPYC: "0"
-        run: |
-          uv venv venv --python 3.14
-          uv pip install --python venv setuptools==84.2.1
-          uv pip install --python venv nuitka==4.3.4
-          uv pip install --python venv --upgrade -r requirements.txt --no-binary charset-normalizer
-          uv pip install --python venv -e .
+        run: python scripts/install_nuitka_venv.py
 
       - name: Build executable
+        env:
+          BLINTER_NUITKA_ALLOW_DOWNLOADS: "1"
         run: .\venv\Scripts\python.exe scripts/build_exe.py
 
       - name: Smoke test executable
@@ -235,14 +232,11 @@ jobs:
       - name: Install Nuitka build dependencies
         env:
           CHARSET_NORMALIZER_USE_MYPYC: "0"
-        run: |
-          uv venv venv --python 3.14
-          uv pip install --python venv setuptools==84.2.1
-          uv pip install --python venv nuitka==4.3.4
-          uv pip install --python venv --upgrade -r requirements.txt --no-binary charset-normalizer
-          uv pip install --python venv -e .
+        run: python scripts/install_nuitka_venv.py
 
       - name: Build executable
+        env:
+          BLINTER_NUITKA_ALLOW_DOWNLOADS: "1"
         run: ./venv/bin/python scripts/build_exe.py
 
       - name: Smoke test executable
@@ -297,6 +291,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
       - name: Submit dependency snapshot
         uses: advanced-security/component-detection-dependency-submission-action@a02aeda7a175ad4dd38a13c4d3ff2df9da8f2cf0 # v0.2.0
@@ -510,7 +506,7 @@ jobs:
 
   publish-pypi:
     name: Publish wheels to PyPI
-    needs: [check-version, build-wheels]
+    needs: [check-version, build-wheels, build-windows, build-unix]
     if: needs.check-version.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     steps:

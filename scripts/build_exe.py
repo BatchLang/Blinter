@@ -268,7 +268,6 @@ def build_nuitka_command(
         "-m",
         "nuitka",
         "--mode=onefile",
-        "--assume-yes-for-downloads",
         f"--output-filename={filename}",
         f"--output-dir={OUTPUT_DIR.as_posix()}",
         "--include-module=charset_normalizer",
@@ -306,6 +305,12 @@ def build_nuitka_command(
             "POSIX onefile build writes %s; MSVC, icon, and file description "
             "are omitted. No macOS signing identity is passed",
             filename,
+        )
+    if os.environ.get("BLINTER_NUITKA_ALLOW_DOWNLOADS") == "1":
+        command.append("--assume-yes-for-downloads")
+        logger.warning(
+            "Nuitka may download a toolchain because "
+            "BLINTER_NUITKA_ALLOW_DOWNLOADS=1"
         )
     command.append(PACKAGE_DIR.as_posix())
     logger.info("Constructed Nuitka command with %s arguments", len(command))

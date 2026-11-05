@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "CALL of an external name is not a missing-colon label (E014 negative)",
+  "lines": {},
+  "must_not": [
+    "E014"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

@@ -35,10 +35,27 @@ _LABEL_TARGET_PATTERN = re.compile(
 # ASCII-only case folding: str.upper() maps ı to I and ſ to S, so a look-alike
 # directive would suppress rules that neither a reader nor a search would see.
 _SUPPRESSION_DIRECTIVE = re.compile(
-    r"^(?:rem\s|::)\s*lint:ignore(-line)?(?=\s|$)(.*)$",
+    r"(?:^|(?<!\^)&\s*)@?(?:rem\s|::)\s*lint:ignore(-line)?(?=\s|$)(.*)$",
     re.IGNORECASE | re.ASCII,
 )
+_LABEL_NAME_END = re.compile(r"[\s+:=,;]")
 _SUPPRESSION_CODE = re.compile(r"^[A-Za-z]+[0-9]+$", re.ASCII)
+
+
+def label_key_from_line(stripped_line: str) -> Optional[str]:
+    """Return ``:name`` for a label, stopping at whitespace and cmd separators.
+
+    ``::`` comments and decorative lines with no letters or digits are not labels.
+    cmd.exe ends a label name at space, tab, ``+``, ``:``, ``=``, comma, or semicolon.
+    """
+    if not stripped_line.startswith(":") or stripped_line.startswith("::"):
+        return None
+    body = stripped_line[1:]
+    name_end = _LABEL_NAME_END.search(body)
+    name = body if name_end is None else body[: name_end.start()]
+    if not name or not re.search(r"[a-zA-Z0-9]", name):
+        return None
+    return ":" + name.lower()
 
 
 def _collect_labels(lines: List[str]) -> Tuple[Dict[str, int], List[LintIssue]]:
@@ -47,21 +64,8 @@ def _collect_labels(lines: List[str]) -> Tuple[Dict[str, int], List[LintIssue]]:
     issues: List[LintIssue] = []
 
     for i, line in enumerate(lines, start=1):
-        stripped_line = line.strip()
-        if stripped_line.startswith(":"):
-            # Skip comment-style lines that start with :: (double colon)
-            if stripped_line.startswith("::"):
-                continue
-
-            label = stripped_line.lower()
-
-            # Skip comment-style labels (like :::) that contain no alphanumeric characters
-            # These are commonly used as decorative comments and should not be flagged as duplicates
-            label_content = label[1:]  # Remove the leading ":"
-            if not re.search(r"[a-zA-Z0-9]", label_content):
-                # This is a comment-style label like ::::::, skip it
-                continue
-
+        label = label_key_from_line(line.strip())
+        if label is not None:
             if label in labels:
                 _add_issue(
                     issues,
@@ -354,7 +358,7 @@ def _parse_suppression_comments(lines: List[str]) -> Dict[int, Set[str]]:
     suppressions: Dict[int, Set[str]] = {}
 
     for line_number, line in enumerate(lines, start=1):
-        match = _SUPPRESSION_DIRECTIVE.match(line.strip())
+        match = _SUPPRESSION_DIRECTIVE.search(line.strip())
         if match is None:
             continue
         rest_raw = match.group(2)

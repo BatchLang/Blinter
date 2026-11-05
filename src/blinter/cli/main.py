@@ -28,7 +28,7 @@ from blinter.constants import MAX_FOLLOW_CALL_DEPTH, MAX_FOLLOW_CALL_FILES
 from blinter.engine.dependencies import _extract_called_scripts
 from blinter.engine.lines_cache import get_cached_lines
 from blinter.engine.linter import lint_batch_file
-from blinter.io.discovery import find_batch_files, is_path_under_root
+from blinter.io.discovery import find_batch_files, is_path_under_root, is_unc_path
 from blinter.logging_config import logger
 from blinter.models import (
     BlinterConfig,
@@ -124,7 +124,10 @@ def _process_single_called_script(
     Returns:
         Tuple of (files_processed, files_with_errors)
     """
-    if called_script.resolve() in state.processed_files:
+    unc_called_script = is_unc_path(called_script)
+    if unc_called_script:
+        logger.debug("Skipping UNC called script %s", called_script)
+    if unc_called_script or called_script.resolve() in state.processed_files:
         return (0, 0)
 
     if len(state.processed_files) >= MAX_FOLLOW_CALL_FILES:

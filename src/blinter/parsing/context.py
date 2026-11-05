@@ -297,8 +297,8 @@ def _set_line_without_dangerous_substitution(stripped: str) -> bool:
     if not stripped.startswith(("set ", "set\t")):
         return False
     dangerous_in_substitution = re.search(
-        rf"where\s+({_DANGEROUS_CMDS_REGEX})", stripped
-    ) or re.search(rf"['\(]\s*({_DANGEROUS_CMDS_REGEX})\s+", stripped)
+        rf"\bwhere\s+({_DANGEROUS_CMDS_REGEX})\b", stripped
+    ) or re.search(rf"['\(]\s*\b({_DANGEROUS_CMDS_REGEX})\b\s+", stripped)
     return dangerous_in_substitution is None
 
 

@@ -3450,3 +3450,14 @@ exit /b 0
             assert "W068" not in codes
         finally:
             os.unlink(temp_file)
+
+    def test_large_file_still_flags_locked_path(self) -> None:
+        """Checks that used to stop after 2500 lines still run."""
+        lines = ["@echo off", *["echo ok"] * 2499, r"del C:\Windows\System32\hosts"]
+        assert len(lines) > 2500
+        temp_file = self.create_temp_batch_file("\n".join(lines) + "\n")
+        try:
+            codes = {issue.rule.code for issue in lint_batch_file(temp_file)}
+            assert "W007" in codes
+        finally:
+            os.unlink(temp_file)

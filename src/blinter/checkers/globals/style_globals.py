@@ -16,7 +16,6 @@ from blinter.checkers.performance import (
     _exist_filename,
     _line_repeats_exist,
 )
-from blinter.constants import LARGE_FILE_LINE_THRESHOLD
 from blinter.models import LintIssue
 from blinter.parsing.command_scan import _collect_cmd_cases
 from blinter.parsing.context import _is_blank_or_comment, _is_comment_line
@@ -62,10 +61,6 @@ def _duplication_report_threshold(script_size: int) -> int:
 def _check_code_duplication(lines: List[str]) -> List[LintIssue]:
     """Check for code duplication that could be refactored."""
     issues: List[LintIssue] = []
-
-    # Very large scripts: skip expensive similarity scan (dominates lint time).
-    if len(lines) > LARGE_FILE_LINE_THRESHOLD:
-        return issues
 
     # Simple heuristic: look for repeated command patterns
     command_blocks: Dict[str, List[int]] = defaultdict(list)
