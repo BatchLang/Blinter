@@ -27,6 +27,11 @@ _VALIDATE_FILE_PATCH = patch(
     "blinter.io.encoding._validate_file_for_read",
     return_value=make_mock_encoding_path(b"test content\n"),
 )
+# Not valid UTF-8, so the detected encoding decides how it is read.
+_VALIDATE_NON_UTF8_FILE_PATCH = patch(
+    "blinter.io.encoding._validate_file_for_read",
+    return_value=make_mock_encoding_path(b"caf\xe9\n"),
+)
 
 
 class TestFileEncodingDetection:
@@ -137,7 +142,7 @@ class TestFileEncodingDetection:
         with pytest.raises(PermissionError):
             read_file_with_encoding("restricted_file.bat")
 
-    @_VALIDATE_FILE_PATCH
+    @_VALIDATE_NON_UTF8_FILE_PATCH
     @patch("blinter.io.encoding.from_bytes")
     @patch("builtins.open")
     def test_charset_normalizer_detection_success(
@@ -157,7 +162,7 @@ class TestFileEncodingDetection:
         mock_file.return_value = mock_open(read_data=b"test content\n").return_value
 
         lines, encoding = read_file_with_encoding("test.bat")
-        assert lines == ["test content\n"]
+        assert lines == ["caf\u00e9\n"]
         assert encoding == "cp1252"
 
     @_VALIDATE_FILE_PATCH
@@ -308,7 +313,7 @@ class TestFileEncodingDetection:
         finally:
             os.unlink(temp_file_path)
 
-    @_VALIDATE_FILE_PATCH
+    @_VALIDATE_NON_UTF8_FILE_PATCH
     @patch("blinter.io.encoding.from_bytes")
     @patch("builtins.open")
     def test_charset_detect_encoding_not_in_default_list(
@@ -327,10 +332,10 @@ class TestFileEncodingDetection:
         mock_file.return_value = mock_open(read_data=b"test content\n").return_value
 
         lines, encoding = read_file_with_encoding("test.bat")
-        assert lines == ["test content\n"]
+        assert lines == ["caf\u0418\n"]
         assert encoding == "koi8-r"  # Should use the detected encoding
 
-    @_VALIDATE_FILE_PATCH
+    @_VALIDATE_NON_UTF8_FILE_PATCH
     @patch("blinter.io.encoding.from_bytes")
     @patch("builtins.open")
     def test_charset_detect_encoding_in_default_list(
@@ -342,15 +347,15 @@ class TestFileEncodingDetection:
         """Test when charset_normalizer detects encoding that exists in our list - should be moved to front."""
         # Mock charset_normalizer to return an encoding that IS in the default list
         mock_result = MagicMock()
-        mock_result.encoding = "cp1252"  # This IS in the default list
+        mock_result.encoding = "cp850"  # This IS in the default list, after cp1252
         mock_result.coherence = 0.85
         mock_from_bytes.return_value.best.return_value = mock_result
 
         mock_file.return_value = mock_open(read_data=b"test content\n").return_value
 
         lines, encoding = read_file_with_encoding("test.bat")
-        assert lines == ["test content\n"]
-        assert encoding == "cp1252"  # Should use cp1252 (moved to front)
+        assert lines == ["caf\u00da\n"]
+        assert encoding == "cp850"  # Should use cp850 (moved to front)
 
     @patch("blinter.io.encoding.from_bytes")
     def test_charset_normalizer_exception_handling(
@@ -411,6 +416,44 @@ class TestFileEncodingDetection:
             assert read_lines == validate_lines
         finally:
             os.unlink(temp_file_path)
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            b"@echo off\r\nREM read as Latin1 by PowerShell\r\necho done\r\n",
+            b"@echo off\r\nREM caf\xc3\xa9\r\necho done\r\n",
+        ],
+        ids=["ascii", "utf8-multibyte"],
+    )
+    def test_utf8_bytes_are_read_as_utf8_whatever_the_guess(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture, payload: bytes
+    ) -> None:
+        """Bytes that decode as UTF-8 are read as UTF-8 and log no fallback."""
+        script = tmp_path / "guessed.bat"
+        script.write_bytes(payload)
+        guess = MagicMock()
+        guess.encoding = "latin_1"
+        guess.coherence = 0.76
+
+        with patch("blinter.io.encoding.from_bytes") as mock_from_bytes:
+            mock_from_bytes.return_value.best.return_value = guess
+            lines, encoding, _ending, _overlong = _validate_and_read_file(str(script))
+
+        assert encoding == "utf-8"
+        assert lines == payload.decode("utf-8").replace("\r", "").splitlines(True)
+        assert "instead of UTF-8" not in caplog.text
+
+    def test_non_utf8_bytes_still_log_the_fallback(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A file that is not valid UTF-8 is still reported as read another way."""
+        script = tmp_path / "latin.bat"
+        script.write_bytes(b"@echo off\r\nREM caf\xe9\r\necho done\r\n")
+
+        _lines, encoding, _ending, _overlong = _validate_and_read_file(str(script))
+
+        assert encoding != "utf-8"
+        assert "instead of UTF-8" in caplog.text
 
 
 class TestEncodingEdgeCases:
