@@ -164,8 +164,9 @@ class TestFileEncodingDetection:
         lines, encoding = read_file_with_encoding("test.bat")
         assert lines == ["caf\u00e9\n"]
         assert encoding == "cp1252"
+        mock_from_bytes.assert_called_once()
 
-    @_VALIDATE_FILE_PATCH
+    @_VALIDATE_NON_UTF8_FILE_PATCH
     @patch("blinter.io.encoding.from_bytes")
     @patch("builtins.open")
     def test_charset_normalizer_detection_low_confidence(
@@ -174,36 +175,36 @@ class TestFileEncodingDetection:
         mock_from_bytes: MagicMock,
         _mock_validate: MagicMock,
     ) -> None:
-        """Test charset_normalizer detection with low confidence."""
-        # Mock charset_normalizer with low confidence
+        """A low-coherence guess must not replace the default encoding."""
+        # 0xE9 is U+0418 in koi8-r and U+00E9 in cp1252, so using the guess
+        # would change the text. Coherence at or below 0.7 leaves the guess unused.
         mock_result = MagicMock()
-        mock_result.encoding = "cp1252"
+        mock_result.encoding = "koi8-r"
         mock_result.coherence = 0.3
         mock_from_bytes.return_value.best.return_value = mock_result
 
-        mock_file.return_value = mock_open(read_data=b"test content\n").return_value
+        mock_file.return_value = mock_open(read_data=b"caf\xe9\n").return_value
 
         lines, encoding = read_file_with_encoding("test.bat")
-        assert lines == ["test content\n"]
-        assert encoding == "utf-8"
+        assert lines == ["caf\u00e9\n"]
+        assert encoding == "cp1252"
+        mock_from_bytes.assert_called_once()
 
     def test_charset_normalizer_import_error(self) -> None:
-        """Test fallback when charset_normalizer detection fails."""
-        content = "test content\n"
-        with tempfile.NamedTemporaryFile(
-            mode="w", encoding="utf-8", delete=False
-        ) as temp_file:
-            temp_file.write(content)
+        """Detection errors fall back to the default list for non-UTF-8 bytes."""
+        with tempfile.NamedTemporaryFile(mode="wb", delete=False) as temp_file:
+            temp_file.write(b"caf\xe9\n")
             temp_file_path = temp_file.name
 
         try:
             with patch(
                 "blinter.io.encoding.from_bytes",
                 side_effect=OSError("charset_normalizer unavailable"),
-            ):
+            ) as mock_from_bytes:
                 lines, encoding = read_file_with_encoding(temp_file_path)
-                assert lines == ["test content\n"]
-                assert encoding in ["utf-8", "ascii"]  # ASCII is subset of UTF-8
+                assert lines == ["caf\u00e9\n"]
+                assert encoding == "cp1252"
+                mock_from_bytes.assert_called_once()
         finally:
             os.unlink(temp_file_path)
 
@@ -334,6 +335,7 @@ class TestFileEncodingDetection:
         lines, encoding = read_file_with_encoding("test.bat")
         assert lines == ["caf\u0418\n"]
         assert encoding == "koi8-r"  # Should use the detected encoding
+        mock_from_bytes.assert_called_once()
 
     @_VALIDATE_NON_UTF8_FILE_PATCH
     @patch("blinter.io.encoding.from_bytes")
@@ -356,26 +358,24 @@ class TestFileEncodingDetection:
         lines, encoding = read_file_with_encoding("test.bat")
         assert lines == ["caf\u00da\n"]
         assert encoding == "cp850"  # Should use cp850 (moved to front)
+        mock_from_bytes.assert_called_once()
 
     @patch("blinter.io.encoding.from_bytes")
     def test_charset_normalizer_exception_handling(
         self, mock_from_bytes: MagicMock
     ) -> None:
-        """Test charset_normalizer exception handling."""
-        content = b"test content"
-
+        """Detection errors fall back to cp1252 when the bytes are not UTF-8."""
         with tempfile.NamedTemporaryFile(mode="wb", delete=False) as temp_file:
-            temp_file.write(content)
+            temp_file.write(b"caf\xe9\n")
             temp_file_path = temp_file.name
 
         try:
-            # Mock charset_normalizer to raise an exception
             mock_from_bytes.side_effect = OSError("charset_normalizer failed")
 
-            # This should handle the exception gracefully and fall back to default encodings
             lines, encoding = read_file_with_encoding(temp_file_path)
-            assert isinstance(lines, list)
-            assert isinstance(encoding, str)
+            assert lines == ["caf\u00e9\n"]
+            assert encoding == "cp1252"
+            mock_from_bytes.assert_called_once()
         finally:
             os.unlink(temp_file_path)
 
@@ -460,56 +460,42 @@ class TestEncodingEdgeCases:
     """Test edge cases in file encoding detection and handling."""
 
     def test_charset_normalizer_not_available_fallback(self) -> None:
-        """Test encoding fallback when charset_normalizer detection fails."""
-        # Create a test file with UTF-8 content
+        """An OSError from detection still leaves a non-UTF-8 file readable."""
         with tempfile.NamedTemporaryFile(
             mode="wb", delete=False, suffix=".bat"
         ) as temp_file_handle:
-            content = "@ECHO OFF\nECHO Hello World\n"
-            temp_file_handle.write(content.encode("utf-8"))
+            temp_file_handle.write(b"caf\xe9\n")
             temp_file = temp_file_handle.name
 
         try:
             with patch(
                 "blinter.io.encoding.from_bytes",
                 side_effect=OSError("charset_normalizer unavailable"),
-            ):
+            ) as mock_from_bytes:
                 lines, encoding = read_file_with_encoding(temp_file)
-                assert len(lines) == 2
-                assert encoding in [
-                    "utf-8",
-                    "utf-8-sig",
-                    "cp1252",
-                    "iso-8859-1",
-                    "ascii",
-                ]
+                assert lines == ["caf\u00e9\n"]
+                assert encoding == "cp1252"
+                mock_from_bytes.assert_called_once()
         finally:
             os.unlink(temp_file)
 
     def test_charset_normalizer_detection_error_fallback(self) -> None:
-        """Test encoding fallback when charset_normalizer detection fails."""
+        """A ValueError from detection still leaves a non-UTF-8 file readable."""
         with tempfile.NamedTemporaryFile(
             mode="wb", delete=False, suffix=".bat"
         ) as temp_file_handle:
-            content = "@ECHO OFF\nECHO Test\n"
-            temp_file_handle.write(content.encode("utf-8"))
+            temp_file_handle.write(b"caf\xe9\n")
             temp_file = temp_file_handle.name
 
         try:
-            # Mock blinter.io.encoding.from_bytes to raise an exception
             with patch(
                 "blinter.io.encoding.from_bytes",
                 side_effect=ValueError("Detection failed"),
-            ):
+            ) as mock_from_bytes:
                 lines, encoding = read_file_with_encoding(temp_file)
-                assert len(lines) == 2
-                assert encoding in [
-                    "utf-8",
-                    "utf-8-sig",
-                    "cp1252",
-                    "iso-8859-1",
-                    "ascii",
-                ]
+                assert lines == ["caf\u00e9\n"]
+                assert encoding == "cp1252"
+                mock_from_bytes.assert_called_once()
         finally:
             os.unlink(temp_file)
 
@@ -561,58 +547,41 @@ class TestEncodingFallbackScenarios:
     """Test additional encoding fallback scenarios."""
 
     def test_charset_normalizer_low_confidence_fallback(self) -> None:
-        """Test encoding fallback when charset_normalizer has low confidence."""
+        """A low-coherence guess is ignored for bytes that are not UTF-8."""
         with tempfile.NamedTemporaryFile(
             mode="wb", delete=False, suffix=".bat"
         ) as temp_file_handle:
-            content = "@ECHO OFF\nECHO Test\n"
-            temp_file_handle.write(content.encode("utf-8"))
+            temp_file_handle.write(b"caf\xe9\n")
             temp_file = temp_file_handle.name
 
         try:
-            # Mock blinter.io.encoding.from_bytes to return low confidence
             mock_result = MagicMock()
-            mock_result.encoding = "utf-8"
-            mock_result.coherence = 0.5  # Below 0.7 threshold
-            mock_from_bytes = MagicMock()
-            mock_from_bytes.best.return_value = mock_result
-            with patch("blinter.io.encoding.from_bytes", return_value=mock_from_bytes):
+            mock_result.encoding = "koi8-r"
+            mock_result.coherence = 0.5  # At or below 0.7 the guess is unused
+            with patch("blinter.io.encoding.from_bytes") as mock_from_bytes:
+                mock_from_bytes.return_value.best.return_value = mock_result
                 lines, encoding = read_file_with_encoding(temp_file)
-                assert len(lines) == 2
-                # Should fall back to standard encoding list
-                assert encoding in [
-                    "utf-8",
-                    "utf-8-sig",
-                    "cp1252",
-                    "iso-8859-1",
-                    "ascii",
-                ]
+                assert lines == ["caf\u00e9\n"]
+                assert encoding == "cp1252"
+                mock_from_bytes.assert_called_once()
         finally:
             os.unlink(temp_file)
 
     def test_charset_normalizer_none_result_fallback(self) -> None:
-        """Test encoding fallback when charset_normalizer returns None."""
+        """A missing detection match falls back for bytes that are not UTF-8."""
         with tempfile.NamedTemporaryFile(
             mode="wb", delete=False, suffix=".bat"
         ) as temp_file_handle:
-            content = "@ECHO OFF\nECHO Test\n"
-            temp_file_handle.write(content.encode("utf-8"))
+            temp_file_handle.write(b"caf\xe9\n")
             temp_file = temp_file_handle.name
 
         try:
-            # Mock blinter.io.encoding.from_bytes().best() to return None
-            mock_result = MagicMock()
-            mock_result.best.return_value = None
-            with patch("blinter.io.encoding.from_bytes", return_value=mock_result):
+            with patch("blinter.io.encoding.from_bytes") as mock_from_bytes:
+                mock_from_bytes.return_value.best.return_value = None
                 lines, encoding = read_file_with_encoding(temp_file)
-                assert len(lines) == 2
-                assert encoding in [
-                    "utf-8",
-                    "utf-8-sig",
-                    "cp1252",
-                    "iso-8859-1",
-                    "ascii",
-                ]
+                assert lines == ["caf\u00e9\n"]
+                assert encoding == "cp1252"
+                mock_from_bytes.assert_called_once()
         finally:
             os.unlink(temp_file)
 
@@ -639,102 +608,87 @@ class TestAdditionalFileEncodingScenarios:
     """Additional file encoding tests for comprehensive scenarios."""
 
     def test_charset_detect_encoding_not_in_list(self) -> None:
-        """Test charset_normalizer detecting encoding not in our default list."""
+        """A high-coherence encoding outside the default list is tried first."""
 
         mock_result = MagicMock()
-        mock_result.encoding = "iso-2022-jp"
+        mock_result.encoding = "mac_roman"
         mock_result.coherence = 0.85
-        mock_from_bytes = MagicMock()
-        mock_from_bytes.best.return_value = mock_result
 
         with (
-            patch_valid_encoding_path(),
-            patch("builtins.open", mock_open(read_data=b"test content")),
-            patch("blinter.io.encoding.from_bytes", return_value=mock_from_bytes),
+            patch_valid_encoding_path(b"caf\xe9\n"),
+            patch("builtins.open", mock_open(read_data=b"caf\xe9\n")),
+            patch("blinter.io.encoding.from_bytes") as mock_from_bytes,
         ):
-            # Should succeed by adding the detected encoding to the front
-            lines, _ = read_file_with_encoding("test.bat")
-            assert len(lines) > 0
+            mock_from_bytes.return_value.best.return_value = mock_result
+            lines, encoding = read_file_with_encoding("test.bat")
+            assert lines == ["caf\u00c8\n"]
+            assert encoding == "mac-roman"
+            mock_from_bytes.assert_called_once()
 
     def test_charset_detect_encoding_already_in_list(self) -> None:
-        """Test when charset_normalizer detects an encoding already in our list."""
+        """A detected encoding that is already in the list moves to the front."""
 
         mock_result = MagicMock()
-        mock_result.encoding = "utf-8"
+        mock_result.encoding = "cp850"
         mock_result.coherence = 0.8
-        mock_from_bytes = MagicMock()
-        mock_from_bytes.best.return_value = mock_result
 
         with (
-            patch_valid_encoding_path(),
-            patch("builtins.open", mock_open(read_data=b"test content")),
-            patch("blinter.io.encoding.from_bytes", return_value=mock_from_bytes),
+            patch_valid_encoding_path(b"caf\xe9\n"),
+            patch("builtins.open", mock_open(read_data=b"caf\xe9\n")),
+            patch("blinter.io.encoding.from_bytes") as mock_from_bytes,
         ):
+            mock_from_bytes.return_value.best.return_value = mock_result
             lines, encoding = read_file_with_encoding("test.bat")
-            assert encoding == "utf-8"  # Should use detected encoding
-            assert len(lines) > 0
+            assert lines == ["caf\u00da\n"]
+            assert encoding == "cp850"
+            mock_from_bytes.assert_called_once()
 
     def test_charset_normalizer_oserror_handling(self) -> None:
         """Test handling of OSError during charset_normalizer detection."""
 
         with (
-            patch_valid_encoding_path(),
-            patch("builtins.open", mock_open(read_data=b"test content")),
+            patch_valid_encoding_path(b"caf\xe9\n"),
+            patch("builtins.open", mock_open(read_data=b"caf\xe9\n")),
             patch(
                 "blinter.io.encoding.from_bytes", side_effect=OSError("Test OSError")
-            ),
+            ) as mock_from_bytes,
         ):
             lines, encoding = read_file_with_encoding("test.bat")
-            assert encoding in [
-                "utf-8",
-                "utf-8-sig",
-                "cp1252",
-                "iso-8859-1",
-                "ascii",
-            ]
-            assert len(lines) > 0
+            assert lines == ["caf\u00e9\n"]
+            assert encoding == "cp1252"
+            mock_from_bytes.assert_called_once()
 
     def test_charset_normalizer_valueerror_handling(self) -> None:
         """Test handling of ValueError during charset_normalizer detection."""
 
         with (
-            patch_valid_encoding_path(),
-            patch("builtins.open", mock_open(read_data=b"test content")),
+            patch_valid_encoding_path(b"caf\xe9\n"),
+            patch("builtins.open", mock_open(read_data=b"caf\xe9\n")),
             patch(
                 "blinter.io.encoding.from_bytes",
                 side_effect=ValueError("Test ValueError"),
-            ),
+            ) as mock_from_bytes,
         ):
             lines, encoding = read_file_with_encoding("test.bat")
-            assert encoding in [
-                "utf-8",
-                "utf-8-sig",
-                "cp1252",
-                "iso-8859-1",
-                "ascii",
-            ]
-            assert len(lines) > 0
+            assert lines == ["caf\u00e9\n"]
+            assert encoding == "cp1252"
+            mock_from_bytes.assert_called_once()
 
     def test_charset_normalizer_typeerror_handling(self) -> None:
         """Test handling of TypeError during charset_normalizer detection."""
 
         with (
-            patch_valid_encoding_path(),
-            patch("builtins.open", mock_open(read_data=b"test content")),
+            patch_valid_encoding_path(b"caf\xe9\n"),
+            patch("builtins.open", mock_open(read_data=b"caf\xe9\n")),
             patch(
                 "blinter.io.encoding.from_bytes",
                 side_effect=TypeError("Test TypeError"),
-            ),
+            ) as mock_from_bytes,
         ):
             lines, encoding = read_file_with_encoding("test.bat")
-            assert encoding in [
-                "utf-8",
-                "utf-8-sig",
-                "cp1252",
-                "iso-8859-1",
-                "ascii",
-            ]
-            assert len(lines) > 0
+            assert lines == ["caf\u00e9\n"]
+            assert encoding == "cp1252"
+            mock_from_bytes.assert_called_once()
 
     def test_encoding_lookup_error_fallback(self) -> None:
         """Test handling when encoding lookup fails."""
