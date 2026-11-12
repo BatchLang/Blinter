@@ -74,26 +74,6 @@ Run without installing:
 uvx blinter
 ```
 
-**From a git checkout**
-
-```bash
-git clone --recurse-submodules https://github.com/BatchLang/Blinter.git
-cd Blinter
-uv sync --extra dev
-uv run python -m blinter path\to\script.cmd
-```
-
-`uv run` uses this checkout. A bare `python -m blinter` can import a different copy already installed for your user. Corpus files under `spec/corpus/` keep their committed line endings; linting one can report E018, and that is the line-ending rule doing its job.
-
-The PyPI source distribution includes the test suite, `pytest.ini`, `.coveragerc`, and `spec/corpus/`. From an unpacked source distribution:
-
-```bash
-pip install .[test]
-pytest
-```
-
-Release tooling, installers, generators, benchmarks, and the cmd.exe oracle live under `scripts/` in the git repository. A wheel contains the `blinter` package.
-
 **Option 3: Standalone executable**
 
 If you prefer a standalone executable over pip or uv, use the one-line installer for your system.
