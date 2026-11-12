@@ -2,11 +2,15 @@
 
 All notable changes to Blinter are documented in this file. Release tags follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.1.69] - 2026-11-12
 
 ### Fixed
 
 - A file without NUL bytes that decodes as UTF-8 is read as UTF-8, whatever charset_normalizer guesses. An ASCII script whose detection guesses `latin_1` no longer logs that it was read as `iso8859-1`. A file that is not valid UTF-8 is still reported with the encoding fallback warning
+
+### Changed
+
+- The MegaLinter install pin is 1.1.69
 
 ## [1.1.68] - 2026-11-05
 
@@ -763,6 +767,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 Older 1.0.x releases are available on the [GitHub Releases](https://github.com/BatchLang/Blinter/releases) page.
 
+[1.1.69]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.69
 [1.1.68]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.68
 [1.1.67]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.67
 [1.1.66]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.66
