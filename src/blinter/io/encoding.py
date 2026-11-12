@@ -358,6 +358,13 @@ def _read_lines_from_bytes(
     if has_nul and _try_decode_bytes(raw_data, "utf-8") is None:
         return _decode_wide_or_reject_nuls(file_path, raw_data)
 
+    # Bytes that decode as UTF-8 are UTF-8, whatever charset_normalizer guesses.
+    # NUL-bearing bytes still go to detection, which may find BOM-less UTF-16.
+    if not has_nul:
+        decoded = _accept_decoded_lines(file_path, raw_data, "utf-8")
+        if decoded is not None:
+            return decoded
+
     encodings_to_try = [
         "utf-8",
         "utf-8-sig",

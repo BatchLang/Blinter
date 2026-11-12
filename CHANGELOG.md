@@ -2,6 +2,12 @@
 
 All notable changes to Blinter are documented in this file. Release tags follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- A file without NUL bytes that decodes as UTF-8 is read as UTF-8, whatever charset_normalizer guesses. An ASCII script whose detection guesses `latin_1` no longer logs that it was read as `iso8859-1`. A file that is not valid UTF-8 is still reported
+
 ## [1.1.68] - 2026-11-05
 
 ### Fixed
