@@ -7,7 +7,7 @@ import re
 from typing import List
 
 from blinter.models import LintIssue
-from blinter.parsing.structure import _update_paren_depth
+from blinter.parsing.structure import _paren_depth_deltas
 from blinter.rules.registry import RULES
 
 _FOR_HEADER_RE = re.compile(
@@ -44,20 +44,20 @@ def _line_after_do(line: str) -> str:
     return line[match.end() :]
 
 
-def _find_block_end_line(lines: List[str], open_line_index: int) -> int:
+def _find_block_end_line(deltas: List[int], open_line_index: int) -> int:
     """Find the closing line of a parenthesized block opened on open_line_index."""
     depth = 0
-    for index in range(open_line_index, len(lines)):
-        stripped = lines[index].strip()
-        depth = _update_paren_depth(stripped, depth)
+    for index in range(open_line_index, len(deltas)):
+        depth += deltas[index]
         if index > open_line_index and depth <= 0:
             return index + 1
-    return len(lines)
+    return len(deltas)
 
 
 def _build_for_scopes(lines: List[str]) -> List[ForScope]:
     """Build FOR loop scopes with exact variable letters and body line ranges."""
     scopes: List[ForScope] = []
+    deltas = _paren_depth_deltas(lines)
     for line_index, line in enumerate(lines):
         declared = _parse_for_header(line)
         if declared is None:
@@ -67,7 +67,7 @@ def _build_for_scopes(lines: List[str]) -> List[ForScope]:
         block_open = re.search(r"\(\s*$", after_do)
         if block_open is not None:
             start_line = header_line
-            end_line = _find_block_end_line(lines, line_index)
+            end_line = _find_block_end_line(deltas, line_index)
             scopes.append(
                 ForScope(
                     var=declared,

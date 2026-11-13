@@ -64,6 +64,7 @@ from blinter.checkers.style import _check_style_issues
 from blinter.checkers.syntax import _check_syntax_errors
 from blinter.checkers.vars import _check_undefined_variables
 from blinter.checkers.warnings import _check_warning_issues
+from blinter.constants import MAX_LINE_LENGTH
 from blinter.io.encoding import (
     _detect_line_endings,
     _has_multibyte_chars,
@@ -85,6 +86,7 @@ from blinter.parsing.structure import (
     _analyze_script_structure,
     _collect_labels,
     _collect_set_variables,
+    _paren_depth_deltas,
     _parse_suppression_comments,
 )
 from tests.conftest import patch_valid_encoding_path
@@ -4044,6 +4046,20 @@ SET VAR=value
             assert len(s018_issues) == 0
         finally:
             os.unlink(temp_file)
+
+    @pytest.mark.parametrize("pad_lines", [99, 100, 101])
+    def test_caret_run_state_restarts_before_passing_the_limit(
+        self, pad_lines: int
+    ) -> None:
+        """A line that would take a caret-joined run past the limit starts a new state.
+
+        Each padding line is 100 characters, so at 100 of them the FOR line
+        starts a new state and its caret still joins it to ``b) do (``.
+        """
+        pad = "set X=" + "x" * 92 + " ^"
+        assert len(pad) * 100 == MAX_LINE_LENGTH
+        lines = [pad] * pad_lines + ["for %%A in (a ^", "  b) do (", "echo %%A", ")"]
+        assert _paren_depth_deltas(lines)[-4:] == [1, 0, 0, -1]
 
 
 class TestE011VariableExpansionPatterns:
