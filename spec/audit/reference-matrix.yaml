@@ -14,6 +14,9 @@ entries:
   - syntax/e001-nested-parens
   - syntax/e001-for-f-in-quoted-valid
   - syntax/e001-operator-group-valid
+  - syntax/e001-caret-joined-for-valid
+  - syntax/e001-caret-joined-for-unclosed
+  - syntax/e001-label-caret-joins-closer
 - construct: Text after closing parenthesis inside parenthesized blocks
   sources:
   - MS Learn batch syntax
@@ -239,6 +242,7 @@ entries:
   - syntax/w059-for-case-mismatch
   - syntax/w059-for-case-mismatch-block
   - syntax/w059-for-case-consistent-valid
+  - syntax/w059-caret-joined-for-valid
   - syntax/w036-for-f-command-with-parens-valid
   - syntax/w036-for-f-command-noprofile-valid
   - syntax/w036-for-f-usebackq-quoted-file

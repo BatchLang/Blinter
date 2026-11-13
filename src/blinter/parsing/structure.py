@@ -13,7 +13,7 @@ from typing import (
     TypeVar,
 )
 
-from blinter.constants import BUILTIN_VARS
+from blinter.constants import BUILTIN_VARS, MAX_LINE_LENGTH
 from blinter.logging_config import logger
 from blinter.models import LintIssue
 from blinter.parsing.context import (
@@ -525,9 +525,14 @@ def _apply_close_paren(scan: _ParenScan) -> None:
     scan.append_command(")")
 
 
-def _block_paren_delta(line: str) -> int:
-    """Return the net IF/FOR/group parenthesis change for one line."""
-    scan = _ParenScan()
+def _block_paren_delta(line: str, scan: Optional[_ParenScan] = None) -> int:
+    """Return the net IF/FOR/group parenthesis change for one line.
+
+    ``scan`` is the state left by the line a caret joined to this one.
+    """
+    if scan is None:
+        scan = _ParenScan()
+    scan.delta = 0
     index = 0
     length = len(line)
     while index < length:
@@ -573,6 +578,37 @@ def _update_paren_depth(line: str, current_depth: int) -> int:
     return current_depth + _block_paren_delta(line)
 
 
+def _paren_depth_deltas(lines: List[str]) -> List[int]:
+    """Return the IF/FOR/group parenthesis change of each physical line.
+
+    cmd.exe reads a caret-joined run of lines as one line, so a quote or a
+    ``(`` still open at the end of one line carries into the next. One state
+    covers at most ``MAX_LINE_LENGTH`` characters, more than cmd.exe accepts on
+    one line: a line that would pass that limit starts a new state. This bounds
+    the cost of a long run.
+    """
+    deltas: List[int] = []
+    depth = 0
+    run_length = 0
+    scan: Optional[_ParenScan] = None
+    for line in lines:
+        stripped = line.strip()
+        if _is_paren_comment_line(stripped):
+            deltas.append(0)
+            scan = None
+            continue
+        if scan is None or run_length + len(stripped) > MAX_LINE_LENGTH:
+            scan = _ParenScan()
+            run_length = 0
+        run_length += len(stripped)
+        delta = _block_paren_delta(stripped, scan)
+        deltas.append(delta)
+        if not caret_joins_next_physical_line(line, depth_before=depth):
+            scan = None
+        depth = max(depth + delta, 0)
+    return deltas
+
+
 def _begin_paren_depth_pass() -> None:
     """Start a per-lint parenthesis-depth cache for the current context."""
     _paren_depth_cache_var.set({})
@@ -602,9 +638,9 @@ def _build_paren_depth_before(lines: List[str]) -> List[int]:
     """Return parenthesis block depth before each 1-based line."""
     depth = 0
     result: List[int] = []
-    for line in lines:
+    for delta in _paren_depth_deltas(lines):
         result.append(depth)
-        depth = max(_update_paren_depth(line.strip(), depth), 0)
+        depth = max(depth + delta, 0)
     return result
 
 

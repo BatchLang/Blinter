@@ -2,6 +2,12 @@
 
 All notable changes to Blinter are documented in this file. Release tags follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- A FOR whose list or backquoted command continues onto the next line with `^` closes its parenthesis there. E001 no longer reports it unclosed, and the lines below it are no longer read as inside the loop or a block (P019, P022, P023, E043, W001, W052, W059). After a label line ending in `^`, a `)` no longer closes the block (E001, W001)
+
 ## [1.1.69] - 2026-11-12
 
 ### Fixed

@@ -1,0 +1,16 @@
+{
+  "config": {},
+  "description": "A caret-joined FOR whose DO block never closes still reports E001",
+  "lines": {
+    "2": [
+      "E001"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "E001"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}

@@ -33,7 +33,7 @@ from blinter.parsing.structure import (
     _for_block_cache_var,
     _identity_cached,
     _is_in_subroutine_context,
-    _update_paren_depth,
+    _paren_depth_deltas,
 )
 from blinter.patterns import SAFE_COMMAND_INJECTION_PATTERNS
 from blinter.rules.registry import RULES
@@ -273,15 +273,6 @@ def _check_advanced_performance(
     return issues
 
 
-def _next_paren_depth(depth: int, line: str) -> int:
-    """Return block depth after ``line``, never below zero.
-
-    Uses the quote- and caret-aware scanner so parentheses inside strings,
-    escaped parentheses and ``echo (`` text do not shift FOR-block boundaries.
-    """
-    return max(_update_paren_depth(line.strip(), depth), 0)
-
-
 def _build_inside_for_block(lines: List[str]) -> List[bool]:
     """Mark lines that belong to a FOR statement.
 
@@ -292,21 +283,21 @@ def _build_inside_for_block(lines: List[str]) -> List[bool]:
     flags: List[bool] = []
     depth = 0
     resume_depth: Optional[int] = None
-    for line in lines:
+    for line, delta in zip(lines, _paren_depth_deltas(lines)):
         lowered = line.strip().lower()
         if resume_depth is None and lowered.startswith("for "):
             flags.append(True)
             depth_before = depth
-            depth = _next_paren_depth(depth, line)
+            depth = max(depth + delta, 0)
             if depth > depth_before:
                 resume_depth = depth_before
             continue
         if resume_depth is None:
             flags.append(False)
-            depth = _next_paren_depth(depth, line)
+            depth = max(depth + delta, 0)
             continue
         flags.append(True)
-        depth = _next_paren_depth(depth, line)
+        depth = max(depth + delta, 0)
         if depth <= resume_depth:
             resume_depth = None
     return flags

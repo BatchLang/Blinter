@@ -11,7 +11,11 @@ from typing import (
 
 from blinter.models import LintIssue
 from blinter.parsing.context import _is_blank_or_comment, jump_lookup_key
-from blinter.parsing.structure import _update_paren_depth, label_key_from_line
+from blinter.parsing.structure import (
+    _paren_depth_deltas,
+    _update_paren_depth,
+    label_key_from_line,
+)
 from blinter.rules.registry import RULES
 
 
@@ -187,6 +191,7 @@ def _follow_goto_target(
     labels: Dict[str, int],
     visiting_labels: Set[str],
     lines: List[str],
+    deltas: List[int],
 ) -> Optional[bool]:
     """Follow a GOTO target when resolvable; None when the line is not GOTO."""
     if not re.match(r"goto\s+", stripped):
@@ -204,6 +209,7 @@ def _follow_goto_target(
         lines,
         start_index=label_index,
         visiting_labels=visiting_labels,
+        deltas=deltas,
     )
 
 
@@ -217,6 +223,7 @@ class _ReachabilityScanState:  # pylint: disable=too-many-instance-attributes
     else_branch_exited: bool = False
     in_else_branch: bool = False
     lines: List[str] = field(default_factory=list)
+    deltas: List[int] = field(default_factory=list)
     labels: Dict[str, int] = field(default_factory=dict)
     visiting_labels: Set[str] = field(default_factory=set)
 
@@ -224,10 +231,11 @@ class _ReachabilityScanState:  # pylint: disable=too-many-instance-attributes
 def _update_reachability_for_line(
     state: _ReachabilityScanState,
     stripped: str,
-    previous_depth: int,
+    index: int,
 ) -> None:
     """Update branch-tracking state for the current line."""
-    state.paren_depth = _update_paren_depth(stripped, state.paren_depth)
+    previous_depth = state.paren_depth
+    state.paren_depth += state.deltas[index]
     if state.paren_depth > previous_depth and re.search(
         r"\bif\b", stripped, re.IGNORECASE
     ):
@@ -252,7 +260,7 @@ def _scan_line_for_reachability(
         return None
 
     previous_depth = state.paren_depth
-    _update_reachability_for_line(state, stripped, previous_depth)
+    _update_reachability_for_line(state, stripped, index)
 
     if re.match(r"exit\b", stripped):
         state.if_branch_exited, state.else_branch_exited, stop_result = (
@@ -276,7 +284,7 @@ def _scan_line_for_reachability(
 
     if state.paren_depth == 0:
         return _follow_goto_target(
-            stripped, state.labels, state.visiting_labels, state.lines
+            stripped, state.labels, state.visiting_labels, state.lines, state.deltas
         )
 
     return None
@@ -286,14 +294,18 @@ def _can_execution_reach_eof(
     lines: List[str],
     start_index: int = 0,
     visiting_labels: Optional[Set[str]] = None,
+    deltas: Optional[List[int]] = None,
 ) -> bool:
     """Determine if execution from start_index can reach EOF without EXIT."""
     if visiting_labels is None:
         visiting_labels = set()
+    if deltas is None:
+        deltas = _paren_depth_deltas(lines)
 
     labels = _build_label_index(lines)
     state = _ReachabilityScanState(
         lines=lines,
+        deltas=deltas,
         labels=labels,
         visiting_labels=visiting_labels,
     )
@@ -313,13 +325,12 @@ def _check_nested_paren_mismatch(lines: List[str]) -> List[LintIssue]:
     depth = 0
     last_open_line = 0
 
-    for i, line in enumerate(lines, start=1):
-        stripped = line.strip().lower()
-        if _is_blank_or_comment(stripped):
+    for i, (line, delta) in enumerate(zip(lines, _paren_depth_deltas(lines)), start=1):
+        if _is_blank_or_comment(line):
             continue
 
         previous_depth = depth
-        depth = _update_paren_depth(stripped, depth)
+        depth += delta
         if depth > previous_depth:
             last_open_line = i
 
