@@ -4,6 +4,8 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ## [Unreleased]
 
+## [1.1.70] - 2026-11-13
+
 ### Fixed
 
 - `browstat`, `inuse`, and `streams` are not reported as removed Windows commands (E034). They were never stock cmd commands. Pinned batch-spec to v0.72.7
@@ -13,6 +15,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 ### Changed
 
 - `BUILTIN_COMMANDS` lists stock cmd and Windows commands. Names such as `docker` are `COMMON_EXTERNAL_TOOLS`. A name in either set still suppresses E012 and E014 when a label has the same name
+- The MegaLinter install pin is 1.1.70
 
 ## [1.1.69] - 2026-11-12
 
@@ -779,6 +782,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 Older 1.0.x releases are available on the [GitHub Releases](https://github.com/BatchLang/Blinter/releases) page.
 
+[1.1.70]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.70
 [1.1.69]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.69
 [1.1.68]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.68
 [1.1.67]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.67
