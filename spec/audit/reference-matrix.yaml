@@ -16,7 +16,11 @@ entries:
   - syntax/e001-operator-group-valid
   - syntax/e001-caret-joined-for-valid
   - syntax/e001-caret-joined-for-unclosed
+  - syntax/e001-caret-joined-for-rem-valid
+  - syntax/e001-caret-joined-if-space-valid
   - syntax/e001-label-caret-joins-closer
+  - syntax/e001-colon-caret-joins-closer
+  - syntax/e001-colon-caret-swallows-open-valid
 - construct: Text after closing parenthesis inside parenthesized blocks
   sources:
   - MS Learn batch syntax

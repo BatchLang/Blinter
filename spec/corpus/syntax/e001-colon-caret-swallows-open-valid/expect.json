@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "A '(' on the line joined to a :: remark does not open a block",
+  "lines": {},
+  "must_not": [
+    "E001"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

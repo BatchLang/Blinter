@@ -4061,6 +4061,52 @@ SET VAR=value
         lines = [pad] * pad_lines + ["for %%A in (a ^", "  b) do (", "echo %%A", ")"]
         assert _paren_depth_deltas(lines)[-4:] == [1, 0, 0, -1]
 
+    def test_caret_joined_lines_keep_spaces_remarks_and_continuations(self) -> None:
+        """Caret joins keep the next line's text, including a leading space.
+
+        A continued FOR value that looks like REM is still the list. A ``::``
+        or label line that ends in ``^`` owns the following physical lines, so
+        their parentheses do not open or close a block. A REM remark does not
+        join, and a ``::`` line without a caret does not swallow the closer.
+        """
+        assert _paren_depth_deltas(
+            ["for %%A in (a ^", "  rem b) do echo %%A", "echo after"]
+        ) == [1, -1, 0]
+        assert _paren_depth_deltas(["if^", " 1==1 (", " echo ok", ")"]) == [
+            0,
+            1,
+            0,
+            -1,
+        ]
+        assert _paren_depth_deltas(["if 1==1 (", ":: note ^", ")", "echo x"]) == [
+            1,
+            0,
+            0,
+            0,
+        ]
+        assert _paren_depth_deltas(["if 1==1 (", ":lab ^", ")", "echo x"]) == [
+            1,
+            0,
+            0,
+            0,
+        ]
+        assert _paren_depth_deltas(
+            [":: note ^", "echo swallowed ^", "(", "echo x"]
+        ) == [0, 0, 0, 0]
+        assert _paren_depth_deltas(["rem note ^", "if 1==1 (", "echo x", ")"]) == [
+            0,
+            1,
+            0,
+            -1,
+        ]
+        assert _paren_depth_deltas(["if 1==1 (", ":: note", "echo x", ")"]) == [
+            1,
+            0,
+            0,
+            -1,
+        ]
+        assert _paren_depth_deltas(["rem (note)", "echo x"]) == [0, 0]
+
 
 class TestE011VariableExpansionPatterns:
     """Test cases for E011 rule - variable expansion with wildcards and special patterns."""

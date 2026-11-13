@@ -1,0 +1,18 @@
+{
+  "config": {},
+  "description": "A caret-joined FOR value that looks like REM is list text, so the ')' closes the list",
+  "lines": {},
+  "must_not": [
+    "E001",
+    "E043",
+    "P019",
+    "P022",
+    "P023",
+    "W001",
+    "W052"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

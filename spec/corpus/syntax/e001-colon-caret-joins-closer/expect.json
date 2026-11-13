@@ -1,0 +1,24 @@
+{
+  "config": {},
+  "description": "A caret ending a :: remark joins the next line, so the ')' there does not close the block",
+  "lines": {
+    "2": [
+      "E001"
+    ],
+    "3": [
+      "E043"
+    ],
+    "6": [
+      "W001"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "E001",
+    "E043",
+    "W001"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}

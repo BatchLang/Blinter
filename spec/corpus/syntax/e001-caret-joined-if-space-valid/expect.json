@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "The space on the line after if^ stays, so the '(' opens a block and the ')' closes it",
+  "lines": {},
+  "must_not": [
+    "E001"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

@@ -457,6 +457,34 @@ def _is_paren_comment_line(line: str) -> bool:
     return _is_blank_or_comment(line)
 
 
+def _paren_line_has_no_block(line: str) -> bool:
+    """Return True when this physical line cannot open or close a block.
+
+    Blank lines, REM remarks, ``::`` remarks, and labels consume the line.
+    A caret at the end of a label or ``::`` remark still joins the following
+    physical lines into that remark.
+    """
+    stripped = line.strip()
+    return _is_paren_comment_line(stripped) or stripped.startswith(":")
+
+
+def _skip_paren_line(
+    line: str, *, scan: Optional[_ParenScan], remark_joins: bool
+) -> bool:
+    """Return True when ``line`` contributes no block parentheses.
+
+    A line already joined by a caret is part of the command that owns it, so
+    text such as ``rem b)`` is list data, not a remark. A label or ``::`` line
+    that ends in an odd caret owns the following physical lines the same way.
+    """
+    if scan is not None:
+        return False
+    if remark_joins:
+        logger.debug("Caret-joined remark contributes no block depth: %s", line.strip())
+        return True
+    return _paren_line_has_no_block(line)
+
+
 def _first_command_token(command: str) -> str:
     """Return the first command token, ignoring a leading @."""
     body = command.strip().lstrip("@").strip()
@@ -582,26 +610,29 @@ def _paren_depth_deltas(lines: List[str]) -> List[int]:
     """Return the IF/FOR/group parenthesis change of each physical line.
 
     cmd.exe reads a caret-joined run of lines as one line, so a quote or a
-    ``(`` still open at the end of one line carries into the next. One state
-    covers at most ``MAX_LINE_LENGTH`` characters, more than cmd.exe accepts on
-    one line: a line that would pass that limit starts a new state. This bounds
-    the cost of a long run.
+    ``(`` still open at the end of one line carries into the next. Whitespace
+    between those physical lines stays in the command: ``if^`` followed by
+    `` 1==1 (`` is ``if 1==1 (``. One state covers at most ``MAX_LINE_LENGTH``
+    characters, more than cmd.exe accepts on one line: a line that would pass
+    that limit starts a new state. This bounds the cost of a long run.
     """
     deltas: List[int] = []
     depth = 0
     run_length = 0
     scan: Optional[_ParenScan] = None
+    remark_joins = False
     for line in lines:
-        stripped = line.strip()
-        if _is_paren_comment_line(stripped):
+        body = line.rstrip("\r\n")
+        if _skip_paren_line(body, scan=scan, remark_joins=remark_joins):
             deltas.append(0)
-            scan = None
+            remark_joins = caret_joins_next_physical_line(line, depth_before=depth)
             continue
-        if scan is None or run_length + len(stripped) > MAX_LINE_LENGTH:
+        remark_joins = False
+        if scan is None or run_length + len(body) > MAX_LINE_LENGTH:
             scan = _ParenScan()
             run_length = 0
-        run_length += len(stripped)
-        delta = _block_paren_delta(stripped, scan)
+        run_length += len(body)
+        delta = _block_paren_delta(body, scan)
         deltas.append(delta)
         if not caret_joins_next_physical_line(line, depth_before=depth):
             scan = None

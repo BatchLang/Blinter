@@ -231,11 +231,14 @@ class _ReachabilityScanState:  # pylint: disable=too-many-instance-attributes
 def _update_reachability_for_line(
     state: _ReachabilityScanState,
     stripped: str,
-    index: int,
+    previous_depth: int,
 ) -> None:
-    """Update branch-tracking state for the current line."""
-    previous_depth = state.paren_depth
-    state.paren_depth += state.deltas[index]
+    """Update branch-tracking state for the current line.
+
+    ``previous_depth`` is the depth before this line's parenthesis delta.
+    The caller applies that delta first, including on remarks, so a ``)``
+    that only looks like a comment still closes the block it belongs to.
+    """
     if state.paren_depth > previous_depth and re.search(
         r"\bif\b", stripped, re.IGNORECASE
     ):
@@ -252,6 +255,8 @@ def _scan_line_for_reachability(
     index: int,
 ) -> Optional[bool]:
     """Process one line; return True/False to stop, or None to continue scanning."""
+    previous_depth = state.paren_depth
+    state.paren_depth += state.deltas[index]
     if _is_blank_or_comment(stripped):
         return None
 
@@ -259,8 +264,7 @@ def _scan_line_for_reachability(
         state.reachable = True
         return None
 
-    previous_depth = state.paren_depth
-    _update_reachability_for_line(state, stripped, index)
+    _update_reachability_for_line(state, stripped, previous_depth)
 
     if re.match(r"exit\b", stripped):
         state.if_branch_exited, state.else_branch_exited, stop_result = (
@@ -325,10 +329,7 @@ def _check_nested_paren_mismatch(lines: List[str]) -> List[LintIssue]:
     depth = 0
     last_open_line = 0
 
-    for i, (line, delta) in enumerate(zip(lines, _paren_depth_deltas(lines)), start=1):
-        if _is_blank_or_comment(line):
-            continue
-
+    for i, delta in enumerate(_paren_depth_deltas(lines), start=1):
         previous_depth = depth
         depth += delta
         if depth > previous_depth:
