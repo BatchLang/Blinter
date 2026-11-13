@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "Resource Kit and Sysinternals names are not removed Windows commands",
+  "lines": {},
+  "must_not": [
+    "E034"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

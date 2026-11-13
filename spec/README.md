@@ -1,7 +1,7 @@
 # Blinter Linter Specification
 
 Blinter owns **linter** artifacts: rule catalog, security/style command policy, and the
-506-case conformance corpus. The **batch language** SSOT lives in the pinned
+507-case conformance corpus. The **batch language** SSOT lives in the pinned
 [`batch-spec`](https://github.com/BatchLang/batch-spec) submodule at `vendor/batch-spec`.
 
 ## Submodule setup
@@ -12,7 +12,7 @@ git clone --recurse-submodules https://github.com/BatchLang/Blinter.git
 git submodule update --init --recursive
 ```
 
-The pinned release is recorded in [`batch-spec.lock`](batch-spec.lock) (currently `v0.72.6`).
+The pinned release is recorded in [`batch-spec.lock`](batch-spec.lock) (currently `v0.72.7`).
 
 ## Layout
 
@@ -31,8 +31,9 @@ Language artifacts (grammar, expansion rules, command catalog, cmd-help captures
 regex checker pipeline only.
 
 `generate_commands.py` merges batch-spec `commands.yaml` with `commands-linter.yaml` into
-`patterns.py`. `BUILTIN_COMMANDS` is the union of upstream `builtin_commands` and
-`common_external_tools` (dev-tool names that suppress E012/E014 false positives). W009's
+`patterns.py`. `BUILTIN_COMMANDS` is upstream `builtin_commands`. `COMMON_EXTERNAL_TOOLS`
+is upstream `common_external_tools`. E012 and E014 treat a name in either set as a
+command, so a label that shares a dev-tool name is not a false positive. W009's
 `older_windows_commands` list is pinned in `commands-linter.yaml` so it does not follow
 upstream's inverted list.
 

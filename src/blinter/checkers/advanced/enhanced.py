@@ -74,13 +74,10 @@ def _check_deprecated_commands(stripped: str, line_number: int) -> List[LintIssu
             "backup": "modern backup tools (wbadmin)",
             "diskcomp": "FC (file comparison)",
             "append": "modify PATH or use full paths",
-            "browstat": "NET VIEW or PowerShell",
             "edlin": "modern text editors",
             "graftabl": "modern code-page handling",
-            "inuse": "HANDLE.EXE from Sysinternals",
             "join": "drive mounting with modern tools",
             "diskcopy": "ROBOCOPY or XCOPY",
-            "streams": "PowerShell Get-Item -Stream",
         }
         replacement = replacement_map.get(first_word, "a modern alternative")
         issues.append(

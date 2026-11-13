@@ -240,7 +240,7 @@ RULES: Dict[str, Rule] = {
         name="Removed Windows command detected",
         severity=RuleSeverity.ERROR,
         explanation="Command has been completely removed from Windows and will not execute. These commands are no longer available in modern Windows versions and will cause script failures",
-        recommendation="Replace removed commands with modern alternatives: ASSIGN (removed - use drive mounting with modern tools), BACKUP (removed - use wbadmin or modern backup tools), DISKCOMP (removed - use FC for file comparison), APPEND (removed - modify PATH or use full paths), BROWSTAT (removed - use NET VIEW or PowerShell), EDLIN (removed - use modern text editors), GRAFTABL (removed - use modern code-page handling), INUSE (removed - use HANDLE.EXE from Sysinternals), JOIN (removed - use drive mounting with modern tools), NET PRINT (removed - use PowerShell Print cmdlets), DISKCOPY (removed - use ROBOCOPY or XCOPY), STREAMS (removed - use Get-Item -Stream in PowerShell)",
+        recommendation="Replace removed commands with modern alternatives: ASSIGN (removed - use drive mounting with modern tools), BACKUP (removed - use wbadmin or modern backup tools), DISKCOMP (removed - use FC for file comparison), APPEND (removed - modify PATH or use full paths), EDLIN (removed - use modern text editors), GRAFTABL (removed - use modern code-page handling), JOIN (removed - use drive mounting with modern tools), NET PRINT (removed - use PowerShell Print cmdlets), DISKCOPY (removed - use ROBOCOPY or XCOPY)",
     ),
     "E035": Rule(
         code="E035",

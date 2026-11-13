@@ -140,7 +140,7 @@ In text mode, a run where every file fails to read exits 1 without a JSON or SAR
 | ANTLR grammar, expansion rules, command catalog, cmd-help | [`vendor/batch-spec`](../vendor/batch-spec) ([`BatchLang/batch-spec`](https://github.com/BatchLang/batch-spec), pinned in [`spec/batch-spec.lock`](../spec/batch-spec.lock)) |
 | [`spec/data/rules.yaml`](../spec/data/rules.yaml) | Rule catalog (`checker: regex`; see `RULE_COUNT`) |
 | [`spec/data/commands-linter.yaml`](../spec/data/commands-linter.yaml) | Security/style command policy (merged with batch-spec `commands.yaml` for `patterns.py`; pins W009 `older_windows_commands`) |
-| [`spec/corpus/`](../spec/corpus/) | 506 committed fixtures + `expect.json` oracles |
+| [`spec/corpus/`](../spec/corpus/) | 507 committed fixtures + `expect.json` oracles |
 | [`spec/audit/`](../spec/audit/) | Reference matrix and audit baselines |
 
 Clone with `git clone --recurse-submodules` or run `git submodule update --init --recursive` after checkout.
@@ -155,8 +155,9 @@ generator checks.
 CI's quality job runs `python scripts/verify.py --skip-pytest` because pytest has its own matrix job.
 The Windows job runs `python scripts/verify.py --windows-only`, which also runs `scripts/verify_ps/Install-VerifyModules.ps1` (it can install Pester 5 and PSScriptAnalyzer from PSGallery) and `scripts/test_install_scripts.ps1`. The `quality-unix` job runs `scripts/test_install_scripts.sh`.
 
-`patterns.py` `BUILTIN_COMMANDS` is generated as the union of batch-spec `builtin_commands` and
-`common_external_tools` so stock Windows utilities and common dev tools both suppress E012/E014.
+`patterns.py` `BUILTIN_COMMANDS` is batch-spec `builtin_commands`. `COMMON_EXTERNAL_TOOLS`
+is batch-spec `common_external_tools`. E012 and E014 treat a name in either set as a
+command, so stock utilities and common dev tools both suppress those rules.
 Deprecated/removed command tables come from batch-spec `commands.yaml` unchanged.
 
 **cmd.exe oracle:** [`scripts/spec/cmd_oracle.py`](../scripts/spec/cmd_oracle.py) runs safe corpus fixtures in isolated `cmd /c` subprocesses. Destructive, interactive, or long-running fixtures remain static-only; skips are listed in [`oracle-skip.yaml`](../spec/corpus/meta/oracle-skip.yaml).

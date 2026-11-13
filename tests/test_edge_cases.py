@@ -3210,6 +3210,23 @@ set MY_VAR=test
         finally:
             os.unlink(temp_file)
 
+    def test_e012_external_tool_not_label_call(self) -> None:
+        """A common external tool is not a missing CALL when a label shares its name."""
+        content = """@echo off
+:docker
+echo label
+exit /b
+
+docker build .
+"""
+        temp_file = self.create_temp_batch_file(content)
+        try:
+            issues = lint_batch_file(temp_file)
+            e012_issues = [i for i in issues if i.rule.code == "E012"]
+            assert len(e012_issues) == 0
+        finally:
+            os.unlink(temp_file)
+
     def test_e012_case_insensitive(self) -> None:
         """Test E012 detects case-insensitive label invocations."""
 

@@ -33,14 +33,13 @@ def merged_commands_data() -> dict[str, object]:
     }
 
 
-def builtin_commands_union(data: dict[str, object]) -> list[str]:
-    """Union of stock/cmd builtins and common external tools for E012/E014 suppression."""
-    builtins = data.get("builtin_commands", [])
-    externals = data.get("common_external_tools", [])
-    if not isinstance(builtins, list) or not isinstance(externals, list):
-        raise ValueError("builtin_commands and common_external_tools must be lists")
+def command_names(data: dict[str, object], key: str) -> list[str]:
+    """Return the sorted unique command names stored under ``key``."""
+    values = data.get(key, [])
+    if not isinstance(values, list):
+        raise ValueError(f"{key} must be a list")
     names: set[str] = set()
-    for item in [*builtins, *externals]:
+    for item in values:
         if not isinstance(item, str):
             raise ValueError("command names must be strings")
         names.add(item)

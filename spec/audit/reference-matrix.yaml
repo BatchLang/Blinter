@@ -341,6 +341,7 @@ entries:
   - syntax/e005-invalid-path
   - syntax/w031-unicode-filename
   - syntax/e034-available-command-valid
+  - syntax/e034-external-tool-valid
   - syntax/w024-current-command-valid
   - syntax/w025-or-exit-valid
   - syntax/inline-ignore-line-valid

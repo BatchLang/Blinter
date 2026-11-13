@@ -6,8 +6,13 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ### Fixed
 
+- `browstat`, `inuse`, and `streams` are not reported as removed Windows commands (E034). They were never stock cmd commands. Pinned batch-spec to v0.72.7
 - A FOR whose list or backquoted command continues onto the next line with `^` closes its parenthesis there. E001 no longer reports it unclosed, and the lines below it are no longer read as inside the loop or a block (P019, P022, P023, E043, W001, W052, W059). After a label line ending in `^`, a `)` no longer closes the block (E001, W001)
 - A caret-joined FOR value that looks like `rem` still closes the list. The space on the line after `if^` is kept, so that line's `1==1 (` opens a block and its `)` is not a false E001. A `::` remark ending in `^` joins the next lines, as a label does: a `)` there no longer closes the block, and a `(` there does not open one
+
+### Changed
+
+- `BUILTIN_COMMANDS` lists stock cmd and Windows commands. Names such as `docker` are `COMMON_EXTERNAL_TOOLS`. A name in either set still suppresses E012 and E014 when a label has the same name
 
 ## [1.1.69] - 2026-11-12
 

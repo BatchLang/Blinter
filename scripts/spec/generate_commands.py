@@ -15,7 +15,7 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from scripts.spec._commands_data import (  # noqa: E402  # pylint: disable=wrong-import-position
-    builtin_commands_union,
+    command_names,
     merged_commands_data,
 )
 from scripts.spec._paths import (  # noqa: E402  # pylint: disable=wrong-import-position
@@ -27,7 +27,7 @@ _STATIC_FRAGMENT = _SCRIPTS_DIR / "patterns_static_fragment.py"
 _HEADER = '''\
 """Regex patterns for dangerous commands and deprecated syntax.
 
-SSOT tables (dangerous commands, builtins, typos) are generated from
+SSOT tables (dangerous commands, builtins, external tools, typos) are generated from
 vendor/batch-spec/data/commands.yaml and spec/data/commands-linter.yaml. Embedded-language detection patterns are maintained
 in scripts/spec/patterns_static_fragment.py.
 
@@ -208,7 +208,16 @@ def generate_patterns_text() -> str:
         'SENSITIVE_ECHO_PATTERNS = [rf"echo.*{keyword}" for keyword in SENSITIVE_KEYWORDS]'
     )
     sections.append("")
-    sections.append(_format_set("BUILTIN_COMMANDS", builtin_commands_union(data)))
+    sections.append(
+        _format_set("BUILTIN_COMMANDS", command_names(data, "builtin_commands"))
+    )
+    sections.append("")
+    sections.append(
+        _format_set(
+            "COMMON_EXTERNAL_TOOLS",
+            command_names(data, "common_external_tools"),
+        )
+    )
     sections.append("")
     if _STATIC_FRAGMENT.is_file():
         sections.append(_STATIC_FRAGMENT.read_text(encoding="utf-8").strip())

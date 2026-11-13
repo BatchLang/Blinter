@@ -18,7 +18,7 @@ if str(_REPO_ROOT_BOOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT_BOOT))
 
 from scripts.spec._commands_data import (  # noqa: E402  # pylint: disable=wrong-import-position
-    builtin_commands_union,
+    command_names,
     merged_commands_data,
 )
 from scripts.spec._paths import (  # noqa: E402  # pylint: disable=wrong-import-position
@@ -297,22 +297,25 @@ def _audit_commands_patterns_drift(findings: list[AuditFinding]) -> None:
                     f"commands YAML {yaml_key} != patterns.py {py_key}",
                 )
             )
-    builtin_yaml = builtin_commands_union(data)
-    builtin_py_value = patterns.get("BUILTIN_COMMANDS", [])
-    builtin_py = (
-        sorted(str(item) for item in builtin_py_value)
-        if isinstance(builtin_py_value, (list, set, frozenset))
-        else []
-    )
-    if builtin_yaml != builtin_py:
-        findings.append(
-            AuditFinding(
-                "error",
-                "drift",
-                "commands YAML builtin_commands union common_external_tools "
-                "!= patterns.py BUILTIN_COMMANDS",
-            )
+    for yaml_key, py_key in (
+        ("builtin_commands", "BUILTIN_COMMANDS"),
+        ("common_external_tools", "COMMON_EXTERNAL_TOOLS"),
+    ):
+        yaml_names = command_names(data, yaml_key)
+        py_value = patterns.get(py_key, [])
+        py_names = (
+            sorted(str(item) for item in py_value)
+            if isinstance(py_value, (list, set, frozenset))
+            else []
         )
+        if yaml_names != py_names:
+            findings.append(
+                AuditFinding(
+                    "error",
+                    "drift",
+                    f"commands YAML {yaml_key} != patterns.py {py_key}",
+                )
+            )
 
 
 def _read_expansion_data_constants() -> dict[str, str]:

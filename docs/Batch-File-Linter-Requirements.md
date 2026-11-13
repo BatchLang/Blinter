@@ -417,30 +417,20 @@ Line 5: Missing '@ECHO OFF' at top of file (S001)
 - **E034: Removed Windows command detected**: Commands completely removed from Windows
   ```batch
   # Bad - These commands have been removed from Windows
-  CASPOL -m -ag 1 -url file://c:\temp\* FullTrust
   DISKCOMP A: B:
   APPEND C:\DATA
-  BROWSTAT status
-  INUSE file.dll /Y
   NET PRINT \\server\printer file.txt
   DISKCOPY A: B:
-  STREAMS -s file.txt
   
   # Good - Use modern alternatives
-  # Instead of CASPOL: Use Code Access Security Policy Tool from SDK
   # Instead of DISKCOMP: Use FC for file comparison
   FC /B file1.txt file2.txt
   # Instead of APPEND: Modify PATH or use full paths
   SET "PATH=%PATH%;C:\DATA"
-  # Instead of BROWSTAT: Use NET VIEW or PowerShell
-  NET VIEW \\computer
-  # Instead of INUSE: Use HANDLE.EXE from Sysinternals
   # Instead of NET PRINT: Use PowerShell Print cmdlets
   Get-Printer | Format-Table
   # Instead of DISKCOPY: Use ROBOCOPY or XCOPY
   ROBOCOPY source dest /E
-  # Instead of STREAMS: Use Get-Item -Stream in PowerShell
-  powershell -Command "Get-Item file.txt -Stream *"
   ```
 
 ## Warning Level Rules

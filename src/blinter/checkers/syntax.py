@@ -33,6 +33,7 @@ from blinter.patterns import (
     _COMPILED_IF_PATTERN,
     BUILTIN_COMMANDS,
     COMMON_COMMAND_TYPOS,
+    COMMON_EXTERNAL_TOOLS,
 )
 from blinter.rules.expansion_data import VALID_MODIFIERS
 from blinter.rules.helpers import PERCENT_TILDE_TOKEN_RE, strip_for_metavar_tilde_tokens
@@ -93,6 +94,15 @@ def _is_dynamic_jump_target(target: str) -> bool:
     return _DYNAMIC_JUMP_RE.search(body) is not None
 
 
+def _is_known_command(name: str) -> bool:
+    """Return True when ``name`` is a stock command or a common external tool.
+
+    E012 and E014 use this so a label that shares a command name is not treated
+    as a subroutine call. Stock commands and third-party tools stay separate sets.
+    """
+    return name in BUILTIN_COMMANDS or name in COMMON_EXTERNAL_TOOLS
+
+
 def _check_call_labels(
     stripped: str, line_num: int, labels: Dict[str, int]
 ) -> List[LintIssue]:
@@ -111,7 +121,7 @@ def _check_call_labels(
     # An external name is only a missing-colon label when that label exists.
     if (
         f":{call_name}" in labels
-        and call_name not in BUILTIN_COMMANDS
+        and not _is_known_command(call_name)
         and not re.search(r"[\\/]|\.(?:bat|cmd|exe|com)$", call_name)
     ):
         issues.append(
@@ -808,8 +818,8 @@ def _check_subroutine_call(
 
     first_word: str = first_word_match.group(1).lower()
 
-    # Skip if it's a known builtin command or external program
-    if first_word in BUILTIN_COMMANDS:
+    # Skip a stock command or a common external tool such as docker or git.
+    if _is_known_command(first_word):
         return issues
 
     # Skip if it looks like a file path or has an extension
@@ -837,7 +847,12 @@ def _check_subroutine_call(
 
 
 def _check_command_typos(stripped: str, line_num: int) -> List[LintIssue]:
-    """Check for invalid command syntax / typos (E013)."""
+    """Check for invalid command syntax / typos (E013).
+
+    The map is an exact match on the first token. Edit distance is not used:
+    cmd names are only a few letters long, so a one-character guess collides
+    with real commands, and an unknown executable is not a typo.
+    """
     issues: List[LintIssue] = []
     first_word = stripped.split()[0].lower() if stripped.split() else ""
     if first_word in COMMON_COMMAND_TYPOS:

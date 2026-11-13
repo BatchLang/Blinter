@@ -2429,7 +2429,7 @@ append /X:OFF
             os.unlink(temp_file)
 
     def test_e034_removed_commands_browstat(self) -> None:
-        """Test E034: BROWSTAT command should be flagged as removed."""
+        """BROWSTAT is a Resource Kit tool, not a removed Windows command."""
         content = """@ECHO OFF
 BROWSTAT status
 browstat view
@@ -2438,16 +2438,12 @@ browstat view
         try:
             issues = lint_batch_file(temp_file)
             rule_codes = [issue.rule.code for issue in issues]
-            e034_issues = [issue for issue in issues if issue.rule.code == "E034"]
-            assert "E034" in rule_codes, "E034 should be triggered for BROWSTAT command"
-            assert (
-                len(e034_issues) == 2
-            ), f"Expected 2 E034 issues, got {len(e034_issues)}"
+            assert "E034" not in rule_codes, "BROWSTAT should not trigger E034"
         finally:
             os.unlink(temp_file)
 
     def test_e034_removed_commands_inuse(self) -> None:
-        """Test E034: INUSE command should be flagged as removed."""
+        """INUSE is a Resource Kit tool, not a removed Windows command."""
         content = """@ECHO OFF
 INUSE file.dll /Y
 """
@@ -2455,7 +2451,7 @@ INUSE file.dll /Y
         try:
             issues = lint_batch_file(temp_file)
             rule_codes = [issue.rule.code for issue in issues]
-            assert "E034" in rule_codes, "E034 should be triggered for INUSE command"
+            assert "E034" not in rule_codes, "INUSE should not trigger E034"
         finally:
             os.unlink(temp_file)
 
@@ -2509,7 +2505,7 @@ diskcopy c:\\source d:\\dest
             os.unlink(temp_file)
 
     def test_e034_removed_commands_streams(self) -> None:
-        """Test E034: STREAMS command should be flagged as removed."""
+        """STREAMS is a Sysinternals tool, not a removed Windows command."""
         content = """@ECHO OFF
 STREAMS -s file.txt
 streams -d *.doc
@@ -2518,11 +2514,7 @@ streams -d *.doc
         try:
             issues = lint_batch_file(temp_file)
             rule_codes = [issue.rule.code for issue in issues]
-            e034_issues = [issue for issue in issues if issue.rule.code == "E034"]
-            assert "E034" in rule_codes, "E034 should be triggered for STREAMS command"
-            assert (
-                len(e034_issues) == 2
-            ), f"Expected 2 E034 issues, got {len(e034_issues)}"
+            assert "E034" not in rule_codes, "STREAMS should not trigger E034"
         finally:
             os.unlink(temp_file)
 
@@ -2916,10 +2908,12 @@ KEYS
 REM Removed commands (should trigger E034)
 DISKCOMP A: B:
 APPEND C:\\DATA
-BROWSTAT status
-INUSE file.dll
 NET PRINT \\\\server\\printer file.txt
 DISKCOPY A: B:
+
+REM Optional tools that were never stock Windows commands
+BROWSTAT status
+INUSE file.dll
 STREAMS -s file.txt
 
 REM Valid commands (should NOT trigger W024 or E034)
@@ -2939,9 +2933,9 @@ ROBOCOPY source dest /E
                 f"Issues: {[(i.line_number, i.context) for i in w024_issues]}"
             )
 
-            # Should have 7 removed command errors (CASPOL no longer E034)
-            assert len(e034_issues) == 7, (
-                f"Expected 7 E034 issues (removed commands), got {len(e034_issues)}. "
+            # DISKCOMP, APPEND, NET PRINT, DISKCOPY. Optional tools are not E034.
+            assert len(e034_issues) == 4, (
+                f"Expected 4 E034 issues (removed commands), got {len(e034_issues)}. "
                 f"Issues: {[(i.line_number, i.context) for i in e034_issues]}"
             )
         finally:
