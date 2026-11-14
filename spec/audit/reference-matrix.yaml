@@ -701,6 +701,8 @@ entries:
   - syntax/p001-exist-after-else-group-delete-valid
   - syntax/p001-exist-in-else-delete
   - syntax/p001-exist-after-dir-contents-delete
+  - syntax/p001-exist-folder-check-after-del
+  - syntax/p001-exist-folder-check-after-del-valid
 - construct: Global style conventions and readability
   sources:
   - Community batch style

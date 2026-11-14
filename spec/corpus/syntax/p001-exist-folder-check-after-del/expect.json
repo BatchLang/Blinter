@@ -1,0 +1,20 @@
+{
+  "config": {},
+  "description": "An IF EXIST of a path with a trailing backslash is true only for a folder, which DEL or ERASE of that path empties and leaves, so the repeated IF EXIST keeps P001",
+  "lines": {
+    "4": [
+      "P001"
+    ],
+    "7": [
+      "P001"
+    ]
+  },
+  "must_not": [],
+  "oracle": "skip",
+  "rules": [
+    "P001"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}

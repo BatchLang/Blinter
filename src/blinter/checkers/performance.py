@@ -391,18 +391,23 @@ def _loop_body_redirects_to_nul(stripped: str) -> bool:
 
 
 def _exist_operand_at(command: str) -> str:
-    """Return the operand of an ``IF EXIST`` command, without quotes."""
+    """Return the operand of an ``IF EXIST`` command as written, without quotes."""
     quoted = _IF_EXIST_QUOTED_RE.search(command)
     if quoted is not None:
-        return _match_text(quoted, 1).rstrip("\\/")
+        return _match_text(quoted, 1)
     bare = _IF_EXIST_BARE_RE.search(command)
     if bare is None:
         return ""
-    return _match_text(bare, 1).rstrip("\\/")
+    return _match_text(bare, 1)
 
 
 def _if_exist_operand(stripped: str) -> str:
     """Return the path an IF EXIST line checks, or empty for any other line."""
+    return _if_exist_operand_text(stripped).rstrip("\\/")
+
+
+def _if_exist_operand_text(stripped: str) -> str:
+    """Return the operand an IF EXIST line checks as written, or empty."""
     if stripped.startswith("if exist"):
         return _exist_operand_at(stripped)
     else_form = _ELSE_IF_EXIST_RE.search(stripped)
@@ -538,11 +543,13 @@ def _split_at_group_close(text: str) -> tuple[str, str]:
     return text, ""
 
 
-def _removed_paths(segment: str) -> List[str]:
+def _removed_paths(segment: str, folder: bool = False) -> List[str]:
     """Return the paths one command segment removes, in lower case.
 
     DEL and ERASE remove the files they name, but not a folder written with a
-    trailing separator (``del cache/``), which they only empty. RD and RMDIR
+    trailing separator (``del cache/``), which they only empty, and nothing
+    when ``folder`` says the later check tests a folder
+    (``_command_removed_paths``). RD and RMDIR
     remove every path they name. MOVE removes its
     sources, not the destination it moves them into. REN and RENAME remove
     their first path and leave the new name in that path's folder. The
@@ -556,17 +563,21 @@ def _removed_paths(segment: str) -> List[str]:
     """
     text = _command_after_prefixes(_REDIRECT_RE.sub(" ", segment.lower()))
     command, rest = _split_at_group_close(text)
-    paths = _command_removed_paths(_split_arguments(command))
+    paths = _command_removed_paths(_split_arguments(command), folder)
     match = _ELSE_REST_RE.match(rest)
     if match is not None:
         else_text = _command_after_prefixes(match.group(1))
         else_command, _ = _split_at_group_close(else_text)
-        paths.extend(_command_removed_paths(_split_arguments(else_command)))
+        paths.extend(_command_removed_paths(_split_arguments(else_command), folder))
     return paths
 
 
-def _command_removed_paths(tokens: List[str]) -> List[str]:
-    """Return the paths a DEL, ERASE, RD, RMDIR, MOVE or REN command removes."""
+def _command_removed_paths(tokens: List[str], folder: bool) -> List[str]:
+    """Return the paths a DEL, ERASE, RD, RMDIR, MOVE or REN command removes.
+
+    ``folder`` says the later check is true only for a folder, so DEL and
+    ERASE remove nothing that it tests.
+    """
     if not tokens:
         return []
     command = tokens[0].split("/")[0]
@@ -574,6 +585,8 @@ def _command_removed_paths(tokens: List[str]) -> List[str]:
         return []
     operands = [token.strip('"') for token in tokens[1:] if not token.startswith("/")]
     if command in ("del", "erase"):
+        if folder:
+            return []
         # DEL on a folder (``del cache\``) deletes the files in it, and the
         # folder stays.
         operands = [path for path in operands if not path.endswith(("\\", "/"))]
@@ -587,7 +600,7 @@ def _command_removed_paths(tokens: List[str]) -> List[str]:
 
 # typeshed types the lru_cache wrapper as Any under disallow_any_expr.
 @lru_cache(maxsize=1024)  # type: ignore[misc]
-def _line_removed_paths(line: str) -> FrozenSet[str]:
+def _line_removed_paths(line: str, folder: bool) -> FrozenSet[str]:
     """Return the paths every command on a line removes (``_removed_paths``).
 
     A command after a pipe runs too, as in ``echo y| del a.txt``. P001 and
@@ -600,14 +613,14 @@ def _line_removed_paths(line: str) -> FrozenSet[str]:
         path
         for stage in _split_pipe_stages(line)
         for segment in _command_segments(stage)
-        for path in _removed_paths(segment)
+        for path in _removed_paths(segment, folder)
     )
 
 
-def _line_removes(line: str, operand: str) -> bool:
+def _line_removes(line: str, operand: str, folder: bool) -> bool:
     """True when a command on ``line`` removes ``operand``."""
     # A line without the operand's text cannot remove it.
-    return operand in line.lower() and operand in _line_removed_paths(line)
+    return operand in line.lower() and operand in _line_removed_paths(line, folder)
 
 
 # An IF EXIST and its operand, read as ``_exist_operand_at`` reads them.
@@ -765,11 +778,16 @@ def _path_removed_between(
     counts. A later IF EXIST then tests whether the removal worked. The ELSE
     of an IF EXIST of ``operand`` runs only when the path is absent, so a
     removal there does not count (``_outside_exist_else``), on any line.
+
+    ``last`` is the later check. Where its path ends in ``\\``, as in
+    ``if exist out\\``, it is true only for a folder, which DEL and ERASE
+    only empty, so a DEL or ERASE before it does not count.
     """
-    if not any(_line_removes(line, operand) for line in lines[first:last]):
+    folder = _if_exist_operand_text(lines[last].strip().lower()).endswith("\\")
+    if not any(_line_removes(line, operand, folder) for line in lines[first:last]):
         return False
     return any(
-        _line_removes(text, operand)
+        _line_removes(text, operand, folder)
         for text in _outside_exist_else(lines, first, last, operand)
     )
 
