@@ -3,6 +3,7 @@
   "description": "The block holding a caret-joined FOR ends at its ')'; %%a after it is outside the %%A loop",
   "lines": {},
   "must_not": [
+    "E010",
     "W059"
   ],
   "rules": [],

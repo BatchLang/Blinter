@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "A caret-joined FOR /F backquoted command whose DO is on the next line (E010 negative)",
+  "lines": {},
+  "must_not": [
+    "E010"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

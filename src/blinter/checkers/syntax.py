@@ -11,9 +11,14 @@ from typing import (
 )
 
 from blinter.checkers.cmd_extended import check_extended_syntax_line
+from blinter.checkers.globals.label_flow import (
+    _for_in_set_open,
+    _paren_group_end,
+)
 from blinter.checkers.warnings import (
     _strip_double_quoted_strings,
 )
+from blinter.logging_config import logger
 from blinter.models import LintIssue
 from blinter.parsing.context import (
     _is_blank_or_comment,
@@ -666,25 +671,136 @@ def _check_quotes(line: str, line_num: int) -> List[LintIssue]:
     return issues
 
 
-def _check_for_loop_syntax(stripped: str, line_num: int) -> List[LintIssue]:
-    """Check for malformed FOR loop (E010)."""
-    issues: List[LintIssue] = []
-    if not re.match(r"for\s+.*", stripped, re.IGNORECASE):
-        return issues
-    lowered = stripped.lower()
-    has_do = bool(re.search(r"\bdo(?:\s|\()", lowered))
-    if has_do:
-        return issues
-    # Don't flag multiline FOR loops (those ending with opening parenthesis)
-    if not re.search(r"\(\s*$", stripped):
-        issues.append(
-            LintIssue(
-                line_number=line_num,
-                rule=RULES["E010"],
-                context="FOR loop is missing required DO keyword",
+_FOR_COMMAND_RE = re.compile(r"for\s", re.IGNORECASE)
+_FOR_DO_RE = re.compile(r"\bdo(?:\s|\()", re.IGNORECASE)
+# cmd.exe accepts ``do`` only as its own token. ``do(`` is one unexpected
+# token, and ``echo do`` after the set is not the keyword.
+_FOR_DO_TOKEN_RE = re.compile(r"do\s", re.IGNORECASE)
+_FOR_TRAILING_OPEN_RE = re.compile(r"\(\s*$")
+# The caret that joins a line escapes the next line's first character. A word
+# character is not a delimiter and does not open a block, so ``do^`` / `` echo``
+# and ``do^`` / ``(`` stay one token instead of the DO keyword.
+_ESCAPED_JOIN_MARK = "X"
+
+
+def _prior_caret_joins(lines: List[str], line_num: int) -> bool:
+    """Return True when the previous physical line is joined onto this one."""
+    if line_num <= 1:
+        return False
+    depth = _paren_depth_before_line(lines, line_num - 1)
+    return caret_joins_next_physical_line(lines[line_num - 2], depth_before=depth)
+
+
+def _neutralize_escaped_continuation_character(text: str) -> str:
+    """Make the first character non-syntactic when a prior caret escaped it.
+
+    An escaped space does not separate ``DO`` from the next word, and an
+    escaped ``(`` does not open a block. A letter is unchanged, so ``d^``
+    followed by ``o echo`` is still the DO keyword.
+    """
+    if text and (text[0].isspace() or text[0] == "("):
+        return _ESCAPED_JOIN_MARK + text[1:]
+    return text
+
+
+def _caret_joined_for_command(lines: List[str], line_num: int) -> Optional[str]:
+    """Return the FOR command cmd reads starting at this line.
+
+    None means this physical line continues the previous caret, so it is not
+    its own command. Only the caret that escapes the newline is removed. A
+    caret inside an open quote or a REM remark does not join.
+    """
+    if line_num < 1 or line_num > len(lines):
+        logger.debug("E010 caret join ignored out-of-range line %s", line_num)
+        return None
+    if _prior_caret_joins(lines, line_num):
+        return None
+    parts: List[str] = []
+    index = line_num - 1
+    escape_next = False
+    while index < len(lines):
+        text = lines[index].rstrip("\r\n")
+        if escape_next:
+            text = _neutralize_escaped_continuation_character(text)
+        depth = _paren_depth_before_line(lines, index + 1)
+        if caret_joins_next_physical_line(lines[index], depth_before=depth):
+            parts.append(text[:-1])
+            logger.debug("E010 caret joins line %s onto the next line", index + 1)
+            escape_next = True
+            index += 1
+            continue
+        parts.append(text)
+        break
+    return "".join(parts).strip()
+
+
+def _for_set_is_open(command: str) -> bool:
+    """Return True when the FOR IN set has no closing parenthesis yet."""
+    open_paren = _for_in_set_open(command)
+    if open_paren is None:
+        return False
+    return _paren_group_end(command, open_paren) is None
+
+
+def _for_loop_has_do(command: str) -> bool:
+    """Return True when DO follows the IN set.
+
+    ``do`` inside the set is a value. ``for %%A in (do this) echo %%A`` has
+    no DO keyword. A set that is still open has not reached DO yet.
+    """
+    open_paren = _for_in_set_open(command)
+    if open_paren is None:
+        return _FOR_DO_RE.search(command) is not None
+    after_set = _paren_group_end(command, open_paren)
+    if after_set is None:
+        return False
+    return _FOR_DO_TOKEN_RE.match(command[after_set:].lstrip()) is not None
+
+
+def _check_for_loop_syntax(
+    stripped: str,
+    line_num: int,
+    lines: List[str] | None = None,
+) -> List[LintIssue]:
+    """Check for malformed FOR loop (E010).
+
+    A line that ends in an odd caret is one command with the following
+    physical lines. DO on one of those lines is present. A line that only
+    continues an earlier caret is not checked again.
+    """
+    command = stripped
+    if lines is not None:
+        joined = _caret_joined_for_command(lines, line_num)
+        if joined is None:
+            if _FOR_COMMAND_RE.match(stripped):
+                logger.debug(
+                    "E010 skipped on line %s; it continues a caret-joined command",
+                    line_num,
+                )
+            return []
+        command = joined
+    if _FOR_COMMAND_RE.match(command) is None:
+        return []
+    if _for_loop_has_do(command):
+        if not _for_loop_has_do(stripped):
+            logger.debug(
+                "E010 skipped; FOR at line %s has DO after caret joining: %s",
+                line_num,
+                command,
             )
+        return []
+    # ``for %%A in (`` continues on later lines without a caret. ``for %%A
+    # in (a) (`` already closed the set and is still missing DO.
+    if _for_set_is_open(command) and _FOR_TRAILING_OPEN_RE.search(command):
+        return []
+    logger.debug("E010 FOR at line %s is missing DO: %s", line_num, command)
+    return [
+        LintIssue(
+            line_number=line_num,
+            rule=RULES["E010"],
+            context="FOR loop is missing required DO keyword",
         )
-    return issues
+    ]
 
 
 def _has_indirect_bang_expansion(stripped: str) -> bool:
@@ -1218,7 +1334,7 @@ def _check_syntax_errors(
     issues.extend(_check_if_exist_mixing(stripped, line_num))
     issues.extend(_check_path_syntax(stripped, line_num))
     issues.extend(_check_quotes(line, line_num))
-    issues.extend(_check_for_loop_syntax(stripped, line_num))
+    issues.extend(_check_for_loop_syntax(stripped, line_num, lines))
     issues.extend(
         _check_variable_expansion(
             stripped,

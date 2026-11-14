@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "DO is the first token of the line a caret joins (E010 negative)",
+  "lines": {},
+  "must_not": [
+    "E010"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

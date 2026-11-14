@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "DO after a caret-joined set still counts when the set itself contains do (E010 negative)",
+  "lines": {},
+  "must_not": [
+    "E010"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

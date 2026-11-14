@@ -1,0 +1,16 @@
+{
+  "config": {},
+  "description": "do later in the command is not the DO keyword",
+  "lines": {
+    "2": [
+      "E010"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "E010"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}

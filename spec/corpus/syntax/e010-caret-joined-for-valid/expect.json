@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "A caret-joined FOR list whose DO is on the next physical line (E010 negative)",
+  "lines": {},
+  "must_not": [
+    "E010"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

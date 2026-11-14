@@ -1,0 +1,16 @@
+{
+  "config": {},
+  "description": "do( without a space is not the DO keyword",
+  "lines": {
+    "2": [
+      "E010"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "E010"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}

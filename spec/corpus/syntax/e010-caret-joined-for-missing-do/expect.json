@@ -1,0 +1,16 @@
+{
+  "config": {},
+  "description": "A caret-joined FOR that still has no DO",
+  "lines": {
+    "2": [
+      "E010"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "E010"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "config": {},
+  "description": "A caret inside an open quote does not join, so the next FOR is still missing DO",
+  "lines": {
+    "3": [
+      "E010"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "E010"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "A caret-joined FOR value that looks like REM still has DO (E010 negative)",
+  "lines": {},
+  "must_not": [
+    "E010"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

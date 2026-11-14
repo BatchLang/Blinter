@@ -4,6 +4,10 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ## [Unreleased]
 
+### Fixed
+
+- E010 no longer reports a caret-joined FOR whose DO keyword is on a later physical line. That includes a FOR /F backquoted command, a list value that looks like `rem`, a DO keyword split as `d^` / `o`, and a FOR keyword split as `f^` / `or` when the set continues with `(`. DO has to be the first token after the IN set: `do` inside the set, `echo do`, and `do(` without a space do not count. The first character of each continued line is escaped, so `do^` followed by ` echo` or `(` is not DO. A FOR that still has no DO after those lines are joined is still E010
+
 ## [1.1.70] - 2026-11-13
 
 ### Fixed
