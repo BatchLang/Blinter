@@ -1,0 +1,20 @@
+{
+  "config": {},
+  "description": "DEL or ERASE of a folder with a trailing separator deletes its files and leaves the folder, so the repeated IF EXIST keeps P001, while RD of that folder does not",
+  "lines": {
+    "4": [
+      "P001"
+    ],
+    "7": [
+      "P001"
+    ]
+  },
+  "must_not": [],
+  "oracle": "skip",
+  "rules": [
+    "P001"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}

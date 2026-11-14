@@ -698,6 +698,9 @@ entries:
   - syntax/p017-exist-after-delete-valid
   - syntax/p001-exist-after-else-delete
   - syntax/p017-exist-after-else-delete
+  - syntax/p001-exist-after-else-group-delete-valid
+  - syntax/p001-exist-in-else-delete
+  - syntax/p001-exist-after-dir-contents-delete
 - construct: Global style conventions and readability
   sources:
   - Community batch style

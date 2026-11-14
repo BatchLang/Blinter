@@ -1,0 +1,14 @@
+{
+  "config": {},
+  "description": "A removal after the closing parenthesis of an ELSE group, or after the ELSE of a multi-line IF EXIST, runs on both branches, so the IF EXIST that follows checks the result (P001 negative)",
+  "lines": {},
+  "must_not": [
+    "P001",
+    "P017"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

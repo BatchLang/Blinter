@@ -58,7 +58,11 @@ from blinter.checkers.globals import (
 )
 from blinter.checkers.globals.exit_flow import _check_missing_exit_statement
 from blinter.checkers.line_endings import _check_line_ending_rules
-from blinter.checkers.performance import _check_performance_issues
+from blinter.checkers.performance import (
+    _check_performance_issues,
+    _removed_paths,
+    _repeated_exist_issue,
+)
 from blinter.checkers.security import _check_security_issues
 from blinter.checkers.style import _check_style_issues
 from blinter.checkers.syntax import _caret_line_joins, _check_syntax_errors
@@ -2946,6 +2950,176 @@ class TestGlobalChecks:
         redundant_issues = [i for i in issues if i.rule.code == "P001"]
         assert len(redundant_issues) == 1
         assert redundant_issues[0].line_number == 3
+
+    @pytest.mark.parametrize(
+        ("lines", "reported"),
+        [
+            # A command after the ELSE group's closing parenthesis runs on both
+            # branches, so the later check tests whether it worked.
+            (
+                [
+                    "if exist a.txt (echo y) else (echo n) & del a.txt",
+                    "if exist a.txt echo failed",
+                ],
+                [],
+            ),
+            (
+                [
+                    "if exist a.txt (echo y) else (echo n)&& del a.txt",
+                    "if exist a.txt echo failed",
+                ],
+                [],
+            ),
+            (
+                [
+                    "if exist a.txt (echo y) else (echo n & echo m) & del a.txt",
+                    "if exist a.txt echo failed",
+                ],
+                [],
+            ),
+            (
+                [
+                    "if exist a.txt (",
+                    "    echo y",
+                    ") else (",
+                    "    echo n",
+                    ") & del a.txt",
+                    "if exist a.txt echo failed",
+                ],
+                [],
+            ),
+            # A removal inside the ELSE runs only while the path is absent.
+            (
+                [
+                    "if exist a.txt (echo y) else (echo n & del a.txt)",
+                    "if exist a.txt echo failed",
+                ],
+                [2],
+            ),
+            # An ELSE opened above the first check covers the whole span.
+            (
+                [
+                    "if exist a.txt (echo y) else (",
+                    "    if exist a.txt echo 1",
+                    "    del a.txt",
+                    "    if exist a.txt echo 2",
+                    ")",
+                ],
+                [4],
+            ),
+            (
+                [
+                    "if exist a.txt (",
+                    "    echo y",
+                    ") else (",
+                    "    if exist a.txt echo 1",
+                    "    del a.txt",
+                    "    if exist a.txt echo 2",
+                    ")",
+                ],
+                [6],
+            ),
+            # ``echo(`` in an unparenthesized ELSE is text, not an open group.
+            (
+                [
+                    "if exist a.txt (echo y) else echo(",
+                    "echo 1",
+                    "echo 2",
+                    "echo 3",
+                    "echo 4",
+                    "echo 5",
+                    "if exist a.txt echo 1",
+                    "del a.txt",
+                    "if exist a.txt echo 2",
+                ],
+                [],
+            ),
+            # The ELSE has closed by the time the removal runs: line 4 repeats
+            # line 1, but line 6 follows the removal.
+            (
+                [
+                    "if exist a.txt (echo y) else (",
+                    "    echo n",
+                    ")",
+                    "if exist a.txt echo 1",
+                    "del a.txt",
+                    "if exist a.txt echo 2",
+                ],
+                [4],
+            ),
+        ],
+    )
+    def test_redundant_exist_after_else_group(
+        self, lines: list[str], reported: list[int]
+    ) -> None:
+        """P001 follows where a removal sits relative to an IF EXIST's ELSE."""
+        issues = _check_redundant_operations(lines)
+        assert [i.line_number for i in issues if i.rule.code == "P001"] == reported
+
+    def test_repeated_exist_after_else_group_removal(self) -> None:
+        """P017 sees a removal after an ELSE group, and none inside the ELSE."""
+        after = [
+            "if exist a.txt echo 1",
+            "if exist a.txt (echo 2) else (echo n) & del a.txt",
+            "if exist a.txt echo 3",
+        ]
+        inside = [
+            "if exist a.txt echo 1",
+            "if exist a.txt (echo 2) else (del a.txt)",
+            "if exist a.txt echo 3",
+        ]
+        assert _repeated_exist_issue(after, 1, after[0]) is None
+        assert _repeated_exist_issue(inside, 1, inside[0]) is not None
+
+    @pytest.mark.parametrize(
+        ("command", "removed"),
+        [
+            ("del cache\\", []),
+            ('del /q "cache\\"', []),
+            ("erase out/", []),
+            ("del a.txt cache\\ b.txt", ["a.txt", "b.txt"]),
+            ("del cache", ["cache"]),
+            ("rd /s /q cache\\", ["cache"]),
+            ("rmdir cache/", ["cache"]),
+        ],
+    )
+    def test_removed_paths_keeps_folder_for_del(
+        self, command: str, removed: list[str]
+    ) -> None:
+        """DEL and ERASE empty a folder written with a separator; RD removes it."""
+        assert _removed_paths(command) == removed
+
+    @pytest.mark.parametrize(
+        ("lines", "reported"),
+        [
+            (
+                [
+                    "if exist cache\\ echo 1",
+                    "del /q cache\\",
+                    "if exist cache\\ echo 2",
+                ],
+                [3],
+            ),
+            (
+                ["if exist cache echo 1", "erase /q cache\\", "if exist cache echo 2"],
+                [3],
+            ),
+            (
+                [
+                    "if exist cache\\ echo 1",
+                    "rd /s /q cache\\",
+                    "if exist cache\\ echo 2",
+                ],
+                [],
+            ),
+        ],
+    )
+    def test_redundant_exist_after_folder_delete(
+        self, lines: list[str], reported: list[int]
+    ) -> None:
+        """P001 stays on a folder check after a DEL of its files, not after RD."""
+        issues = _check_redundant_operations(lines)
+        assert [i.line_number for i in issues if i.rule.code == "P001"] == reported
 
     def test_check_code_duplication(self) -> None:
         """Test code duplication detection."""
