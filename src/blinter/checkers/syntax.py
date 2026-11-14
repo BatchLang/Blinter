@@ -726,9 +726,16 @@ def _joined_rem_owns(command: str, *, command_depth: int) -> bool:
     follows the first closing ')'. ``_rem_verb_owns_line`` would keep
     looking for a nested group and miss ``do rem``. A remark that merely
     mentions ``in (...)`` is already REM, and that mention is not a set.
+    A quoted ``) do rem`` inside the set is a value, so the quote-aware
+    set scan decides before the remark scan.
     """
-    if _rem_verb_owns_line(command, depth_before=command_depth):
-        return True
+    if _FOR_COMMAND_RE.match(command.lstrip()) is not None:
+        return _for_command_rem_owns(command, command_depth=command_depth)
+    return _rem_verb_owns_line(command, depth_before=command_depth)
+
+
+def _for_command_rem_owns(command: str, *, command_depth: int) -> bool:
+    """Return True when a FOR command's DO body is REM."""
     open_paren = _for_in_set_open(command)
     if open_paren is None:
         return _rem_verb_owns_line(command, depth_before=command_depth)
