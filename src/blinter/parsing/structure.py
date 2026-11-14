@@ -498,13 +498,19 @@ def _first_command_token(command: str) -> str:
 
 
 def _do_or_else_already_has_command(command: str) -> bool:
-    """Return True when DO or ELSE already started a command before '('."""
+    """Return True when DO or ELSE already started ECHO or REM.
+
+    ``else if`` and ``do if`` still open a block. ``do echo (`` does not.
+    """
     match: Optional[re.Match[str]] = None
     for found in _DO_ELSE_RE.finditer(command):
         match = found
     if match is None:
         return False
-    return bool(command[match.end() :].strip())
+    tail = command[match.end() :].strip()
+    if not tail:
+        return False
+    return tail.split(None, 1)[0].lower() in {"echo", "rem"}
 
 
 def _paren_opens_block(command: str) -> bool:
@@ -513,7 +519,7 @@ def _paren_opens_block(command: str) -> bool:
         return False
     if not command.strip():
         return True
-    # ``do echo (`` is an argument of echo. ``do (`` still opens a block.
+    # ``do echo (`` is an argument of echo. ``do (`` and ``else if`` still open.
     if _do_or_else_already_has_command(command):
         return False
     tokens = {token.lower() for token in command.split()}
@@ -657,9 +663,12 @@ def _paren_depth_deltas(lines: List[str]) -> List[int]:
         run_length += len(body)
         delta = _block_paren_delta(body, scan)
         deltas.append(delta)
-        joined = caret_joins_next_physical_line(line, depth_before=depth)
-        if not joined:
+        continues = caret_joins_next_physical_line(
+            line, depth_before=depth, in_continuation=joined
+        )
+        if not continues:
             scan = None
+        joined = continues
         depth = max(depth + delta, 0)
     return deltas
 

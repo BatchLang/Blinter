@@ -646,9 +646,17 @@ def _is_e009_special_case_exemption(stripped: str, line: str) -> bool:
     return False
 
 
-def _check_quotes(line: str, line_num: int) -> List[LintIssue]:
+def _check_quotes(
+    line: str, line_num: int, lines: List[str] | None = None
+) -> List[LintIssue]:
     """Check for mismatched quotes (E009)."""
     issues: List[LintIssue] = []
+    if (
+        lines is not None
+        and _caret_escapes_line(lines, line_num - 1)
+        and line[:1] == '"'
+    ):
+        line = "X" + line[1:]
 
     stripped = line.strip()
     if _is_comment_line(stripped):
@@ -1566,7 +1574,7 @@ def _check_syntax_errors(
     issues.extend(_check_errorlevel_syntax(stripped, line_num))
     issues.extend(_check_if_exist_mixing(stripped, line_num))
     issues.extend(_check_path_syntax(stripped, line_num))
-    issues.extend(_check_quotes(line, line_num))
+    issues.extend(_check_quotes(line, line_num, lines))
     issues.extend(_check_for_loop_syntax(stripped, line_num, lines))
     issues.extend(
         _check_variable_expansion(
