@@ -1,0 +1,16 @@
+{
+  "config": {},
+  "description": "The caret after an escaped caret still escapes ) and hides DO",
+  "lines": {
+    "2": [
+      "E010"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "E010"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}

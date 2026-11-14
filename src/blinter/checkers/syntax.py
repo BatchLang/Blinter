@@ -736,10 +736,11 @@ def _neutralize_escaped_continuation_character(text: str) -> str:
     """Make the first character non-syntactic when a prior caret escaped it.
 
     An escaped space does not separate ``DO`` from the next word. An escaped
-    parenthesis or quote does not close the IN set or open a string. A letter
-    is unchanged, so ``d^`` followed by ``o echo`` is still the DO keyword.
+    parenthesis, quote, or caret does not close the IN set or escape the next
+    character. A letter is unchanged, so ``d^`` followed by ``o echo`` is
+    still the DO keyword.
     """
-    if text and (text[0].isspace() or text[0] in '()"'):
+    if text and (text[0].isspace() or text[0] in '()"^'):
         return _ESCAPED_JOIN_MARK + text[1:]
     return text
 
