@@ -702,11 +702,37 @@ def _continuation_body(text: str) -> str:
 
 
 def _line_may_own_rem(parts: List[str], text: str) -> bool:
-    """Return True when this line could be where REM becomes the verb."""
+    """Return True when this line could be where REM becomes the verb.
+
+    ``rem`` may be split across more than one caret, so the last two
+    characters can span earlier fragments than ``parts[-1]``.
+    """
     if "rem" in text.lower():
         return True
-    tail = parts[-1][-2:] if parts else ""
+    tail = ""
+    if parts:
+        tail = parts[-1]
+        if len(tail) < 2 and len(parts) > 1:
+            tail = parts[-2] + tail
+        tail = tail[-2:]
     return "rem" in (tail + text[:3]).lower()
+
+
+def _joined_rem_owns(command: str, *, command_depth: int) -> bool:
+    """Return True when REM is the command verb in the joined text.
+
+    Parentheses inside a FOR set do not nest, so the DO body is whatever
+    follows the first closing ')'. ``_rem_verb_owns_line`` would keep
+    looking for a nested group and miss ``do rem``.
+    """
+    open_paren = _for_in_set_open(command)
+    if open_paren is None:
+        return _rem_verb_owns_line(command, depth_before=command_depth)
+    after_set = _for_set_end(command, open_paren)
+    if after_set is None:
+        return False
+    body = command[after_set:].lstrip()
+    return _rem_verb_owns_line(f"for %%A in (x) {body}", depth_before=command_depth)
 
 
 def _caret_line_joins(
@@ -735,7 +761,7 @@ def _caret_line_joins(
     if not _line_may_own_rem(parts, text):
         return True
     command = "".join(parts) + text
-    return not _rem_verb_owns_line(command, depth_before=command_depth)
+    return not _joined_rem_owns(command, command_depth=command_depth)
 
 
 def _build_caret_join_flags(lines: List[str]) -> List[bool]:
