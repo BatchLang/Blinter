@@ -1,5 +1,7 @@
 """Label collection, script structure, and subroutine detection."""
 
+# pylint: disable=too-many-lines
+
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 import re
@@ -626,12 +628,42 @@ def _update_paren_depth(line: str, current_depth: int) -> int:
     return current_depth + _block_paren_delta(line)
 
 
+def _for_body_is_rem(text: str) -> bool:
+    """Return True when the DO body of a joined FOR is REM."""
+    open_paren = text.find("(")
+    if open_paren < 0:
+        return False
+    quote = ""
+    index = open_paren + 1
+    length = len(text)
+    while index < length:
+        char = text[index]
+        if quote:
+            if char == '"':
+                quote = ""
+            index += 1
+            continue
+        if char == "^" and index + 1 < length:
+            index += 2
+            continue
+        if char == '"':
+            quote = '"'
+            index += 1
+            continue
+        if char == ")":
+            return _rem_verb_owns_line(
+                f"for %%A in (x) {text[index + 1 :]}", depth_before=0
+            )
+        index += 1
+    return False
+
+
 def _joined_remark_stops(text: str, *, depth_before: int) -> bool:
     """Return True when joined text is REM, so its caret does not continue."""
     body = text.lstrip().lstrip("@").lstrip()
     is_for = len(body) >= 3 and body[:3].lower() == "for"
     if is_for and (len(body) == 3 or body[3].isspace() or body[3] == "("):
-        return False
+        return _for_body_is_rem(text)
     return _rem_verb_owns_line(text, depth_before=depth_before)
 
 
@@ -670,14 +702,17 @@ def _paren_depth_deltas(lines: List[str]) -> List[int]:
         continues = caret_joins_next_physical_line(
             line, depth_before=depth, in_continuation=joined
         )
-        owned = prefix + (body[:-1] if body.endswith("^") else body)
-        if continues and _joined_remark_stops(owned, depth_before=depth):
-            continues = False
-        if continues:
-            prefix = owned
-        else:
+        if not continues:
             prefix = ""
             scan = None
+        elif len(prefix) <= MAX_LINE_LENGTH:
+            owned = prefix + (body[:-1] if body.endswith("^") else body)
+            if _joined_remark_stops(owned, depth_before=depth):
+                continues = False
+                prefix = ""
+                scan = None
+            else:
+                prefix = owned
         joined = continues
         depth = max(depth + delta, 0)
     return deltas

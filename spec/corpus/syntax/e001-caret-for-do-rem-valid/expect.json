@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "REM after a continued FOR's DO does not swallow the next parenthesis group",
+  "lines": {},
+  "must_not": [
+    "E001"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

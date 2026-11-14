@@ -849,7 +849,7 @@ class _JoinBoundary:  # pylint: disable=too-few-public-methods
             self.prev = pair
             self.at_boundary = True
             return index + 2
-        if char == "&" and self.prev not in "><":
+        if char == "|" or (char == "&" and self.prev not in "><"):
             self.prev = char
             self.at_boundary = True
             return index + 1
@@ -972,14 +972,30 @@ def _neutralize_escaped_continuation_character(text: str) -> str:
     return text
 
 
+def _could_be_for_keyword(text: str) -> bool:
+    """Return True when ``text`` may be FOR, including ``f^`` followed by ``or``."""
+    body = text.lstrip()
+    if not body or body[0].lower() != "f":
+        return False
+    head: List[str] = []
+    for char in body:
+        if char.isspace() or char == "^":
+            break
+        head.append(char)
+        if len(head) > 3:
+            return False
+    word = "".join(head).lower()
+    return word != "" and "for".startswith(word)
+
+
 def _caret_joined_for_command(lines: List[str], line_num: int) -> Optional[str]:
     """Return the FOR command cmd reads starting at this line.
 
     None means this physical line continues the previous caret, so it is not
-    its own command. A line after ``&``, ``&&``, or ``||`` is its own command.
-    The caret still escapes that line's first character. Only the caret that
-    escapes the newline is removed. A caret inside an open quote or a REM
-    remark does not join.
+    its own command. A line after ``&``, ``&&``, ``||``, or ``|`` is its own
+    command. The caret still escapes that line's first character. Only the
+    caret that escapes the newline is removed. A caret inside an open quote
+    or a REM remark does not join.
     """
     if line_num < 1 or line_num > len(lines):
         logger.debug("E010 caret join ignored out-of-range line %s", line_num)
@@ -989,6 +1005,11 @@ def _caret_joined_for_command(lines: List[str], line_num: int) -> Optional[str]:
         if not _caret_continuation_starts_command(lines, line_num):
             return None
         escape_next = True
+    head = lines[line_num - 1].rstrip("\r\n")
+    if escape_next:
+        head = _neutralize_escaped_continuation_character(head)
+    if not _could_be_for_keyword(head):
+        return None
     parts: List[str] = []
     index = line_num - 1
     while index < len(lines):
