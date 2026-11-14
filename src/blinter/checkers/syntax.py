@@ -723,7 +723,10 @@ def _caret_line_joins(
     ``d^`` / ``o rem``. REM is visible only in that whole command.
     """
     if not caret_joins_next_physical_line(
-        line, depth_before=depth, in_continuation=in_continuation
+        line,
+        depth_before=depth,
+        in_continuation=in_continuation,
+        skip_rem=bool(parts),
     ):
         return False
     if not parts:

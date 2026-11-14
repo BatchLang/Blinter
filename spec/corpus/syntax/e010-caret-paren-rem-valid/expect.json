@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "A parenthesis before rem inside a FOR set is list text (E010 negative)",
+  "lines": {},
+  "must_not": [
+    "E010"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

@@ -87,14 +87,13 @@ def _expansion_in_key(key: str) -> bool:
 
 
 def caret_joins_next_physical_line(
-    line: str, *, depth_before: int = 0, in_continuation: bool = False
+    line: str,
+    *,
+    depth_before: int = 0,
+    in_continuation: bool = False,
+    skip_rem: bool = False,
 ) -> bool:
-    """Return True when an odd trailing caret joins this line to the next.
-
-    A caret in an open quote or a REM remark does not join. On a continued
-    line the first character is escaped, so ``rem`` and ``& rem`` still join
-    and `` & rem`` does not. A label or ``::`` line joins too.
-    """
+    """Return True when an odd trailing caret joins this line to the next."""
     text = line.rstrip("\r\n")
     if in_continuation and text:
         text = "X" + text[1:]
@@ -103,7 +102,7 @@ def caret_joins_next_physical_line(
     if _double_quote_open_at_end(text):
         logger.debug("Caret inside an open quote does not continue: %s", text.strip())
         return False
-    if _rem_verb_owns_line(text, depth_before=depth_before):
+    if not skip_rem and _rem_verb_owns_line(text, depth_before=depth_before):
         logger.debug("REM remark does not continue the line: %s", text.strip())
         return False
     return True
