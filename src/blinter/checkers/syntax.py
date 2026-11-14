@@ -1013,6 +1013,8 @@ def _caret_joined_for_command(lines: List[str], line_num: int) -> Optional[str]:
     parts: List[str] = []
     index = line_num - 1
     while index < len(lines):
+        if index > line_num - 1 and _line_starts_command(lines, index):
+            break
         text = lines[index].rstrip("\r\n")
         if escape_next:
             text = _neutralize_escaped_continuation_character(text)
