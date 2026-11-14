@@ -11,10 +11,7 @@ from typing import (
 )
 
 from blinter.checkers.cmd_extended import check_extended_syntax_line
-from blinter.checkers.globals.label_flow import (
-    _for_in_set_open,
-    _paren_group_end,
-)
+from blinter.checkers.globals.label_flow import _for_in_set_open
 from blinter.checkers.warnings import (
     _strip_double_quoted_strings,
 )
@@ -683,22 +680,40 @@ _FOR_TRAILING_OPEN_RE = re.compile(r"\(\s*$")
 _ESCAPED_JOIN_MARK = "X"
 
 
+def _line_joins_next(lines: List[str], index: int) -> bool:
+    """Return True when physical line ``index`` is joined onto the next one.
+
+    A line that is itself continuation text is not a REM command, so a caret
+    after a list value that looks like ``rem`` still joins.
+    """
+    continuation = False
+    joins = False
+    for cursor in range(index + 1):
+        depth = _paren_depth_before_line(lines, cursor + 1)
+        joins = caret_joins_next_physical_line(
+            lines[cursor],
+            depth_before=depth,
+            in_continuation=continuation,
+        )
+        continuation = joins
+    return joins
+
+
 def _prior_caret_joins(lines: List[str], line_num: int) -> bool:
     """Return True when the previous physical line is joined onto this one."""
     if line_num <= 1:
         return False
-    depth = _paren_depth_before_line(lines, line_num - 1)
-    return caret_joins_next_physical_line(lines[line_num - 2], depth_before=depth)
+    return _line_joins_next(lines, line_num - 2)
 
 
 def _neutralize_escaped_continuation_character(text: str) -> str:
     """Make the first character non-syntactic when a prior caret escaped it.
 
-    An escaped space does not separate ``DO`` from the next word, and an
-    escaped ``(`` does not open a block. A letter is unchanged, so ``d^``
-    followed by ``o echo`` is still the DO keyword.
+    An escaped space does not separate ``DO`` from the next word. An escaped
+    parenthesis does not open a block or close the IN set. A letter is
+    unchanged, so ``d^`` followed by ``o echo`` is still the DO keyword.
     """
-    if text and (text[0].isspace() or text[0] == "("):
+    if text and (text[0].isspace() or text[0] in "()"):
         return _ESCAPED_JOIN_MARK + text[1:]
     return text
 
@@ -722,8 +737,7 @@ def _caret_joined_for_command(lines: List[str], line_num: int) -> Optional[str]:
         text = lines[index].rstrip("\r\n")
         if escape_next:
             text = _neutralize_escaped_continuation_character(text)
-        depth = _paren_depth_before_line(lines, index + 1)
-        if caret_joins_next_physical_line(lines[index], depth_before=depth):
+        if _line_joins_next(lines, index):
             parts.append(text[:-1])
             logger.debug("E010 caret joins line %s onto the next line", index + 1)
             escape_next = True
@@ -734,12 +748,67 @@ def _caret_joined_for_command(lines: List[str], line_num: int) -> Optional[str]:
     return "".join(parts).strip()
 
 
+def _leading_set_quote(command: str, open_paren: int) -> str:
+    """Return a FOR /F command quote that starts the set, or empty."""
+    cursor = open_paren + 1
+    length = len(command)
+    while cursor < length and command[cursor] in " \t":
+        cursor += 1
+    if cursor < length and command[cursor] in "'`":
+        return command[cursor]
+    return ""
+
+
+def _step_inside_set_quote(command: str, index: int, quote: str) -> tuple[int, str]:
+    """Advance one character inside a set quote."""
+    if quote == '"' and command[index] == '"':
+        if index + 1 < len(command) and command[index + 1] == '"':
+            return index + 2, quote
+        return index + 1, ""
+    if command[index] == quote:
+        return index + 1, ""
+    return index + 1, quote
+
+
+def _for_set_end(command: str, open_paren: int) -> Optional[int]:
+    """Return the index after the ')' that closes the IN set.
+
+    The first unquoted, unescaped ')' closes the set. ``(`` inside the set
+    does not nest. An apostrophe in ``O'Brien`` is a character. A FOR /F
+    command that starts with ``'`` or a backtick keeps ')' inside that string.
+    Double quotes do that in every set, so ``"a)b"`` stays one value.
+    """
+    special = _leading_set_quote(command, open_paren)
+    quote = ""
+    index = open_paren + 1
+    length = len(command)
+    while index < length:
+        if quote:
+            index, quote = _step_inside_set_quote(command, index, quote)
+            continue
+        if command[index] == "^" and index + 1 < length:
+            index += 2
+            continue
+        if command[index] == '"':
+            quote = '"'
+            index += 1
+            continue
+        if special and command[index] == special:
+            quote = special
+            index += 1
+            continue
+        if command[index] == ")":
+            return index + 1
+        index += 1
+    return None
+
+
 def _for_set_is_open(command: str) -> bool:
     """Return True when the FOR IN set has no closing parenthesis yet."""
     open_paren = _for_in_set_open(command)
     if open_paren is None:
         return False
-    return _paren_group_end(command, open_paren) is None
+    return _for_set_end(command, open_paren) is None
 
 
 def _for_loop_has_do(command: str) -> bool:
@@ -751,7 +820,7 @@ def _for_loop_has_do(command: str) -> bool:
     open_paren = _for_in_set_open(command)
     if open_paren is None:
         return _FOR_DO_RE.search(command) is not None
-    after_set = _paren_group_end(command, open_paren)
+    after_set = _for_set_end(command, open_paren)
     if after_set is None:
         return False
     return _FOR_DO_TOKEN_RE.match(command[after_set:].lstrip()) is not None

@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "A ) escaped by the caret that joins the line does not close the set (E010 negative)",
+  "lines": {},
+  "must_not": [
+    "E010"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

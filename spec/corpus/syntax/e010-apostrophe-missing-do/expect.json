@@ -1,0 +1,16 @@
+{
+  "config": {},
+  "description": "An apostrophe in the set does not invent a DO keyword",
+  "lines": {
+    "2": [
+      "E010"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "E010"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}
