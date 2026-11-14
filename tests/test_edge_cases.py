@@ -2430,6 +2430,21 @@ class TestGlobalChecks:
         assert caret_joins_next_physical_line("echo hi & rem note ^") is False
         assert caret_joins_next_physical_line("echo hi & rem) note ^") is True
         assert caret_joins_next_physical_line("rem) note ^", depth_before=1) is False
+        assert (
+            caret_joins_next_physical_line("rem note ^", in_continuation=True) is True
+        )
+        assert (
+            caret_joins_next_physical_line("& rem note ^", in_continuation=True) is True
+        )
+        assert (
+            caret_joins_next_physical_line("  & rem note ^", in_continuation=True)
+            is False
+        )
+        assert caret_joins_next_physical_line('"b ^', in_continuation=True) is True
+        assert (
+            caret_joins_next_physical_line('echo "hello^', in_continuation=True)
+            is False
+        )
         assert grouped_if_has_no_condition("(if)") is True
         assert grouped_if_has_no_condition("echo (if)") is False
         assert grouped_if_has_no_condition("if)") is False

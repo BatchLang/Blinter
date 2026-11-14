@@ -42,6 +42,7 @@ from blinter.checkers.performance import (
 from blinter.checkers.security import _check_security_issues
 from blinter.checkers.style import _check_style_issues
 from blinter.checkers.syntax import (
+    _begin_caret_join_pass,
     _check_for_do_paren_next_line,
     _check_if_block_paren_next_line,
     _check_syntax_errors,
@@ -219,6 +220,7 @@ def _process_file_checks(  # pylint: disable=too-many-arguments,too-many-positio
         skip_lines: Optional set of line numbers to skip (e.g., embedded script blocks)
         called_scripts_vars: Optional dict mapping line numbers to variables from called scripts
     """
+    _begin_caret_join_pass()
     issues: List[LintIssue] = []
 
     if skip_lines is None:

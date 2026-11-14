@@ -2,6 +2,7 @@
 
 # pylint: disable=too-many-lines
 
+from contextvars import ContextVar
 import re
 from typing import (
     Dict,
@@ -678,25 +679,50 @@ _FOR_TRAILING_OPEN_RE = re.compile(r"\(\s*$")
 # character is not a delimiter and does not open a block, so ``do^`` / `` echo``
 # and ``do^`` / ``(`` stay one token instead of the DO keyword.
 _ESCAPED_JOIN_MARK = "X"
+_caret_join_cache_var: ContextVar[Optional[Dict[int, tuple[object, List[bool]]]]] = (
+    ContextVar("caret_join_cache", default=None)
+)
+
+
+def _begin_caret_join_pass() -> None:
+    """Start a per-file cache of caret-continuation flags."""
+    _caret_join_cache_var.set({})
+
+
+def _build_caret_join_flags(lines: List[str]) -> List[bool]:
+    """Return whether each physical line is joined onto the next one."""
+    flags: List[bool] = []
+    continuation = False
+    for cursor, line in enumerate(lines):
+        joins = caret_joins_next_physical_line(
+            line,
+            depth_before=_paren_depth_before_line(lines, cursor + 1),
+            in_continuation=continuation,
+        )
+        flags.append(joins)
+        continuation = joins
+    return flags
+
+
+def _caret_join_flags(lines: List[str]) -> List[bool]:
+    """Return continuation flags, built once per file when a pass is active."""
+    cache = _caret_join_cache_var.get()
+    if cache is None:
+        return _build_caret_join_flags(lines)
+    source_id = id(lines)
+    cached = cache.get(source_id)
+    if cached is None or cached[0] is not lines:
+        value = _build_caret_join_flags(lines)
+        cache[source_id] = (lines, value)
+        return value
+    return cached[1]
 
 
 def _line_joins_next(lines: List[str], index: int) -> bool:
-    """Return True when physical line ``index`` is joined onto the next one.
-
-    A line that is itself continuation text is not a REM command, so a caret
-    after a list value that looks like ``rem`` still joins.
-    """
-    continuation = False
-    joins = False
-    for cursor in range(index + 1):
-        depth = _paren_depth_before_line(lines, cursor + 1)
-        joins = caret_joins_next_physical_line(
-            lines[cursor],
-            depth_before=depth,
-            in_continuation=continuation,
-        )
-        continuation = joins
-    return joins
+    """Return True when physical line ``index`` is joined onto the next one."""
+    if index < 0 or index >= len(lines):
+        return False
+    return _caret_join_flags(lines)[index]
 
 
 def _prior_caret_joins(lines: List[str], line_num: int) -> bool:
@@ -710,10 +736,10 @@ def _neutralize_escaped_continuation_character(text: str) -> str:
     """Make the first character non-syntactic when a prior caret escaped it.
 
     An escaped space does not separate ``DO`` from the next word. An escaped
-    parenthesis does not open a block or close the IN set. A letter is
-    unchanged, so ``d^`` followed by ``o echo`` is still the DO keyword.
+    parenthesis or quote does not close the IN set or open a string. A letter
+    is unchanged, so ``d^`` followed by ``o echo`` is still the DO keyword.
     """
-    if text and (text[0].isspace() or text[0] in "()"):
+    if text and (text[0].isspace() or text[0] in '()"'):
         return _ESCAPED_JOIN_MARK + text[1:]
     return text
 
@@ -748,17 +774,6 @@ def _caret_joined_for_command(lines: List[str], line_num: int) -> Optional[str]:
     return "".join(parts).strip()
 
 
-def _leading_set_quote(command: str, open_paren: int) -> str:
-    """Return a FOR /F command quote that starts the set, or empty."""
-    cursor = open_paren + 1
-    length = len(command)
-    while cursor < length and command[cursor] in " \t":
-        cursor += 1
-    if cursor < length and command[cursor] in "'`":
-        return command[cursor]
-    return ""
-
-
 def _step_inside_set_quote(command: str, index: int, quote: str) -> tuple[int, str]:
     """Advance one character inside a set quote."""
     if quote == '"' and command[index] == '"':
@@ -773,12 +788,11 @@ def _step_inside_set_quote(command: str, index: int, quote: str) -> tuple[int, s
 def _for_set_end(command: str, open_paren: int) -> Optional[int]:
     """Return the index after the ')' that closes the IN set.
 
-    The first unquoted, unescaped ')' closes the set. ``(`` inside the set
-    does not nest. An apostrophe in ``O'Brien`` is a character. A FOR /F
-    command that starts with ``'`` or a backtick keeps ')' inside that string.
-    Double quotes do that in every set, so ``"a)b"`` stays one value.
+    The first unescaped ')' closes the set. ``(`` does not nest. An apostrophe
+    or backtick is a character, including at the start of a classic set and
+    inside a FOR /F command string. Double quotes hide ')', so ``"a)b"`` and
+    ``"a""b)c"`` stay one value.
     """
-    special = _leading_set_quote(command, open_paren)
     quote = ""
     index = open_paren + 1
     length = len(command)
@@ -791,10 +805,6 @@ def _for_set_end(command: str, open_paren: int) -> Optional[int]:
             continue
         if command[index] == '"':
             quote = '"'
-            index += 1
-            continue
-        if special and command[index] == special:
-            quote = special
             index += 1
             continue
         if command[index] == ")":

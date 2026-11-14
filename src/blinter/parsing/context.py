@@ -91,18 +91,19 @@ def caret_joins_next_physical_line(
 ) -> bool:
     """Return True when an odd trailing caret joins this line to the next.
 
-    A caret inside an unclosed double quote does not join. A caret in a REM
-    remark does not join, including ``echo hi & rem note ^``, unless this line
-    is already continuation text: ``rem b ^`` inside a joined FOR list still
-    joins. ``echo rem note ^`` still joins. A label or ``::`` line does too.
+    A caret in an open quote or a REM remark does not join. On a continued
+    line the first character is escaped, so ``rem`` and ``& rem`` still join
+    and `` & rem`` does not. A label or ``::`` line joins too.
     """
     text = line.rstrip("\r\n")
+    if in_continuation and text:
+        text = "X" + text[1:]
     if (len(text) - len(text.rstrip("^"))) % 2 != 1:
         return False
     if _double_quote_open_at_end(text):
         logger.debug("Caret inside an open quote does not continue: %s", text.strip())
         return False
-    if not in_continuation and _rem_verb_owns_line(text, depth_before=depth_before):
+    if _rem_verb_owns_line(text, depth_before=depth_before):
         logger.debug("REM remark does not continue the line: %s", text.strip())
         return False
     return True

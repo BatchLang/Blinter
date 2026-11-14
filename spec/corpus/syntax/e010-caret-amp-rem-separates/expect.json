@@ -1,0 +1,16 @@
+{
+  "config": {},
+  "description": "A REM command after & on a continued line does not swallow the next FOR",
+  "lines": {
+    "4": [
+      "E010"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "E010"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}

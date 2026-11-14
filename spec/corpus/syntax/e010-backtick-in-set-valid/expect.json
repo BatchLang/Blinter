@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "A backtick in a classic FOR set does not hide DO (E010 negative)",
+  "lines": {},
+  "must_not": [
+    "E010"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}
