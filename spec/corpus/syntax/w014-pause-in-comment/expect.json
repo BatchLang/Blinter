@@ -1,0 +1,18 @@
+{
+  "config": {},
+  "description": "pause and timeout /t in comments do not count as a pause",
+  "lines": {
+    "5": [
+      "W001",
+      "W014"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "W001",
+    "W014"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}

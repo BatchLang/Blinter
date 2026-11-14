@@ -131,16 +131,17 @@ def _is_interactive_set_prompt(line: str) -> bool:
 def _check_missing_pause(lines: List[str]) -> List[LintIssue]:
     """Check for missing PAUSE in interactive scripts (W014)."""
     issues: List[LintIssue] = []
+    code_lines = [line for line in lines if not _is_comment_line(line)]
 
     has_user_input = any(
         _is_interactive_set_prompt(line) or re.search(r"choice\s+", line, re.IGNORECASE)
-        for line in lines
+        for line in code_lines
     )
 
     has_pause = any(
         re.search(r"\bpause\b", line, re.IGNORECASE)
         or re.search(r"\btimeout\s+/t\b", line, re.IGNORECASE)
-        for line in lines
+        for line in code_lines
     )
 
     if has_user_input and not has_pause:

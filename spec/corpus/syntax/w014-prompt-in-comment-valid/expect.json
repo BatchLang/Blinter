@@ -1,0 +1,18 @@
+{
+  "config": {},
+  "description": "set /p in comments is not a prompt",
+  "lines": {
+    "4": [
+      "W001"
+    ]
+  },
+  "must_not": [
+    "W014"
+  ],
+  "rules": [
+    "W001"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}

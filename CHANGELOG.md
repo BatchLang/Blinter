@@ -4,6 +4,10 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ## [Unreleased]
 
+### Fixed
+
+- W014 no longer counts `set /p`, `choice`, `pause` or `timeout /t` on a line that `REM` or `::` opens
+
 ## [1.1.73] - 2026-11-15
 
 ### Fixed
