@@ -724,8 +724,11 @@ def _joined_rem_owns(command: str, *, command_depth: int) -> bool:
 
     Parentheses inside a FOR set do not nest, so the DO body is whatever
     follows the first closing ')'. ``_rem_verb_owns_line`` would keep
-    looking for a nested group and miss ``do rem``.
+    looking for a nested group and miss ``do rem``. A remark that merely
+    mentions ``in (...)`` is already REM, and that mention is not a set.
     """
+    if _rem_verb_owns_line(command, depth_before=command_depth):
+        return True
     open_paren = _for_in_set_open(command)
     if open_paren is None:
         return _rem_verb_owns_line(command, depth_before=command_depth)

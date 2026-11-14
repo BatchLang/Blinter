@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "A REM remark that mentions in (...) leaves the next FOR intact (E010 negative)",
+  "lines": {},
+  "must_not": [
+    "E010"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}
