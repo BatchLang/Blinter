@@ -7,6 +7,8 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 ### Fixed
 
 - P001 and P017 no longer report an `IF EXIST` after a `del`, `erase`, `rd` or `rmdir` of that path, a `move` from it, or a `ren` or `rename` of it, on the earlier check's line or between the two, outside the `else` of an `IF EXIST` of that path. That check tests whether the command worked. The command may follow `call`, `cmd /c`, `for ... do`, `@` or a pipe
+- P001 and P017 count a removal after the closing parenthesis of an `else` group, as in `if exist a.txt (echo y) else (echo n) & del a.txt`, and ignore one inside an `else` opened above the first check
+- P001 and P017 no longer treat `del` or `erase` of a folder with a trailing `\` or `/` as removing the folder
 
 ### Changed
 

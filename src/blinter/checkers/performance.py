@@ -541,7 +541,9 @@ def _split_at_group_close(text: str) -> tuple[str, str]:
 def _removed_paths(segment: str) -> List[str]:
     """Return the paths one command segment removes, in lower case.
 
-    DEL, ERASE, RD and RMDIR remove every path they name. MOVE removes its
+    DEL and ERASE remove the files they name, but not a folder written with a
+    trailing separator (``del cache/``), which they only empty. RD and RMDIR
+    remove every path they name. MOVE removes its
     sources, not the destination it moves them into. REN and RENAME remove
     their first path and leave the new name in that path's folder. The
     command can follow ``call``, ``cmd /c`` (or ``/k``), ``for ... do`` and
@@ -570,11 +572,12 @@ def _command_removed_paths(tokens: List[str]) -> List[str]:
     command = tokens[0].split("/")[0]
     if command not in _PATH_REMOVING_COMMANDS:
         return []
-    paths = [
-        token.strip('"').rstrip("\\/")
-        for token in tokens[1:]
-        if not token.startswith("/")
-    ]
+    operands = [token.strip('"') for token in tokens[1:] if not token.startswith("/")]
+    if command in ("del", "erase"):
+        # DEL on a folder (``del cache\``) deletes the files in it, and the
+        # folder stays.
+        operands = [path for path in operands if not path.endswith(("\\", "/"))]
+    paths = [path.rstrip("\\/") for path in operands]
     if command in ("ren", "rename"):
         return paths[:1]
     if command == "move" and len(paths) > 1:
@@ -640,59 +643,113 @@ def _then_groups_at(lowered: str, operand: str) -> FrozenSet[int]:
     return frozenset(found)
 
 
+# Lines read above the first check, so an ELSE opened before it still counts.
+_ELSE_LOOKBACK_LINES = 50
+
+
+def _else_body_start(lowered: str, groups: tuple[str, ...], else_line: bool) -> str:
+    """Return how an ELSE body covers the start of a line.
+
+    ``"paren"`` when a ``(`` of the ELSE is still open, ``"plain"`` when the
+    previous line ended in the ELSE and this line is its unparenthesized
+    command, and ``""`` when the line starts outside the ELSE body.
+    """
+    if "else" in groups:
+        return "paren"
+    if not else_line:
+        return ""
+    return "paren" if lowered.lstrip().startswith("(") else "plain"
+
+
+def _else_body_after(lowered: str, close: int) -> tuple[str, bool]:
+    """Read the ELSE that follows the ``)`` at ``close``, if there is one.
+
+    Return the body's kind (``""`` without an ELSE, else as
+    ``_else_body_start`` names them) and whether the line ends in the ELSE,
+    so that its command is on the next line.
+    """
+    match = _ELSE_AFTER_RE.match(lowered, close + 1)
+    if match is None:
+        return "", False
+    rest = lowered[match.end() :]
+    if not rest.strip():
+        return "plain", True
+    return ("paren" if rest.lstrip().startswith("(") else "plain"), False
+
+
 # typeshed types the lru_cache wrapper as Any under disallow_any_expr.
 @lru_cache(maxsize=1024)  # type: ignore[misc]
 def _walk_exist_else(
     lowered: str, operand: str, groups: tuple[str, ...], else_line: bool
-) -> tuple[int, tuple[str, ...], bool]:
+) -> tuple[str, tuple[str, ...], bool]:
     """Walk one line for ``_outside_exist_else``.
 
     ``groups`` holds the kind of each ``(`` still open: ``"then"`` for the
     ``(...)`` an IF EXIST of ``operand`` runs, ``"else"`` for one inside its
-    ELSE, ``""`` for any other. Return where the line is cut, the groups it
-    leaves open, and whether the next line is an ELSE command. Only groups
-    from the lowest ``"then"`` or ``"else"`` up are kept, since the ones
-    below it never close before it does.
+    ELSE, ``""`` for any other. Return the line without the ELSE body, the
+    groups it leaves open, and whether the next line is an ELSE command.
+    Only groups from the lowest ``"then"`` or ``"else"`` up are kept, since
+    the ones below it never close before it does.
+
+    The ELSE body is its ``(...)`` group, or an unparenthesized command that
+    ends at the ``)`` of the group around it or at the end of the line. What
+    follows the body is not in the ELSE and stays, as in
+    ``if exist a (echo y) else (echo n) & del a``.
     """
-    cut = 0 if else_line or "else" in groups else len(lowered)
-    then_at = _then_groups_at(lowered, operand) if cut else frozenset()
+    then_at = _then_groups_at(lowered, operand)
     if not groups and not else_line and not then_at:
-        return cut, (), False
+        return lowered, (), False
     stack = list(groups)
+    pieces: List[str] = []
+    state = _else_body_start(lowered, groups, else_line)
+    plain_base = len(stack)
+    piece_start = 0
     next_else = False
     for index, char in _paren_events(lowered):
         if char == "(":
-            stack.append("else" if index >= cut else "then" if index in then_at else "")
-        elif stack and stack.pop() == "then" and index < cut:
-            match = _ELSE_AFTER_RE.match(lowered, index + 1)
-            if match is not None:
-                cut = index + 1
-                next_else = not lowered[match.end() :].strip()
+            stack.append("else" if state else "then" if index in then_at else "")
+            continue
+        if state == "plain" and len(stack) <= plain_base:
+            state, piece_start = "", index
+        kind = stack.pop() if stack else ""
+        if state == "paren" and kind == "else" and "else" not in stack:
+            state, piece_start = "", index + 1
+        elif kind == "then" and not state:
+            state, next_else = _else_body_after(lowered, index)
+            if state:
+                pieces.append(lowered[piece_start : index + 1])
+                plain_base = len(stack)
+    if not state:
+        pieces.append(lowered[piece_start:])
     lowest = next((at for at, kind in enumerate(stack) if kind), len(stack))
-    return cut, tuple(stack[lowest:]), next_else
+    return " ".join(pieces), tuple(stack[lowest:]), next_else
 
 
 def _outside_exist_else(
     lines: List[str], first: int, last: int, operand: str
 ) -> List[str]:
-    """Return lines ``first`` up to ``last``, each cut before an ELSE of IF EXIST.
+    """Return lines ``first`` up to ``last`` without an ELSE of IF EXIST.
 
     That ELSE is the one after the ``(...)`` an IF EXIST of ``operand`` runs.
-    A line is cut where that ELSE starts, and the lines its ``(`` keeps open
-    are left out. A line that ends in that ELSE leaves out the next line,
-    as ``_else_still_open`` reads it. Comment lines are left out too.
+    Its body is left out of each line, and so are the lines it keeps open. A
+    line that ends in that ELSE leaves out the next line, as
+    ``_else_still_open`` reads it. Comment lines are left out too. Reading
+    starts ``_ELSE_LOOKBACK_LINES`` lines above ``first``, so an ELSE opened
+    before the first check still covers the lines after it.
     """
+    begin = max(0, first - _ELSE_LOOKBACK_LINES)
     kept: List[str] = []
     groups: tuple[str, ...] = ()
     else_line = False
-    for line in lines[first:last]:
+    for line in lines[begin:last]:
         if _is_comment_line(line):
             kept.append("")
             continue
-        lowered = line.lower()
-        cut, groups, else_line = _walk_exist_else(lowered, operand, groups, else_line)
-        kept.append(lowered[:cut])
-    return kept
+        text, groups, else_line = _walk_exist_else(
+            line.lower(), operand, groups, else_line
+        )
+        kept.append(text)
+    return kept[first - begin :]
 
 
 def _path_removed_between(

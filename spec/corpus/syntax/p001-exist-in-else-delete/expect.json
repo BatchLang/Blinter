@@ -1,0 +1,20 @@
+{
+  "config": {},
+  "description": "A removal inside the ELSE of an IF EXIST of that path, written before both later checks and inside that ELSE, runs only when the path is absent, so the later IF EXIST keeps P001",
+  "lines": {
+    "5": [
+      "P001"
+    ],
+    "12": [
+      "P001"
+    ]
+  },
+  "must_not": [],
+  "oracle": "skip",
+  "rules": [
+    "P001"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}
