@@ -761,20 +761,23 @@ def _caret_line_joins(  # pylint: disable=too-many-arguments
     ``d^`` / ``o rem``. REM is visible only in that whole command. Past
     ``MAX_LINE_LENGTH`` the caret still joins, without rereading the command.
     """
+    quote_aware_rem = bool(parts) or _FOR_COMMAND_RE.match(line.lstrip()) is not None
     if not caret_joins_next_physical_line(
         line,
         depth_before=depth,
         in_continuation=in_continuation,
-        skip_rem=bool(parts),
+        skip_rem=quote_aware_rem,
     ):
         return False
-    if not parts or joined_length > MAX_LINE_LENGTH:
+    if not quote_aware_rem or (parts and joined_length > MAX_LINE_LENGTH):
         return True
-    text = _continuation_body(line.rstrip("\r\n"))
+    text = line.rstrip("\r\n")
+    if not parts:
+        return not _joined_rem_owns(text, command_depth=command_depth)
+    text = _continuation_body(text)
     if not _line_may_own_rem(parts, text):
         return True
-    command = "".join(parts) + text
-    return not _joined_rem_owns(command, command_depth=command_depth)
+    return not _joined_rem_owns("".join(parts) + text, command_depth=command_depth)
 
 
 def _build_caret_join_flags(lines: List[str]) -> List[bool]:
