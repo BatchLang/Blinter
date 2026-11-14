@@ -23,6 +23,7 @@ from blinter.parsing.context import (
     _is_caret_escaped,
     _is_comment_line,
     _rem_remark_consumes_paren,
+    _rem_verb_owns_line,
     _split_tokens,
     caret_joins_next_physical_line,
     grouped_if_has_no_condition,
@@ -689,18 +690,59 @@ def _begin_caret_join_pass() -> None:
     _caret_join_cache_var.set({})
 
 
+def _caret_line_joins(
+    line: str,
+    *,
+    depth: int,
+    in_continuation: bool,
+    prefix: str,
+    command_depth: int,
+) -> bool:
+    """Return True when ``line`` joins, using the command built so far.
+
+    ``do rem`` can sit on a continued line. REM is visible only in that
+    whole command, and its caret does not swallow the next command.
+    """
+    if not caret_joins_next_physical_line(
+        line, depth_before=depth, in_continuation=in_continuation
+    ):
+        return False
+    if not prefix:
+        return True
+    text = line.rstrip("\r\n")
+    if text:
+        text = "X" + text[1:]
+    return not _rem_verb_owns_line(prefix + text, depth_before=command_depth)
+
+
 def _build_caret_join_flags(lines: List[str]) -> List[bool]:
     """Return whether each physical line is joined onto the next one."""
     flags: List[bool] = []
     continuation = False
+    prefix = ""
+    command_depth = 0
     for cursor, line in enumerate(lines):
-        joins = caret_joins_next_physical_line(
+        depth = _paren_depth_before_line(lines, cursor + 1)
+        if not continuation:
+            command_depth = depth
+            prefix = ""
+        joins = _caret_line_joins(
             line,
-            depth_before=_paren_depth_before_line(lines, cursor + 1),
+            depth=depth,
             in_continuation=continuation,
+            prefix=prefix,
+            command_depth=command_depth,
         )
         flags.append(joins)
-        continuation = joins
+        body = line.rstrip("\r\n")
+        if continuation and body:
+            body = "X" + body[1:]
+        if joins:
+            prefix += body[:-1]
+            continuation = True
+            continue
+        continuation = False
+        prefix = ""
     return flags
 
 

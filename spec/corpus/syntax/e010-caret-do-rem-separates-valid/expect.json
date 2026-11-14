@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "REM after DO on a continued FOR leaves the next FOR intact (E010 negative)",
+  "lines": {},
+  "must_not": [
+    "E010"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}
