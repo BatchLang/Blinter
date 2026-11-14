@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "A label caret still owns a following escaped quote, so ')' is label text",
+  "lines": {},
+  "must_not": [
+    "E001"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

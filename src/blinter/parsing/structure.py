@@ -21,6 +21,7 @@ from blinter.parsing.context import (
     _is_blank_or_comment,
     _is_endlocal_command,
     _is_setlocal_command,
+    _rem_verb_owns_line,
     _split_command_separators,
     _split_pipe_stages,
     _split_tokens,
@@ -379,8 +380,7 @@ _CacheValueT = TypeVar("_CacheValueT")
 
 _PAREN_BLOCK_KEYWORDS = frozenset({"do", "in", "else", "if"})
 _DO_ELSE_RE = re.compile(r"\b(?:do|else)\b", re.IGNORECASE)
-# A caret escapes the first character of the next physical line. Whitespace
-# stays, so ``if^`` / `` 1==1 (`` still sees the space. These four do not.
+# Escaped by a joining caret. A leading space is kept, so ``if^`` / `` 1==1 (`` holds.
 _ESCAPED_JOIN_SYNTAX = frozenset('()"^')
 
 _paren_depth_cache_var: ContextVar[Optional[Dict[int, tuple[object, List[int]]]]] = (
@@ -498,10 +498,7 @@ def _first_command_token(command: str) -> str:
 
 
 def _do_or_else_already_has_command(command: str) -> bool:
-    """Return True when DO or ELSE already started ECHO or REM.
-
-    ``else if`` and ``do if`` still open a block. ``do echo (`` does not.
-    """
+    """Return True when DO or ELSE already started ECHO or REM."""
     match: Optional[re.Match[str]] = None
     for found in _DO_ELSE_RE.finditer(command):
         match = found
@@ -629,17 +626,20 @@ def _update_paren_depth(line: str, current_depth: int) -> int:
     return current_depth + _block_paren_delta(line)
 
 
+def _joined_remark_stops(text: str, *, depth_before: int) -> bool:
+    """Return True when joined text is REM, so its caret does not continue."""
+    body = text.lstrip().lstrip("@").lstrip()
+    is_for = len(body) >= 3 and body[:3].lower() == "for"
+    if is_for and (len(body) == 3 or body[3].isspace() or body[3] == "("):
+        return False
+    return _rem_verb_owns_line(text, depth_before=depth_before)
+
+
 def _paren_depth_deltas(lines: List[str]) -> List[int]:
     """Return the IF/FOR/group parenthesis change of each physical line.
 
-    cmd.exe reads a caret-joined run of lines as one line, so a quote or a
-    ``(`` still open at the end of one line carries into the next. Whitespace
-    between those physical lines stays in the command: ``if^`` followed by
-    `` 1==1 (`` is ``if 1==1 (``. A ``(``, ``)``, ``"``, or ``^`` at the start
-    of the next line is escaped, and ``(`` after ``do echo`` is echo text.
-    One state covers at most ``MAX_LINE_LENGTH``
-    characters, more than cmd.exe accepts on one line: a line that would pass
-    that limit starts a new state. This bounds the cost of a long run.
+    A caret-joined run is one command. A space after ``if^`` stays, and
+    ``( ) " ^`` at the start of the next line are escaped.
     """
     deltas: List[int] = []
     depth = 0
@@ -647,14 +647,18 @@ def _paren_depth_deltas(lines: List[str]) -> List[int]:
     scan: Optional[_ParenScan] = None
     remark_joins = False
     joined = False
+    prefix = ""
     for line in lines:
         body = line.rstrip("\r\n")
         if joined and body[:1] in _ESCAPED_JOIN_SYNTAX:
             body = "X" + body[1:]
         if _skip_paren_line(body, scan=scan, remark_joins=remark_joins):
             deltas.append(0)
-            remark_joins = caret_joins_next_physical_line(line, depth_before=depth)
+            remark_joins = caret_joins_next_physical_line(
+                line, depth_before=depth, in_continuation=remark_joins
+            )
             joined = False
+            prefix = ""
             continue
         remark_joins = False
         if scan is None or run_length + len(body) > MAX_LINE_LENGTH:
@@ -666,7 +670,13 @@ def _paren_depth_deltas(lines: List[str]) -> List[int]:
         continues = caret_joins_next_physical_line(
             line, depth_before=depth, in_continuation=joined
         )
-        if not continues:
+        owned = prefix + (body[:-1] if body.endswith("^") else body)
+        if continues and _joined_remark_stops(owned, depth_before=depth):
+            continues = False
+        if continues:
+            prefix = owned
+        else:
+            prefix = ""
             scan = None
         joined = continues
         depth = max(depth + delta, 0)

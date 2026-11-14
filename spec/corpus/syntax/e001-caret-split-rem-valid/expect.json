@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "REM split as r^ / em still ends the command, so the block parentheses match",
+  "lines": {},
+  "must_not": [
+    "E001"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

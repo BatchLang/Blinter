@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "2>&1 is a redirection, so the following for is echo text and not E010",
+  "lines": {},
+  "must_not": [
+    "E010"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

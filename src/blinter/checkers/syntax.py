@@ -25,7 +25,6 @@ from blinter.parsing.context import (
     _is_comment_line,
     _rem_remark_consumes_paren,
     _rem_verb_owns_line,
-    _split_command_separators,
     _split_tokens,
     caret_joins_next_physical_line,
     grouped_if_has_no_condition,
@@ -694,9 +693,9 @@ _FOR_TRAILING_OPEN_RE = re.compile(r"\(\s*$")
 # character is not a delimiter and does not open a block, so ``do^`` / `` echo``
 # and ``do^`` / ``(`` stay one token instead of the DO keyword.
 _ESCAPED_JOIN_MARK = "X"
-_caret_join_cache_var: ContextVar[Optional[Dict[int, tuple[object, List[bool]]]]] = (
-    ContextVar("caret_join_cache", default=None)
-)
+_caret_join_cache_var: ContextVar[
+    Optional[Dict[int, tuple[object, tuple[List[bool], List[bool]]]]]
+] = ContextVar("caret_join_cache", default=None)
 
 
 def _begin_caret_join_pass() -> None:
@@ -793,9 +792,85 @@ def _caret_line_joins(  # pylint: disable=too-many-arguments
     return not _joined_rem_owns("".join(parts) + text, command_depth=command_depth)
 
 
-def _build_caret_join_flags(lines: List[str]) -> List[bool]:
-    """Return whether each physical line is joined onto the next one."""
+class _JoinBoundary:  # pylint: disable=too-few-public-methods
+    """Whether the next continued line starts after ``&``, ``&&``, or ``||``."""
+
+    __slots__ = ("at_boundary", "escaped", "prev", "quote")
+
+    def __init__(self) -> None:
+        self.at_boundary = True
+        self.escaped = False
+        self.prev = ""
+        self.quote = ""
+
+    def reset(self) -> None:
+        """Start a new command."""
+        self.at_boundary = True
+        self.escaped = False
+        self.prev = ""
+        self.quote = ""
+
+    def feed(self, text: str) -> None:
+        """Account for one joined piece, without its joining caret."""
+        index = 0
+        length = len(text)
+        while index < length:
+            index = self._feed_character(text, index)
+
+    def _feed_character(self, text: str, index: int) -> int:
+        """Advance one character and return the next index."""
+        char = text[index]
+        if self.escaped:
+            return self._feed_escaped(char, index)
+        if self.quote or char in '^"':
+            return self._feed_quote_or_caret(char, index)
+        return self._feed_separator(text, index, char)
+
+    def _feed_quote_or_caret(self, char: str, index: int) -> int:
+        """Advance through a quote or a caret escape."""
+        if self.quote:
+            if char == self.quote:
+                self.quote = ""
+            return index + 1
+        if char == "^":
+            self.escaped = True
+            return index + 1
+        self.quote = '"'
+        self.prev = char
+        self.at_boundary = False
+        return index + 1
+
+    def _feed_separator(self, text: str, index: int, char: str) -> int:
+        """Advance through whitespace or a command separator."""
+        if char in " \t":
+            return index + 1
+        pair = text[index : index + 2]
+        if pair in ("&&", "||"):
+            self.prev = pair
+            self.at_boundary = True
+            return index + 2
+        if char == "&" and self.prev not in "><":
+            self.prev = char
+            self.at_boundary = True
+            return index + 1
+        self.prev = char
+        self.at_boundary = False
+        return index + 1
+
+    def _feed_escaped(self, char: str, index: int) -> int:
+        """Treat ``char`` as data escaped by the previous caret."""
+        self.escaped = False
+        self.prev = "X"
+        if char not in " \t":
+            self.at_boundary = False
+        return index + 1
+
+
+def _build_caret_join_info(lines: List[str]) -> tuple[List[bool], List[bool]]:
+    """Return join flags and which continued lines start a new command."""
     flags: List[bool] = []
+    starts: List[bool] = []
+    boundary = _JoinBoundary()
     continuation = False
     parts: List[str] = []
     command_depth = 0
@@ -806,6 +881,8 @@ def _build_caret_join_flags(lines: List[str]) -> List[bool]:
             command_depth = depth
             joined_length = 0
             parts.clear()
+            boundary.reset()
+        starts.append(continuation and boundary.at_boundary)
         joins = _caret_line_joins(
             line,
             depth=depth,
@@ -822,32 +899,39 @@ def _build_caret_join_flags(lines: List[str]) -> List[bool]:
             piece = body[:-1]
             parts.append(piece)
             joined_length += len(piece)
+            boundary.feed(piece)
             continuation = True
             continue
         continuation = False
         parts.clear()
-    return flags
+    return flags, starts
 
 
-def _caret_join_flags(lines: List[str]) -> List[bool]:
-    """Return continuation flags, built once per file when a pass is active."""
+def _caret_join_info(lines: List[str]) -> tuple[List[bool], List[bool]]:
+    """Return cached join flags and command-start flags for ``lines``."""
     cache = _caret_join_cache_var.get()
-    if cache is None:
-        return _build_caret_join_flags(lines)
-    source_id = id(lines)
-    cached = cache.get(source_id)
-    if cached is None or cached[0] is not lines:
-        value = _build_caret_join_flags(lines)
-        cache[source_id] = (lines, value)
-        return value
-    return cached[1]
+    if cache is not None:
+        cached = cache.get(id(lines))
+        if cached is not None and cached[0] is lines:
+            return cached[1]
+    built = _build_caret_join_info(lines)
+    if cache is not None:
+        cache[id(lines)] = (lines, built)
+    return built
 
 
 def _line_joins_next(lines: List[str], index: int) -> bool:
     """Return True when physical line ``index`` is joined onto the next one."""
     if index < 0 or index >= len(lines):
         return False
-    return _caret_join_flags(lines)[index]
+    return _caret_join_info(lines)[0][index]
+
+
+def _line_starts_command(lines: List[str], index: int) -> bool:
+    """Return True when continued line ``index`` begins a new command."""
+    if index < 0 or index >= len(lines):
+        return False
+    return _caret_join_info(lines)[1][index]
 
 
 def _caret_escapes_line(lines: List[str], index: int) -> bool:
@@ -862,24 +946,10 @@ def _caret_continuation_starts_command(lines: List[str], line_num: int) -> bool:
     the joined prefix means the rest is a new command, so a FOR there is
     checked on its own. ``echo ready & ^`` then ``for %%A in (a) echo`` is
     that FOR. ``echo ready & ^`` then `` for`` is the command `` for``.
+    ``2>&1`` is a redirection, not a separator. The answer is recorded while
+    the caret flags are built, so a long run of joined lines stays linear.
     """
-    index = line_num - 1
-    start = index
-    while start > 0 and _line_joins_next(lines, start - 1):
-        start -= 1
-    parts: List[str] = []
-    escape_next = False
-    for cursor in range(start, index):
-        text = lines[cursor].rstrip("\r\n")
-        if escape_next:
-            text = _neutralize_escaped_continuation_character(text)
-        if not _line_joins_next(lines, cursor):
-            parts.append(text)
-            break
-        parts.append(text[:-1])
-        escape_next = True
-    segments = _split_command_separators("".join(parts))
-    return len(segments) > 1 and segments[-1].strip() == ""
+    return _line_starts_command(lines, line_num - 1)
 
 
 def _prior_caret_joins(lines: List[str], line_num: int) -> bool:
