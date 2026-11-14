@@ -4,6 +4,10 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ## [Unreleased]
 
+### Changed
+
+- Pinned batch-spec to v0.72.8
+
 ## [1.1.71] - 2026-11-14
 
 ### Fixed
