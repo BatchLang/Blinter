@@ -4,6 +4,8 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ## [Unreleased]
 
+## [1.1.72] - 2026-11-14
+
 ### Fixed
 
 - P001 and P017 no longer report an `IF EXIST` after a `del`, `erase`, `rd` or `rmdir` of that path, a `move` from it, or a `ren` or `rename` of it, on the earlier check's line or between the two, outside the `else` of an `IF EXIST` of that path. That check tests whether the command worked. The command may follow `call`, `cmd /c`, `for ... do`, `@` or a pipe
@@ -13,6 +15,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 ### Changed
 
 - Pinned batch-spec to v0.72.8
+- The MegaLinter install pin is 1.1.72
 
 ## [1.1.71] - 2026-11-14
 
@@ -810,6 +813,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 Older 1.0.x releases are available on the [GitHub Releases](https://github.com/BatchLang/Blinter/releases) page.
 
+[1.1.72]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.72
 [1.1.71]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.71
 [1.1.70]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.70
 [1.1.69]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.69
