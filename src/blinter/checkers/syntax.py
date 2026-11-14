@@ -690,59 +690,79 @@ def _begin_caret_join_pass() -> None:
     _caret_join_cache_var.set({})
 
 
+def _continuation_body(text: str) -> str:
+    """Return ``text`` with its escaped first character made non-syntactic.
+
+    A letter stays a letter, so ``d^`` followed by ``o rem`` is still ``do rem``.
+    A separator, quote, parenthesis, or caret does not keep its syntax.
+    """
+    if text and (text[0].isspace() or text[0] in "()\"'^&|"):
+        return "X" + text[1:]
+    return text
+
+
+def _line_may_own_rem(parts: List[str], text: str) -> bool:
+    """Return True when this line could be where REM becomes the verb."""
+    if "rem" in text.lower():
+        return True
+    tail = parts[-1][-2:] if parts else ""
+    return "rem" in (tail + text[:3]).lower()
+
+
 def _caret_line_joins(
     line: str,
     *,
     depth: int,
     in_continuation: bool,
-    prefix: str,
+    parts: List[str],
     command_depth: int,
 ) -> bool:
     """Return True when ``line`` joins, using the command built so far.
 
-    ``do rem`` can sit on a continued line. REM is visible only in that
-    whole command, and its caret does not swallow the next command.
+    ``do rem`` can sit on a continued line, including when ``do`` is split as
+    ``d^`` / ``o rem``. REM is visible only in that whole command.
     """
     if not caret_joins_next_physical_line(
         line, depth_before=depth, in_continuation=in_continuation
     ):
         return False
-    if not prefix:
+    if not parts:
         return True
-    text = line.rstrip("\r\n")
-    if text:
-        text = "X" + text[1:]
-    return not _rem_verb_owns_line(prefix + text, depth_before=command_depth)
+    text = _continuation_body(line.rstrip("\r\n"))
+    if not _line_may_own_rem(parts, text):
+        return True
+    command = "".join(parts) + text
+    return not _rem_verb_owns_line(command, depth_before=command_depth)
 
 
 def _build_caret_join_flags(lines: List[str]) -> List[bool]:
     """Return whether each physical line is joined onto the next one."""
     flags: List[bool] = []
     continuation = False
-    prefix = ""
+    parts: List[str] = []
     command_depth = 0
     for cursor, line in enumerate(lines):
         depth = _paren_depth_before_line(lines, cursor + 1)
         if not continuation:
             command_depth = depth
-            prefix = ""
+            parts.clear()
         joins = _caret_line_joins(
             line,
             depth=depth,
             in_continuation=continuation,
-            prefix=prefix,
+            parts=parts,
             command_depth=command_depth,
         )
         flags.append(joins)
         body = line.rstrip("\r\n")
-        if continuation and body:
-            body = "X" + body[1:]
+        if continuation:
+            body = _continuation_body(body)
         if joins:
-            prefix += body[:-1]
+            parts.append(body[:-1])
             continuation = True
             continue
         continuation = False
-        prefix = ""
+        parts.clear()
     return flags
 
 

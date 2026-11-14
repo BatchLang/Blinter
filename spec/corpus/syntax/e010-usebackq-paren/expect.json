@@ -1,0 +1,16 @@
+{
+  "config": {},
+  "description": "A parenthesis inside a FOR /F backtick command closes the set",
+  "lines": {
+    "2": [
+      "E010"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "E010"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "config": {},
+  "description": "REM after a DO keyword split across a caret does not swallow the next FOR",
+  "lines": {
+    "5": [
+      "E010"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "E010"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}
