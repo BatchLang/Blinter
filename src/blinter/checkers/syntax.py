@@ -25,6 +25,7 @@ from blinter.parsing.context import (
     _is_comment_line,
     _rem_remark_consumes_paren,
     _rem_verb_owns_line,
+    _split_command_separators,
     _split_tokens,
     caret_joins_next_physical_line,
     grouped_if_has_no_condition,
@@ -356,6 +357,8 @@ def _check_if_block_paren_next_line(lines: list[str], line_num: int) -> List[Lin
             next_index += 1
             continue
         if nxt.startswith("("):
+            if _caret_escapes_line(lines, next_index):
+                break
             return [
                 LintIssue(
                     line_number=line_num,
@@ -386,6 +389,8 @@ def _check_for_do_paren_next_line(lines: list[str], line_num: int) -> List[LintI
             next_index += 1
             continue
         if nxt.startswith("("):
+            if _caret_escapes_line(lines, next_index):
+                break
             return [
                 LintIssue(
                     line_number=line_num,
@@ -837,6 +842,38 @@ def _line_joins_next(lines: List[str], index: int) -> bool:
     return _caret_join_flags(lines)[index]
 
 
+def _caret_escapes_line(lines: List[str], index: int) -> bool:
+    """Return True when a caret on the previous line escapes this line."""
+    return _line_joins_next(lines, index - 1)
+
+
+def _caret_continuation_starts_command(lines: List[str], line_num: int) -> bool:
+    """Return True when this continued line follows ``&``, ``&&``, or ``||``.
+
+    The caret still escapes the first character of the line. A separator in
+    the joined prefix means the rest is a new command, so a FOR there is
+    checked on its own. ``echo ready & ^`` then ``for %%A in (a) echo`` is
+    that FOR. ``echo ready & ^`` then `` for`` is the command `` for``.
+    """
+    index = line_num - 1
+    start = index
+    while start > 0 and _line_joins_next(lines, start - 1):
+        start -= 1
+    parts: List[str] = []
+    escape_next = False
+    for cursor in range(start, index):
+        text = lines[cursor].rstrip("\r\n")
+        if escape_next:
+            text = _neutralize_escaped_continuation_character(text)
+        if not _line_joins_next(lines, cursor):
+            parts.append(text)
+            break
+        parts.append(text[:-1])
+        escape_next = True
+    segments = _split_command_separators("".join(parts))
+    return len(segments) > 1 and segments[-1].strip() == ""
+
+
 def _prior_caret_joins(lines: List[str], line_num: int) -> bool:
     """Return True when the previous physical line is joined onto this one."""
     if line_num <= 1:
@@ -861,17 +898,21 @@ def _caret_joined_for_command(lines: List[str], line_num: int) -> Optional[str]:
     """Return the FOR command cmd reads starting at this line.
 
     None means this physical line continues the previous caret, so it is not
-    its own command. Only the caret that escapes the newline is removed. A
-    caret inside an open quote or a REM remark does not join.
+    its own command. A line after ``&``, ``&&``, or ``||`` is its own command.
+    The caret still escapes that line's first character. Only the caret that
+    escapes the newline is removed. A caret inside an open quote or a REM
+    remark does not join.
     """
     if line_num < 1 or line_num > len(lines):
         logger.debug("E010 caret join ignored out-of-range line %s", line_num)
         return None
+    escape_next = False
     if _prior_caret_joins(lines, line_num):
-        return None
+        if not _caret_continuation_starts_command(lines, line_num):
+            return None
+        escape_next = True
     parts: List[str] = []
     index = line_num - 1
-    escape_next = False
     while index < len(lines):
         text = lines[index].rstrip("\r\n")
         if escape_next:

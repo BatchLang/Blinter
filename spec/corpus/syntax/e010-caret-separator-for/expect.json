@@ -1,0 +1,16 @@
+{
+  "config": {},
+  "description": "A FOR after & on a caret-joined line is its own command and has no DO",
+  "lines": {
+    "3": [
+      "E010"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "E010"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}

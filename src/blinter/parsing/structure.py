@@ -378,6 +378,10 @@ def _parse_suppression_comments(lines: List[str]) -> Dict[int, Set[str]]:
 _CacheValueT = TypeVar("_CacheValueT")
 
 _PAREN_BLOCK_KEYWORDS = frozenset({"do", "in", "else", "if"})
+_DO_ELSE_RE = re.compile(r"\b(?:do|else)\b", re.IGNORECASE)
+# A caret escapes the first character of the next physical line. Whitespace
+# stays, so ``if^`` / `` 1==1 (`` still sees the space. These four do not.
+_ESCAPED_JOIN_SYNTAX = frozenset('()"^')
 
 _paren_depth_cache_var: ContextVar[Optional[Dict[int, tuple[object, List[int]]]]] = (
     ContextVar("paren_depth_cache", default=None)
@@ -493,12 +497,25 @@ def _first_command_token(command: str) -> str:
     return body.split(None, 1)[0].lower()
 
 
+def _do_or_else_already_has_command(command: str) -> bool:
+    """Return True when DO or ELSE already started a command before '('."""
+    match: Optional[re.Match[str]] = None
+    for found in _DO_ELSE_RE.finditer(command):
+        match = found
+    if match is None:
+        return False
+    return bool(command[match.end() :].strip())
+
+
 def _paren_opens_block(command: str) -> bool:
     """Return True when '(' opens an IF, FOR, ELSE, or command group."""
     if _first_command_token(command) == "echo":
         return False
     if not command.strip():
         return True
+    # ``do echo (`` is an argument of echo. ``do (`` still opens a block.
+    if _do_or_else_already_has_command(command):
+        return False
     tokens = {token.lower() for token in command.split()}
     return bool(tokens & _PAREN_BLOCK_KEYWORDS)
 
@@ -612,7 +629,9 @@ def _paren_depth_deltas(lines: List[str]) -> List[int]:
     cmd.exe reads a caret-joined run of lines as one line, so a quote or a
     ``(`` still open at the end of one line carries into the next. Whitespace
     between those physical lines stays in the command: ``if^`` followed by
-    `` 1==1 (`` is ``if 1==1 (``. One state covers at most ``MAX_LINE_LENGTH``
+    `` 1==1 (`` is ``if 1==1 (``. A ``(``, ``)``, ``"``, or ``^`` at the start
+    of the next line is escaped, and ``(`` after ``do echo`` is echo text.
+    One state covers at most ``MAX_LINE_LENGTH``
     characters, more than cmd.exe accepts on one line: a line that would pass
     that limit starts a new state. This bounds the cost of a long run.
     """
@@ -621,11 +640,15 @@ def _paren_depth_deltas(lines: List[str]) -> List[int]:
     run_length = 0
     scan: Optional[_ParenScan] = None
     remark_joins = False
+    joined = False
     for line in lines:
         body = line.rstrip("\r\n")
+        if joined and body[:1] in _ESCAPED_JOIN_SYNTAX:
+            body = "X" + body[1:]
         if _skip_paren_line(body, scan=scan, remark_joins=remark_joins):
             deltas.append(0)
             remark_joins = caret_joins_next_physical_line(line, depth_before=depth)
+            joined = False
             continue
         remark_joins = False
         if scan is None or run_length + len(body) > MAX_LINE_LENGTH:
@@ -634,7 +657,8 @@ def _paren_depth_deltas(lines: List[str]) -> List[int]:
         run_length += len(body)
         delta = _block_paren_delta(body, scan)
         deltas.append(delta)
-        if not caret_joins_next_physical_line(line, depth_before=depth):
+        joined = caret_joins_next_physical_line(line, depth_before=depth)
+        if not joined:
             scan = None
         depth = max(depth + delta, 0)
     return deltas

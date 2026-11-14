@@ -50,6 +50,9 @@ def _format_list(name: str, values: list[str]) -> str:
 
 
 def _format_set(name: str, values: list[str]) -> str:
+    # ``{}`` is a dict. An empty catalog has to be an empty set.
+    if not values:
+        return f"{name}: Set[str] = set()"
     lines = [f"{name}: Set[str] = {{"]
     for value in values:
         lines.append(f'    "{value}",')
