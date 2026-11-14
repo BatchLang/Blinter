@@ -100,11 +100,16 @@ def _child_env() -> dict[str, str]:
 
     A Windows console using cp1252 makes isort report ``Unable to parse file``
     for source that contains characters outside that encoding, then exit 0.
-    UTF-8 mode keeps those files in the check.
+    UTF-8 mode keeps those files in the check. Pylint warns, then disables
+    color, when ``NO_COLOR`` and ``FORCE_COLOR`` are both non-empty.
+    ``FORCE_COLOR=0`` still counts as set. ``NO_COLOR`` already wins, so the
+    conflicting ``FORCE_COLOR`` is removed.
     """
     env = os.environ.copy()
     env["PYTHONUTF8"] = "1"
     env["PYTHONIOENCODING"] = "utf-8"
+    if env.get("NO_COLOR") and "FORCE_COLOR" in env:
+        del env["FORCE_COLOR"]
     return env
 
 
