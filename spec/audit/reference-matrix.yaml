@@ -21,6 +21,12 @@ entries:
   - syntax/e001-label-caret-joins-closer
   - syntax/e001-colon-caret-joins-closer
   - syntax/e001-colon-caret-swallows-open-valid
+  - syntax/e001-caret-echo-indent-paren-valid
+  - syntax/e001-caret-echo-paren-valid
+  - syntax/e001-caret-for-do-rem-valid
+  - syntax/e001-caret-if-rem-valid
+  - syntax/e001-caret-label-quote-valid
+  - syntax/e001-caret-split-rem-valid
 - construct: Text after closing parenthesis inside parenthesized blocks
   sources:
   - MS Learn batch syntax
@@ -251,6 +257,59 @@ entries:
   - syntax/w036-for-f-command-noprofile-valid
   - syntax/w036-for-f-usebackq-quoted-file
   - syntax/e010-for-with-do-valid
+  - syntax/e010-apostrophe-in-set-valid
+  - syntax/e010-apostrophe-missing-do
+  - syntax/e010-apostrophe-starts-set-valid
+  - syntax/e010-backtick-in-set-valid
+  - syntax/e010-caret-amp-rem-separates
+  - syntax/e010-caret-closed-set-paren
+  - syntax/e010-caret-do-inside-set
+  - syntax/e010-caret-do-inside-set-valid
+  - syntax/e010-caret-do-on-next-valid
+  - syntax/e010-caret-do-rem-separates
+  - syntax/e010-caret-do-rem-separates-valid
+  - syntax/e010-caret-echo-swallows-for-valid
+  - syntax/e010-caret-escaped-close
+  - syntax/e010-caret-escaped-close-valid
+  - syntax/e010-caret-escaped-do
+  - syntax/e010-caret-escaped-do-paren
+  - syntax/e010-caret-escaped-quote
+  - syntax/e010-caret-escaped-quote-joins-valid
+  - syntax/e010-caret-escaped-quote-valid
+  - syntax/e010-caret-extra-paren-rem
+  - syntax/e010-caret-extra-paren-rem-valid
+  - syntax/e010-caret-joined-for-f-valid
+  - syntax/e010-caret-joined-for-missing-do
+  - syntax/e010-caret-joined-for-rem-valid
+  - syntax/e010-caret-joined-for-valid
+  - syntax/e010-caret-joined-three-valid
+  - syntax/e010-caret-literal-caret
+  - syntax/e010-caret-literal-caret-valid
+  - syntax/e010-caret-open-set-valid
+  - syntax/e010-caret-paren-rem-valid
+  - syntax/e010-caret-pipe-for
+  - syntax/e010-caret-quoted-do-rem-valid
+  - syntax/e010-caret-quoted-rem-first-valid
+  - syntax/e010-caret-redir-for-valid
+  - syntax/e010-caret-rem-continues-valid
+  - syntax/e010-caret-rem-mentions-in
+  - syntax/e010-caret-rem-mentions-in-valid
+  - syntax/e010-caret-separator-for
+  - syntax/e010-caret-separator-for-space-valid
+  - syntax/e010-caret-split-do-rem
+  - syntax/e010-caret-split-do-valid
+  - syntax/e010-caret-split-for-open-valid
+  - syntax/e010-caret-split-rem-three
+  - syntax/e010-caret-still-escapes-paren
+  - syntax/e010-do-inside-set
+  - syntax/e010-do-inside-set-valid
+  - syntax/e010-do-later-in-body
+  - syntax/e010-do-then-body-do-valid
+  - syntax/e010-doubled-quote-paren-valid
+  - syntax/e010-glued-do-paren
+  - syntax/e010-quote-caret-keeps-for
+  - syntax/e010-quoted-paren-in-set-valid
+  - syntax/e010-usebackq-paren
   - syntax/e020-for-double-percent-valid
   - syntax/w038-for-r-wildcard-valid
 - construct: SET /A syntax errors in FOR context
