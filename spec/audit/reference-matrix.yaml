@@ -691,6 +691,13 @@ entries:
   - syntax/p002-distinct-commands-valid
   - syntax/p017-distinct-exist-checks-valid
   - syntax/p017-prefix-exist-valid
+  - syntax/p001-exist-after-delete-valid
+  - syntax/p001-exist-after-other-delete
+  - syntax/p001-exist-after-delete-forms-valid
+  - syntax/p001-exist-after-move-target
+  - syntax/p017-exist-after-delete-valid
+  - syntax/p001-exist-after-else-delete
+  - syntax/p017-exist-after-else-delete
 - construct: Global style conventions and readability
   sources:
   - Community batch style

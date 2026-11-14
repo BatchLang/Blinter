@@ -1,0 +1,14 @@
+{
+  "config": {},
+  "description": "Three IF EXIST checks with a removal of that path between each are not repeated (P017 negative)",
+  "lines": {},
+  "must_not": [
+    "P001",
+    "P017"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

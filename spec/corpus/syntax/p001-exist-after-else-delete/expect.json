@@ -1,0 +1,26 @@
+{
+  "config": {},
+  "description": "A removal in the ELSE of the earlier IF EXIST of that path, after &, && or |, or in a multi-line ELSE, runs only when the path is absent, so the repeated IF EXIST keeps P001",
+  "lines": {
+    "3": [
+      "P001"
+    ],
+    "5": [
+      "P001"
+    ],
+    "7": [
+      "P001"
+    ],
+    "11": [
+      "P001"
+    ]
+  },
+  "must_not": [],
+  "oracle": "skip",
+  "rules": [
+    "P001"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}

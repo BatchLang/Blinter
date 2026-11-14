@@ -1,7 +1,10 @@
 """Performance issue line checks (P-prefix rules)."""
 
+from functools import lru_cache
 import re
 from typing import (
+    FrozenSet,
+    Iterator,
     List,
     Optional,
 )
@@ -13,6 +16,7 @@ from blinter.parsing.context import (
     _is_comment_line,
     _is_endlocal_command,
     _is_setlocal_command,
+    _split_pipe_stages,
 )
 from blinter.parsing.structure import _delayed_expansion_active_at_line
 from blinter.patterns import (
@@ -410,8 +414,311 @@ def _if_exist_operand(stripped: str) -> str:
     return _exist_operand_at(stripped[command_at:])
 
 
+_PATH_REMOVING_COMMANDS = frozenset(
+    {"del", "erase", "rd", "rmdir", "move", "ren", "rename"}
+)
+# A redirection with its target: ``>nul``, ``2>&1``, ``>> "a b.log"``. A
+# handle digit counts only at the start of a word, as in ``2>nul``.
+_REDIRECT_RE = re.compile(
+    r'(?:(?<!\S)\d)?(?:>>?|<)(?:&\d|\s*(?:"[^"]*"|[^\s"<>|&()]*))'
+)
+
+
+def _split_arguments(text: str) -> List[str]:
+    """Split on whitespace, commas, semicolons and equals signs outside quotes."""
+    arguments: List[str] = []
+    current: List[str] = []
+    quoted = False
+    for char in text:
+        if char == '"':
+            quoted = not quoted
+        if not quoted and (char.isspace() or char in ",;="):
+            if current:
+                arguments.append("".join(current))
+                current = []
+            continue
+        current.append(char)
+    if current:
+        arguments.append("".join(current))
+    return arguments
+
+
+# One word, split as ``_split_tokens`` splits: whitespace outside quotes.
+_WORD_RE = re.compile(r'(?:[^\s"`]|"[^"]*"?|`[^`]*`?)+')
+# A command that starts with none of these words is not split into words.
+_PREFIX_WORD_RE = re.compile(r"\s*[(@]*(?:call|cmd|cmd\.exe|for)(?:\s|$)")
+
+
+def _after_cmd_switches(words: Iterator[re.Match[str]]) -> bool:
+    """Consume ``cmd``'s switches; True when ``/c`` or ``/k`` was among them."""
+    for match in words:
+        switch = match.group()
+        if not switch.startswith("/"):
+            return False
+        if switch in ("/c", "/k"):
+            return True
+    return False
+
+
+def _after_for_do(words: Iterator[re.Match[str]]) -> bool:
+    """Consume FOR up to its DO, the first ``do`` after a ``)``; True if found."""
+    previous = ""
+    for match in words:
+        word = match.group()
+        if word == "do" and previous.endswith(")"):
+            return True
+        previous = word
+    return False
+
+
+def _command_after_prefixes(text: str) -> str:
+    """Return the command that ``call``, ``cmd /c`` or ``for ... do`` runs.
+
+    A leading ``@`` only hides the command's echo, so ``@del`` is ``del``.
+    The words are read one at a time, so a long line is not split whole.
+    """
+    if _PREFIX_WORD_RE.match(text) is None:
+        return text.lstrip().lstrip("(@")
+    words = _WORD_RE.finditer(text)
+    for match in words:
+        word = match.group().lstrip("(@")
+        if word == "call":
+            continue
+        if word in ("cmd", "cmd.exe"):
+            if not _after_cmd_switches(words):
+                return ""
+        elif word == "for":
+            if not _after_for_do(words):
+                return ""
+        else:
+            return text[match.start() :].lstrip("(@")
+    return ""
+
+
+_ELSE_REST_RE = re.compile(r"\s*else\b(.*)", re.IGNORECASE | re.DOTALL)
+_ELSE_AFTER_RE = re.compile(r"\s*else\b", re.IGNORECASE)
+
+
+def _paren_events(text: str, chars: str = "()") -> Iterator[tuple[int, str]]:
+    """Yield the position of each ``(`` and ``)`` (or ``chars``) outside quotes.
+
+    A caret escapes the next character, so ``^)`` is text, while ``^^)`` is
+    an escaped caret followed by a ``)``.
+    """
+    quoted = False
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if char == '"':
+            quoted = not quoted
+        elif quoted:
+            pass
+        elif char == "^":
+            index += 1
+        elif char in chars:
+            yield index, char
+        index += 1
+
+
+def _split_at_group_close(text: str) -> tuple[str, str]:
+    """Split ``text`` at the first ``)`` that closes no ``(`` opened in it.
+
+    That ``)`` is read as closing the group the command runs in. A ``)``
+    inside quotes or escaped by a caret is text (``_paren_events``), and so
+    is one that closes a ``(`` of the path, as in ``rd obj(x64)``.
+    """
+    depth = 0
+    for index, char in _paren_events(text):
+        if char == "(":
+            depth += 1
+        elif depth == 0:
+            return text[:index], text[index + 1 :]
+        else:
+            depth -= 1
+    return text, ""
+
+
+def _removed_paths(segment: str) -> List[str]:
+    """Return the paths one command segment removes, in lower case.
+
+    DEL, ERASE, RD and RMDIR remove every path they name. MOVE removes its
+    sources, not the destination it moves them into. REN and RENAME remove
+    their first path and leave the new name in that path's folder. The
+    command can follow ``call``, ``cmd /c`` (or ``/k``), ``for ... do`` and
+    ``@``. A redirection is not a path, even when glued to one, as in
+    ``"%F%">nul``. A comma, semicolon or equals sign separates two paths, as
+    in ``del a.txt,b.txt``. The command ends at the ``)`` of its group
+    (``_split_at_group_close``). The command of the ELSE after that ``)``
+    counts too, as in ``(echo a) else (del b.txt)``, but not an IF that the
+    ELSE runs, nor a second ELSE after it.
+    """
+    text = _command_after_prefixes(_REDIRECT_RE.sub(" ", segment.lower()))
+    command, rest = _split_at_group_close(text)
+    paths = _command_removed_paths(_split_arguments(command))
+    match = _ELSE_REST_RE.match(rest)
+    if match is not None:
+        else_text = _command_after_prefixes(match.group(1))
+        else_command, _ = _split_at_group_close(else_text)
+        paths.extend(_command_removed_paths(_split_arguments(else_command)))
+    return paths
+
+
+def _command_removed_paths(tokens: List[str]) -> List[str]:
+    """Return the paths a DEL, ERASE, RD, RMDIR, MOVE or REN command removes."""
+    if not tokens:
+        return []
+    command = tokens[0].split("/")[0]
+    if command not in _PATH_REMOVING_COMMANDS:
+        return []
+    paths = [
+        token.strip('"').rstrip("\\/")
+        for token in tokens[1:]
+        if not token.startswith("/")
+    ]
+    if command in ("ren", "rename"):
+        return paths[:1]
+    if command == "move" and len(paths) > 1:
+        return paths[:-1]
+    return paths
+
+
+# typeshed types the lru_cache wrapper as Any under disallow_any_expr.
+@lru_cache(maxsize=1024)  # type: ignore[misc]
+def _line_removed_paths(line: str) -> FrozenSet[str]:
+    """Return the paths every command on a line removes (``_removed_paths``).
+
+    A command after a pipe runs too, as in ``echo y| del a.txt``. P001 and
+    P017 ask about the same line once per nearby check, so the answer is
+    cached; the cache is bounded.
+    """
+    if _is_comment_line(line):
+        return frozenset()
+    return frozenset(
+        path
+        for stage in _split_pipe_stages(line)
+        for segment in _command_segments(stage)
+        for path in _removed_paths(segment)
+    )
+
+
+def _line_removes(line: str, operand: str) -> bool:
+    """True when a command on ``line`` removes ``operand``."""
+    # A line without the operand's text cannot remove it.
+    return operand in line.lower() and operand in _line_removed_paths(line)
+
+
+# An IF EXIST and its operand, read as ``_exist_operand_at`` reads them.
+_EXIST_CHECK_RE = re.compile(r'if\s+exist\s+(?:"([^"]+)"|(\S+))\s*')
+_COMMAND_LEAD_RE = re.compile(r"[\s@]*")
+
+
+def _then_groups_at(lowered: str, operand: str) -> FrozenSet[int]:
+    """Return where the ``(`` after each IF EXIST of ``operand`` opens.
+
+    An IF EXIST counts where a command starts: at the start of the line,
+    after ``&``, ``|``, ``(`` or an ELSE, and after ``@``.
+    """
+    if operand not in lowered:
+        return frozenset()
+    starts = [0]
+    for index, char in _paren_events(lowered, "()&|"):
+        if char != ")":
+            starts.append(index + 1)
+            continue
+        else_word = _ELSE_AFTER_RE.match(lowered, index + 1)
+        if else_word is not None:
+            starts.append(else_word.end())
+    found: set[int] = set()
+    for start in starts:
+        lead = _COMMAND_LEAD_RE.match(lowered, start)
+        check = _EXIST_CHECK_RE.match(lowered, start if lead is None else lead.end())
+        if check is None or lowered[check.end() : check.end() + 1] != "(":
+            continue
+        path = _match_text(check, 1) or _match_text(check, 2)
+        if path.rstrip("\\/") == operand:
+            found.add(check.end())
+    return frozenset(found)
+
+
+# typeshed types the lru_cache wrapper as Any under disallow_any_expr.
+@lru_cache(maxsize=1024)  # type: ignore[misc]
+def _walk_exist_else(
+    lowered: str, operand: str, groups: tuple[str, ...], else_line: bool
+) -> tuple[int, tuple[str, ...], bool]:
+    """Walk one line for ``_outside_exist_else``.
+
+    ``groups`` holds the kind of each ``(`` still open: ``"then"`` for the
+    ``(...)`` an IF EXIST of ``operand`` runs, ``"else"`` for one inside its
+    ELSE, ``""`` for any other. Return where the line is cut, the groups it
+    leaves open, and whether the next line is an ELSE command. Only groups
+    from the lowest ``"then"`` or ``"else"`` up are kept, since the ones
+    below it never close before it does.
+    """
+    cut = 0 if else_line or "else" in groups else len(lowered)
+    then_at = _then_groups_at(lowered, operand) if cut else frozenset()
+    if not groups and not else_line and not then_at:
+        return cut, (), False
+    stack = list(groups)
+    next_else = False
+    for index, char in _paren_events(lowered):
+        if char == "(":
+            stack.append("else" if index >= cut else "then" if index in then_at else "")
+        elif stack and stack.pop() == "then" and index < cut:
+            match = _ELSE_AFTER_RE.match(lowered, index + 1)
+            if match is not None:
+                cut = index + 1
+                next_else = not lowered[match.end() :].strip()
+    lowest = next((at for at, kind in enumerate(stack) if kind), len(stack))
+    return cut, tuple(stack[lowest:]), next_else
+
+
+def _outside_exist_else(
+    lines: List[str], first: int, last: int, operand: str
+) -> List[str]:
+    """Return lines ``first`` up to ``last``, each cut before an ELSE of IF EXIST.
+
+    That ELSE is the one after the ``(...)`` an IF EXIST of ``operand`` runs.
+    A line is cut where that ELSE starts, and the lines its ``(`` keeps open
+    are left out. A line that ends in that ELSE leaves out the next line,
+    as ``_else_still_open`` reads it. Comment lines are left out too.
+    """
+    kept: List[str] = []
+    groups: tuple[str, ...] = ()
+    else_line = False
+    for line in lines[first:last]:
+        if _is_comment_line(line):
+            kept.append("")
+            continue
+        lowered = line.lower()
+        cut, groups, else_line = _walk_exist_else(lowered, operand, groups, else_line)
+        kept.append(lowered[:cut])
+    return kept
+
+
+def _path_removed_between(
+    lines: List[str], first: int, last: int, operand: str
+) -> bool:
+    """True when a line from ``first`` up to ``last`` removes ``operand``.
+
+    The command on the line of the first check runs after that check, so it
+    counts. A later IF EXIST then tests whether the removal worked. The ELSE
+    of an IF EXIST of ``operand`` runs only when the path is absent, so a
+    removal there does not count (``_outside_exist_else``), on any line.
+    """
+    if not any(_line_removes(line, operand) for line in lines[first:last]):
+        return False
+    return any(
+        _line_removes(text, operand)
+        for text in _outside_exist_else(lines, first, last, operand)
+    )
+
+
 def _nearby_same_exist_count(lines: List[str], line_number: int, operand: str) -> int:
-    """Count other IF EXIST lines in a five-line window with this operand."""
+    """Count other IF EXIST lines in a five-line window with this operand.
+
+    A check with a removal of the path between the two lines is not a
+    repeat (``_path_removed_between``).
+    """
     start = max(0, line_number - 5)
     end = min(len(lines), line_number + 5)
     count = 0
@@ -420,7 +727,10 @@ def _nearby_same_exist_count(lines: List[str], line_number: int, operand: str) -
         if index == current:
             continue
         other = _if_exist_operand(lines[index].strip().lower())
-        if other == operand:
+        if other != operand:
+            continue
+        first, last = min(index, current), max(index, current)
+        if not _path_removed_between(lines, first, last, operand):
             count += 1
     return count
 
@@ -459,28 +769,14 @@ def _else_between(lines: List[str], start: int, end: int) -> bool:
 
 def _feed_parens(text: str, depth: int, opened: bool) -> tuple[int, bool, bool]:
     """Walk ``text`` and report whether an open ELSE block closes."""
-    quoted = False
-    index = 0
-    while index < len(text):
-        char = text[index]
-        if quoted:
-            if char == '"':
-                quoted = False
-            index += 1
-            continue
-        if char == '"':
-            quoted = True
-        elif char == "(":
+    for _, char in _paren_events(text):
+        if char == "(":
             depth += 1
             opened = True
-        elif char == ")" and opened:
+        elif opened:
             depth -= 1
             if depth <= 0:
                 return depth, opened, True
-        elif char == "^" and index + 1 < len(text):
-            index += 2
-            continue
-        index += 1
     return depth, opened, False
 
 
@@ -508,12 +804,16 @@ def _line_repeats_exist(lines: List[str], start: int, end: int, filename: str) -
     ``else if exist`` is the other branch of the earlier IF, so it is not a
     second execution of that check. An ``ELSE`` on a line between the checks
     opens that other branch too. Quoted paths keep their spaces, so
-    ``"file one.txt"`` is not ``"file two.txt"``.
+    ``"file one.txt"`` is not ``"file two.txt"``. A removal of ``filename``
+    from line ``start`` on (``_path_removed_between``) makes the later check
+    test its result.
     """
     if _else_between(lines, start, end) or _else_still_open(lines, start, end):
         return False
     lowered = lines[end].strip().lower()
     if not filename or _if_exist_operand(lowered) != filename:
+        return False
+    if _path_removed_between(lines, start, end, filename):
         return False
     else_word = _ELSE_WORD_RE.search(lowered)
     if else_word is None:

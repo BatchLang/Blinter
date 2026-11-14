@@ -1,0 +1,53 @@
+{
+  "config": {},
+  "description": "A removal in the ELSE of an IF EXIST of that path, one-line, multi-line, after ') else (' on its own line, after @ or after &, runs only when the path is absent, so the three checks keep P017",
+  "lines": {
+    "2": [
+      "P017"
+    ],
+    "3": [
+      "P017"
+    ],
+    "4": [
+      "P017"
+    ],
+    "5": [
+      "P017"
+    ],
+    "6": [
+      "P017"
+    ],
+    "9": [
+      "P017"
+    ],
+    "11": [
+      "P017"
+    ],
+    "17": [
+      "P017"
+    ],
+    "18": [
+      "P017"
+    ],
+    "20": [
+      "P017"
+    ],
+    "21": [
+      "P017"
+    ],
+    "22": [
+      "P017"
+    ],
+    "24": [
+      "P017"
+    ]
+  },
+  "must_not": [],
+  "oracle": "skip",
+  "rules": [
+    "P017"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}

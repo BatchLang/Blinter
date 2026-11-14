@@ -4,6 +4,10 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ## [Unreleased]
 
+### Fixed
+
+- P001 and P017 no longer report an `IF EXIST` after a `del`, `erase`, `rd` or `rmdir` of that path, a `move` from it, or a `ren` or `rename` of it, on the earlier check's line or between the two, outside the `else` of an `IF EXIST` of that path. That check tests whether the command worked. The command may follow `call`, `cmd /c`, `for ... do`, `@` or a pipe
+
 ### Changed
 
 - Pinned batch-spec to v0.72.8

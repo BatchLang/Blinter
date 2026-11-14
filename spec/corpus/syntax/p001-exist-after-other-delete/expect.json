@@ -1,0 +1,54 @@
+{
+  "config": {},
+  "description": "A removal of another path, an ECHO, a REM between IF EXIST checks, a path only in an ELSE branch, or a removal in the ELSE of the earlier check keeps P001 and P017",
+  "lines": {
+    "3": [
+      "P001"
+    ],
+    "6": [
+      "P001"
+    ],
+    "7": [
+      "P017"
+    ],
+    "9": [
+      "P001",
+      "P017"
+    ],
+    "10": [
+      "P001",
+      "P017"
+    ],
+    "12": [
+      "P001"
+    ],
+    "14": [
+      "P001"
+    ],
+    "15": [
+      "P017"
+    ],
+    "17": [
+      "P017"
+    ],
+    "18": [
+      "P001",
+      "P017"
+    ],
+    "20": [
+      "P001"
+    ],
+    "22": [
+      "P001"
+    ]
+  },
+  "must_not": [],
+  "oracle": "skip",
+  "rules": [
+    "P001",
+    "P017"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "config": {},
+  "description": "A MOVE into a folder leaves the folder, and a REN in sub\\ leaves .\\d.txt untouched, so the repeated IF EXIST keeps P001",
+  "lines": {
+    "4": [
+      "P001"
+    ],
+    "7": [
+      "P001"
+    ]
+  },
+  "must_not": [],
+  "oracle": "skip",
+  "rules": [
+    "P001"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}

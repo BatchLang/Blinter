@@ -1,0 +1,14 @@
+{
+  "config": {},
+  "description": "IF EXIST after a DEL, ERASE, RD, RMDIR, MOVE or REN of that path checks the result (P001 negative)",
+  "lines": {},
+  "must_not": [
+    "P001",
+    "P017"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}
