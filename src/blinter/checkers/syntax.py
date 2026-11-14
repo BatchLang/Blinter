@@ -16,6 +16,7 @@ from blinter.checkers.globals.label_flow import _for_in_set_open
 from blinter.checkers.warnings import (
     _strip_double_quoted_strings,
 )
+from blinter.constants import MAX_LINE_LENGTH
 from blinter.logging_config import logger
 from blinter.models import LintIssue
 from blinter.parsing.context import (
@@ -735,18 +736,20 @@ def _joined_rem_owns(command: str, *, command_depth: int) -> bool:
     return _rem_verb_owns_line(f"for %%A in (x) {body}", depth_before=command_depth)
 
 
-def _caret_line_joins(
+def _caret_line_joins(  # pylint: disable=too-many-arguments
     line: str,
     *,
     depth: int,
     in_continuation: bool,
     parts: List[str],
     command_depth: int,
+    joined_length: int,
 ) -> bool:
     """Return True when ``line`` joins, using the command built so far.
 
     ``do rem`` can sit on a continued line, including when ``do`` is split as
-    ``d^`` / ``o rem``. REM is visible only in that whole command.
+    ``d^`` / ``o rem``. REM is visible only in that whole command. Past
+    ``MAX_LINE_LENGTH`` the caret still joins, without rereading the command.
     """
     if not caret_joins_next_physical_line(
         line,
@@ -755,7 +758,7 @@ def _caret_line_joins(
         skip_rem=bool(parts),
     ):
         return False
-    if not parts:
+    if not parts or joined_length > MAX_LINE_LENGTH:
         return True
     text = _continuation_body(line.rstrip("\r\n"))
     if not _line_may_own_rem(parts, text):
@@ -770,10 +773,12 @@ def _build_caret_join_flags(lines: List[str]) -> List[bool]:
     continuation = False
     parts: List[str] = []
     command_depth = 0
+    joined_length = 0
     for cursor, line in enumerate(lines):
         depth = _paren_depth_before_line(lines, cursor + 1)
         if not continuation:
             command_depth = depth
+            joined_length = 0
             parts.clear()
         joins = _caret_line_joins(
             line,
@@ -781,13 +786,16 @@ def _build_caret_join_flags(lines: List[str]) -> List[bool]:
             in_continuation=continuation,
             parts=parts,
             command_depth=command_depth,
+            joined_length=joined_length,
         )
         flags.append(joins)
         body = line.rstrip("\r\n")
         if continuation:
             body = _continuation_body(body)
         if joins:
-            parts.append(body[:-1])
+            piece = body[:-1]
+            parts.append(piece)
+            joined_length += len(piece)
             continuation = True
             continue
         continuation = False

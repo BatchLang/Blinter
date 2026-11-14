@@ -61,7 +61,7 @@ from blinter.checkers.line_endings import _check_line_ending_rules
 from blinter.checkers.performance import _check_performance_issues
 from blinter.checkers.security import _check_security_issues
 from blinter.checkers.style import _check_style_issues
-from blinter.checkers.syntax import _check_syntax_errors
+from blinter.checkers.syntax import _caret_line_joins, _check_syntax_errors
 from blinter.checkers.vars import _check_undefined_variables
 from blinter.checkers.warnings import _check_warning_issues
 from blinter.constants import MAX_LINE_LENGTH
@@ -240,6 +240,20 @@ class TestFileEncodingEdgeCases:
 
 class TestSyntaxErrorChecking:
     """Test syntax error checking edge cases."""
+
+    def test_long_continuation_skips_the_rem_rescan(self) -> None:
+        """A continued command past the line cap still joins."""
+        assert (
+            _caret_line_joins(
+                "echo rem ^",
+                depth=0,
+                in_continuation=True,
+                parts=["echo rem "],
+                command_depth=0,
+                joined_length=MAX_LINE_LENGTH + 1,
+            )
+            is True
+        )
 
     def test_goto_with_colon_prefix(self) -> None:
         """Test GOTO statement with colon prefix in target."""
