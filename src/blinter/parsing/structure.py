@@ -692,6 +692,21 @@ def _paren_depth_deltas(lines: List[str]) -> List[int]:
             joined = False
             prefix = ""
             continue
+        if (
+            joined
+            and scan is not None
+            and not scan.command_has_text
+            and _is_paren_comment_line(body.strip())
+        ):
+            deltas.append(0)
+            continues = caret_joins_next_physical_line(
+                line, depth_before=depth, in_continuation=joined
+            )
+            if not continues:
+                scan = None
+                prefix = ""
+            joined = continues
+            continue
         remark_joins = False
         if scan is None or run_length + len(body) > MAX_LINE_LENGTH:
             scan = _ParenScan()
