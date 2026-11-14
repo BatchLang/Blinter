@@ -3019,6 +3019,21 @@ class TestGlobalChecks:
                 ],
                 [6],
             ),
+            # ``echo(`` in an unparenthesized ELSE is text, not an open group.
+            (
+                [
+                    "if exist a.txt (echo y) else echo(",
+                    "echo 1",
+                    "echo 2",
+                    "echo 3",
+                    "echo 4",
+                    "echo 5",
+                    "if exist a.txt echo 1",
+                    "del a.txt",
+                    "if exist a.txt echo 2",
+                ],
+                [],
+            ),
             # The ELSE has closed by the time the removal runs: line 4 repeats
             # line 1, but line 6 follows the removal.
             (

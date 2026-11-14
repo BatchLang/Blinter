@@ -719,6 +719,10 @@ def _walk_exist_else(
             if state:
                 pieces.append(lowered[piece_start : index + 1])
                 plain_base = len(stack)
+    if state == "plain":
+        # A ``(`` left open in an unparenthesized ELSE command, as in
+        # ``else echo(``, is text and ends with the line.
+        del stack[plain_base:]
     if not state:
         pieces.append(lowered[piece_start:])
     lowest = next((at for at, kind in enumerate(stack) if kind), len(stack))
