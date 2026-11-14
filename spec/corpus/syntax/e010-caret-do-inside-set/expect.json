@@ -1,0 +1,16 @@
+{
+  "config": {},
+  "description": "A caret-joined set value do is not the DO keyword",
+  "lines": {
+    "2": [
+      "E010"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "E010"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "config": {},
+  "description": "An extra parenthesis in the set does not hide DO REM",
+  "lines": {
+    "4": [
+      "E010"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "E010"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}

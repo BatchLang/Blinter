@@ -1,0 +1,16 @@
+{
+  "config": {},
+  "description": "do^ followed by a space is not the DO keyword, because that space is escaped",
+  "lines": {
+    "2": [
+      "E010"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "E010"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}

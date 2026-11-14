@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "A REM inside a caret-joined IF block does not close the block",
+  "lines": {},
+  "must_not": [
+    "E001"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

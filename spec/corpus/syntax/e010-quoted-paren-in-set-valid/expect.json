@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "A parenthesis inside a quoted FOR value does not close the set (E010 negative)",
+  "lines": {},
+  "must_not": [
+    "E010"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

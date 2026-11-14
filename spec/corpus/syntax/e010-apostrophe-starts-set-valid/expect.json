@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "A classic FOR value may start with an apostrophe (E010 negative)",
+  "lines": {},
+  "must_not": [
+    "E010"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

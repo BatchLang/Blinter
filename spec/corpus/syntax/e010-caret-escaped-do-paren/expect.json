@@ -1,0 +1,16 @@
+{
+  "config": {},
+  "description": "do^ followed by ( does not open a DO block, because that parenthesis is escaped",
+  "lines": {
+    "2": [
+      "E010"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "E010"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}

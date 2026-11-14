@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "A caret escapes the space before for, so the command is not FOR",
+  "lines": {},
+  "must_not": [
+    "E010"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

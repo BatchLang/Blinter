@@ -1,0 +1,16 @@
+{
+  "config": {},
+  "description": "A FOR after a pipe on a caret-joined line has no DO",
+  "lines": {
+    "3": [
+      "E010"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "E010"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}

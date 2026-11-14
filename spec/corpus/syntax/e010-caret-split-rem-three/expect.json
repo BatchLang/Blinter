@@ -1,0 +1,16 @@
+{
+  "config": {},
+  "description": "REM split across three carets does not swallow the next FOR",
+  "lines": {
+    "5": [
+      "E010"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "E010"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}

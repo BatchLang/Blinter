@@ -9,6 +9,8 @@ import sys
 
 import pytest
 
+from scripts.spec.generate_commands import _format_set
+
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _BATCH_SPEC_DIR = _REPO_ROOT / "vendor" / "batch-spec"
 _LOCK_PATH = _REPO_ROOT / "spec" / "batch-spec.lock"
@@ -71,6 +73,20 @@ def test_generators_check(generator: str) -> None:
     assert (
         result.returncode == 0
     ), f"{generator} --check failed:\n{result.stdout}\n{result.stderr}"
+
+
+def test_format_set_empty_is_a_set() -> None:
+    """An empty catalog is ``set()``. ``{}`` is a dict and fails the annotation."""
+    assert _format_set("COMMON_EXTERNAL_TOOLS", []) == (
+        "COMMON_EXTERNAL_TOOLS: Set[str] = set()"
+    )
+
+
+def test_format_set_lists_each_name() -> None:
+    """A non-empty catalog stays a set literal."""
+    assert _format_set("BUILTIN_COMMANDS", ["echo"]) == (
+        'BUILTIN_COMMANDS: Set[str] = {\n    "echo",\n}'
+    )
 
 
 def test_batch_spec_submodule_present() -> None:

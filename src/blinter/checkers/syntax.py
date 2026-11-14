@@ -2,6 +2,7 @@
 
 # pylint: disable=too-many-lines
 
+from contextvars import ContextVar
 import re
 from typing import (
     Dict,
@@ -11,15 +12,19 @@ from typing import (
 )
 
 from blinter.checkers.cmd_extended import check_extended_syntax_line
+from blinter.checkers.globals.label_flow import _for_in_set_open
 from blinter.checkers.warnings import (
     _strip_double_quoted_strings,
 )
+from blinter.constants import MAX_LINE_LENGTH
+from blinter.logging_config import logger
 from blinter.models import LintIssue
 from blinter.parsing.context import (
     _is_blank_or_comment,
     _is_caret_escaped,
     _is_comment_line,
     _rem_remark_consumes_paren,
+    _rem_verb_owns_line,
     _split_tokens,
     caret_joins_next_physical_line,
     grouped_if_has_no_condition,
@@ -351,6 +356,8 @@ def _check_if_block_paren_next_line(lines: list[str], line_num: int) -> List[Lin
             next_index += 1
             continue
         if nxt.startswith("("):
+            if _caret_escapes_line(lines, next_index):
+                break
             return [
                 LintIssue(
                     line_number=line_num,
@@ -381,6 +388,8 @@ def _check_for_do_paren_next_line(lines: list[str], line_num: int) -> List[LintI
             next_index += 1
             continue
         if nxt.startswith("("):
+            if _caret_escapes_line(lines, next_index):
+                break
             return [
                 LintIssue(
                     line_number=line_num,
@@ -636,9 +645,17 @@ def _is_e009_special_case_exemption(stripped: str, line: str) -> bool:
     return False
 
 
-def _check_quotes(line: str, line_num: int) -> List[LintIssue]:
+def _check_quotes(
+    line: str, line_num: int, lines: List[str] | None = None
+) -> List[LintIssue]:
     """Check for mismatched quotes (E009)."""
     issues: List[LintIssue] = []
+    if (
+        lines is not None
+        and _caret_escapes_line(lines, line_num - 1)
+        and line[:1] == '"'
+    ):
+        line = "X" + line[1:]
 
     stripped = line.strip()
     if _is_comment_line(stripped):
@@ -666,25 +683,458 @@ def _check_quotes(line: str, line_num: int) -> List[LintIssue]:
     return issues
 
 
-def _check_for_loop_syntax(stripped: str, line_num: int) -> List[LintIssue]:
-    """Check for malformed FOR loop (E010)."""
-    issues: List[LintIssue] = []
-    if not re.match(r"for\s+.*", stripped, re.IGNORECASE):
-        return issues
-    lowered = stripped.lower()
-    has_do = bool(re.search(r"\bdo(?:\s|\()", lowered))
-    if has_do:
-        return issues
-    # Don't flag multiline FOR loops (those ending with opening parenthesis)
-    if not re.search(r"\(\s*$", stripped):
-        issues.append(
-            LintIssue(
-                line_number=line_num,
-                rule=RULES["E010"],
-                context="FOR loop is missing required DO keyword",
-            )
+_FOR_COMMAND_RE = re.compile(r"for\s", re.IGNORECASE)
+_FOR_DO_RE = re.compile(r"\bdo(?:\s|\()", re.IGNORECASE)
+# cmd.exe accepts ``do`` only as its own token. ``do(`` is one unexpected
+# token, and ``echo do`` after the set is not the keyword.
+_FOR_DO_TOKEN_RE = re.compile(r"do\s", re.IGNORECASE)
+_FOR_TRAILING_OPEN_RE = re.compile(r"\(\s*$")
+# The caret that joins a line escapes the next line's first character. A word
+# character is not a delimiter and does not open a block, so ``do^`` / `` echo``
+# and ``do^`` / ``(`` stay one token instead of the DO keyword.
+_ESCAPED_JOIN_MARK = "X"
+_caret_join_cache_var: ContextVar[
+    Optional[Dict[int, tuple[object, tuple[List[bool], List[bool]]]]]
+] = ContextVar("caret_join_cache", default=None)
+
+
+def _begin_caret_join_pass() -> None:
+    """Start a per-file cache of caret-continuation flags."""
+    _caret_join_cache_var.set({})
+
+
+def _continuation_body(text: str) -> str:
+    """Return ``text`` with its escaped first character made non-syntactic.
+
+    A letter stays a letter, so ``d^`` followed by ``o rem`` is still ``do rem``.
+    A separator, quote, parenthesis, or caret does not keep its syntax.
+    """
+    if text and (text[0].isspace() or text[0] in "()\"'^&|"):
+        return "X" + text[1:]
+    return text
+
+
+def _line_may_own_rem(parts: List[str], text: str) -> bool:
+    """Return True when this line could be where REM becomes the verb.
+
+    ``rem`` may be split across more than one caret, so the last two
+    characters can span earlier fragments than ``parts[-1]``.
+    """
+    if "rem" in text.lower():
+        return True
+    tail = ""
+    if parts:
+        tail = parts[-1]
+        if len(tail) < 2 and len(parts) > 1:
+            tail = parts[-2] + tail
+        tail = tail[-2:]
+    return "rem" in (tail + text[:3]).lower()
+
+
+def _joined_rem_owns(command: str, *, command_depth: int) -> bool:
+    """Return True when REM is the command verb in the joined text.
+
+    Parentheses inside a FOR set do not nest, so the DO body is whatever
+    follows the first closing ')'. ``_rem_verb_owns_line`` would keep
+    looking for a nested group and miss ``do rem``. A remark that merely
+    mentions ``in (...)`` is already REM, and that mention is not a set.
+    A quoted ``) do rem`` inside the set is a value, so the quote-aware
+    set scan decides before the remark scan.
+    """
+    if _FOR_COMMAND_RE.match(command.lstrip()) is not None:
+        return _for_command_rem_owns(command, command_depth=command_depth)
+    return _rem_verb_owns_line(command, depth_before=command_depth)
+
+
+def _for_command_rem_owns(command: str, *, command_depth: int) -> bool:
+    """Return True when a FOR command's DO body is REM."""
+    open_paren = _for_in_set_open(command)
+    if open_paren is None:
+        return _rem_verb_owns_line(command, depth_before=command_depth)
+    after_set = _for_set_end(command, open_paren)
+    if after_set is None:
+        return False
+    body = command[after_set:].lstrip()
+    return _rem_verb_owns_line(f"for %%A in (x) {body}", depth_before=command_depth)
+
+
+def _caret_line_joins(  # pylint: disable=too-many-arguments
+    line: str,
+    *,
+    depth: int,
+    in_continuation: bool,
+    parts: List[str],
+    command_depth: int,
+    joined_length: int,
+) -> bool:
+    """Return True when ``line`` joins, using the command built so far.
+
+    ``do rem`` can sit on a continued line, including when ``do`` is split as
+    ``d^`` / ``o rem``. REM is visible only in that whole command. Past
+    ``MAX_LINE_LENGTH`` the caret still joins, without rereading the command.
+    """
+    quote_aware_rem = bool(parts) or _FOR_COMMAND_RE.match(line.lstrip()) is not None
+    if not caret_joins_next_physical_line(
+        line,
+        depth_before=depth,
+        in_continuation=in_continuation,
+        skip_rem=quote_aware_rem,
+    ):
+        return False
+    if not quote_aware_rem or (parts and joined_length > MAX_LINE_LENGTH):
+        return True
+    text = line.rstrip("\r\n")
+    if not parts:
+        return not _joined_rem_owns(text, command_depth=command_depth)
+    text = _continuation_body(text)
+    if not _line_may_own_rem(parts, text):
+        return True
+    return not _joined_rem_owns("".join(parts) + text, command_depth=command_depth)
+
+
+class _JoinBoundary:  # pylint: disable=too-few-public-methods
+    """Whether the next continued line starts after ``&``, ``&&``, or ``||``."""
+
+    __slots__ = ("at_boundary", "escaped", "prev", "quote")
+
+    def __init__(self) -> None:
+        self.at_boundary = True
+        self.escaped = False
+        self.prev = ""
+        self.quote = ""
+
+    def reset(self) -> None:
+        """Start a new command."""
+        self.at_boundary = True
+        self.escaped = False
+        self.prev = ""
+        self.quote = ""
+
+    def feed(self, text: str) -> None:
+        """Account for one joined piece, without its joining caret."""
+        index = 0
+        length = len(text)
+        while index < length:
+            index = self._feed_character(text, index)
+
+    def _feed_character(self, text: str, index: int) -> int:
+        """Advance one character and return the next index."""
+        char = text[index]
+        if self.escaped:
+            return self._feed_escaped(char, index)
+        if self.quote or char in '^"':
+            return self._feed_quote_or_caret(char, index)
+        return self._feed_separator(text, index, char)
+
+    def _feed_quote_or_caret(self, char: str, index: int) -> int:
+        """Advance through a quote or a caret escape."""
+        if self.quote:
+            if char == self.quote:
+                self.quote = ""
+            return index + 1
+        if char == "^":
+            self.escaped = True
+            return index + 1
+        self.quote = '"'
+        self.prev = char
+        self.at_boundary = False
+        return index + 1
+
+    def _feed_separator(self, text: str, index: int, char: str) -> int:
+        """Advance through whitespace or a command separator."""
+        if char in " \t":
+            return index + 1
+        pair = text[index : index + 2]
+        if pair in ("&&", "||"):
+            self.prev = pair
+            self.at_boundary = True
+            return index + 2
+        if char == "|" or (char == "&" and self.prev not in "><"):
+            self.prev = char
+            self.at_boundary = True
+            return index + 1
+        self.prev = char
+        self.at_boundary = False
+        return index + 1
+
+    def _feed_escaped(self, char: str, index: int) -> int:
+        """Treat ``char`` as data escaped by the previous caret."""
+        self.escaped = False
+        self.prev = "X"
+        if char not in " \t":
+            self.at_boundary = False
+        return index + 1
+
+
+def _build_caret_join_info(lines: List[str]) -> tuple[List[bool], List[bool]]:
+    """Return join flags and which continued lines start a new command."""
+    flags: List[bool] = []
+    starts: List[bool] = []
+    boundary = _JoinBoundary()
+    continuation = False
+    parts: List[str] = []
+    command_depth = 0
+    joined_length = 0
+    for cursor, line in enumerate(lines):
+        depth = _paren_depth_before_line(lines, cursor + 1)
+        if not continuation:
+            command_depth = depth
+            joined_length = 0
+            parts.clear()
+            boundary.reset()
+        starts.append(continuation and boundary.at_boundary)
+        joins = _caret_line_joins(
+            line,
+            depth=depth,
+            in_continuation=continuation,
+            parts=parts,
+            command_depth=command_depth,
+            joined_length=joined_length,
         )
-    return issues
+        flags.append(joins)
+        body = line.rstrip("\r\n")
+        if continuation:
+            body = _continuation_body(body)
+        if joins:
+            piece = body[:-1]
+            parts.append(piece)
+            joined_length += len(piece)
+            boundary.feed(piece)
+            continuation = True
+            continue
+        continuation = False
+        parts.clear()
+    return flags, starts
+
+
+def _caret_join_info(lines: List[str]) -> tuple[List[bool], List[bool]]:
+    """Return cached join flags and command-start flags for ``lines``."""
+    cache = _caret_join_cache_var.get()
+    if cache is not None:
+        cached = cache.get(id(lines))
+        if cached is not None and cached[0] is lines:
+            return cached[1]
+    built = _build_caret_join_info(lines)
+    if cache is not None:
+        cache[id(lines)] = (lines, built)
+    return built
+
+
+def _line_joins_next(lines: List[str], index: int) -> bool:
+    """Return True when physical line ``index`` is joined onto the next one."""
+    if index < 0 or index >= len(lines):
+        return False
+    return _caret_join_info(lines)[0][index]
+
+
+def _line_starts_command(lines: List[str], index: int) -> bool:
+    """Return True when continued line ``index`` begins a new command."""
+    if index < 0 or index >= len(lines):
+        return False
+    return _caret_join_info(lines)[1][index]
+
+
+def _caret_escapes_line(lines: List[str], index: int) -> bool:
+    """Return True when a caret on the previous line escapes this line."""
+    return _line_joins_next(lines, index - 1)
+
+
+def _caret_continuation_starts_command(lines: List[str], line_num: int) -> bool:
+    """Return True when this continued line follows ``&``, ``&&``, or ``||``.
+
+    The caret still escapes the first character of the line. A separator in
+    the joined prefix means the rest is a new command, so a FOR there is
+    checked on its own. ``echo ready & ^`` then ``for %%A in (a) echo`` is
+    that FOR. ``echo ready & ^`` then `` for`` is the command `` for``.
+    ``2>&1`` is a redirection, not a separator. The answer is recorded while
+    the caret flags are built, so a long run of joined lines stays linear.
+    """
+    return _line_starts_command(lines, line_num - 1)
+
+
+def _prior_caret_joins(lines: List[str], line_num: int) -> bool:
+    """Return True when the previous physical line is joined onto this one."""
+    if line_num <= 1:
+        return False
+    return _line_joins_next(lines, line_num - 2)
+
+
+def _neutralize_escaped_continuation_character(text: str) -> str:
+    """Make the first character non-syntactic when a prior caret escaped it.
+
+    An escaped space does not separate ``DO`` from the next word. An escaped
+    parenthesis, quote, or caret does not close the IN set or escape the next
+    character. A letter is unchanged, so ``d^`` followed by ``o echo`` is
+    still the DO keyword.
+    """
+    if text and (text[0].isspace() or text[0] in '()"^'):
+        return _ESCAPED_JOIN_MARK + text[1:]
+    return text
+
+
+def _could_be_for_keyword(text: str) -> bool:
+    """Return True when ``text`` may be FOR, including ``f^`` followed by ``or``."""
+    body = text.lstrip()
+    if not body or body[0].lower() != "f":
+        return False
+    head: List[str] = []
+    for char in body:
+        if char.isspace() or char == "^":
+            break
+        head.append(char)
+        if len(head) > 3:
+            return False
+    word = "".join(head).lower()
+    return word != "" and "for".startswith(word)
+
+
+def _caret_joined_for_command(lines: List[str], line_num: int) -> Optional[str]:
+    """Return the FOR command cmd reads starting at this line.
+
+    None means this physical line continues the previous caret, so it is not
+    its own command. A line after ``&``, ``&&``, ``||``, or ``|`` is its own
+    command. The caret still escapes that line's first character. Only the
+    caret that escapes the newline is removed. A caret inside an open quote
+    or a REM remark does not join.
+    """
+    if line_num < 1 or line_num > len(lines):
+        logger.debug("E010 caret join ignored out-of-range line %s", line_num)
+        return None
+    escape_next = False
+    if _prior_caret_joins(lines, line_num):
+        if not _caret_continuation_starts_command(lines, line_num):
+            return None
+        escape_next = True
+    head = lines[line_num - 1].rstrip("\r\n")
+    if escape_next:
+        head = _neutralize_escaped_continuation_character(head)
+    if not _could_be_for_keyword(head):
+        return None
+    parts: List[str] = []
+    index = line_num - 1
+    while index < len(lines):
+        if index > line_num - 1 and _line_starts_command(lines, index):
+            break
+        text = lines[index].rstrip("\r\n")
+        if escape_next:
+            text = _neutralize_escaped_continuation_character(text)
+        if _line_joins_next(lines, index):
+            parts.append(text[:-1])
+            logger.debug("E010 caret joins line %s onto the next line", index + 1)
+            escape_next = True
+            index += 1
+            continue
+        parts.append(text)
+        break
+    return "".join(parts).strip()
+
+
+def _step_inside_set_quote(command: str, index: int, quote: str) -> tuple[int, str]:
+    """Advance one character inside a set quote."""
+    if quote == '"' and command[index] == '"':
+        if index + 1 < len(command) and command[index + 1] == '"':
+            return index + 2, quote
+        return index + 1, ""
+    if command[index] == quote:
+        return index + 1, ""
+    return index + 1, quote
+
+
+def _for_set_end(command: str, open_paren: int) -> Optional[int]:
+    """Return the index after the ')' that closes the IN set.
+
+    The first unescaped ')' closes the set. ``(`` does not nest. An apostrophe
+    or backtick is a character, including at the start of a classic set and
+    inside a FOR /F command string. Double quotes hide ')', so ``"a)b"`` and
+    ``"a""b)c"`` stay one value.
+    """
+    quote = ""
+    index = open_paren + 1
+    length = len(command)
+    while index < length:
+        if quote:
+            index, quote = _step_inside_set_quote(command, index, quote)
+            continue
+        if command[index] == "^" and index + 1 < length:
+            index += 2
+            continue
+        if command[index] == '"':
+            quote = '"'
+            index += 1
+            continue
+        if command[index] == ")":
+            return index + 1
+        index += 1
+    return None
+
+
+def _for_set_is_open(command: str) -> bool:
+    """Return True when the FOR IN set has no closing parenthesis yet."""
+    open_paren = _for_in_set_open(command)
+    if open_paren is None:
+        return False
+    return _for_set_end(command, open_paren) is None
+
+
+def _for_loop_has_do(command: str) -> bool:
+    """Return True when DO follows the IN set.
+
+    ``do`` inside the set is a value. ``for %%A in (do this) echo %%A`` has
+    no DO keyword. A set that is still open has not reached DO yet.
+    """
+    open_paren = _for_in_set_open(command)
+    if open_paren is None:
+        return _FOR_DO_RE.search(command) is not None
+    after_set = _for_set_end(command, open_paren)
+    if after_set is None:
+        return False
+    return _FOR_DO_TOKEN_RE.match(command[after_set:].lstrip()) is not None
+
+
+def _check_for_loop_syntax(
+    stripped: str,
+    line_num: int,
+    lines: List[str] | None = None,
+) -> List[LintIssue]:
+    """Check for malformed FOR loop (E010).
+
+    A line that ends in an odd caret is one command with the following
+    physical lines. DO on one of those lines is present. A line that only
+    continues an earlier caret is not checked again.
+    """
+    command = stripped
+    if lines is not None:
+        joined = _caret_joined_for_command(lines, line_num)
+        if joined is None:
+            if _FOR_COMMAND_RE.match(stripped):
+                logger.debug(
+                    "E010 skipped on line %s; it continues a caret-joined command",
+                    line_num,
+                )
+            return []
+        command = joined
+    if _FOR_COMMAND_RE.match(command) is None:
+        return []
+    if _for_loop_has_do(command):
+        if not _for_loop_has_do(stripped):
+            logger.debug(
+                "E010 skipped; FOR at line %s has DO after caret joining: %s",
+                line_num,
+                command,
+            )
+        return []
+    # ``for %%A in (`` continues on later lines without a caret. ``for %%A
+    # in (a) (`` already closed the set and is still missing DO.
+    if _for_set_is_open(command) and _FOR_TRAILING_OPEN_RE.search(command):
+        return []
+    logger.debug("E010 FOR at line %s is missing DO: %s", line_num, command)
+    return [
+        LintIssue(
+            line_number=line_num,
+            rule=RULES["E010"],
+            context="FOR loop is missing required DO keyword",
+        )
+    ]
 
 
 def _has_indirect_bang_expansion(stripped: str) -> bool:
@@ -1217,8 +1667,8 @@ def _check_syntax_errors(
     issues.extend(_check_errorlevel_syntax(stripped, line_num))
     issues.extend(_check_if_exist_mixing(stripped, line_num))
     issues.extend(_check_path_syntax(stripped, line_num))
-    issues.extend(_check_quotes(line, line_num))
-    issues.extend(_check_for_loop_syntax(stripped, line_num))
+    issues.extend(_check_quotes(line, line_num, lines))
+    issues.extend(_check_for_loop_syntax(stripped, line_num, lines))
     issues.extend(
         _check_variable_expansion(
             stripped,

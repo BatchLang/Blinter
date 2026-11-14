@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "description": "The DO keyword itself may be split by a caret (E010 negative)",
+  "lines": {},
+  "must_not": [
+    "E010"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "config": {},
+  "description": "do inside the IN set is a value, so the FOR is still missing DO",
+  "lines": {
+    "2": [
+      "E010"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "E010"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}

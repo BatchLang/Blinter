@@ -1,0 +1,13 @@
+{
+  "config": {},
+  "description": "An indented ( after do echo is echo text, not a block parenthesis",
+  "lines": {},
+  "must_not": [
+    "E001",
+    "E040"
+  ],
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

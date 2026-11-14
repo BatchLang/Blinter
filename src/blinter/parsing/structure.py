@@ -1,5 +1,7 @@
 """Label collection, script structure, and subroutine detection."""
 
+# pylint: disable=too-many-lines
+
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 import re
@@ -21,6 +23,7 @@ from blinter.parsing.context import (
     _is_blank_or_comment,
     _is_endlocal_command,
     _is_setlocal_command,
+    _rem_verb_owns_line,
     _split_command_separators,
     _split_pipe_stages,
     _split_tokens,
@@ -378,6 +381,9 @@ def _parse_suppression_comments(lines: List[str]) -> Dict[int, Set[str]]:
 _CacheValueT = TypeVar("_CacheValueT")
 
 _PAREN_BLOCK_KEYWORDS = frozenset({"do", "in", "else", "if"})
+_DO_ELSE_RE = re.compile(r"\b(?:do|else)\b", re.IGNORECASE)
+# Escaped by a joining caret. A leading space is kept, so ``if^`` / `` 1==1 (`` holds.
+_ESCAPED_JOIN_SYNTAX = frozenset('()"^')
 
 _paren_depth_cache_var: ContextVar[Optional[Dict[int, tuple[object, List[int]]]]] = (
     ContextVar("paren_depth_cache", default=None)
@@ -493,12 +499,28 @@ def _first_command_token(command: str) -> str:
     return body.split(None, 1)[0].lower()
 
 
+def _do_or_else_already_has_command(command: str) -> bool:
+    """Return True when DO or ELSE already started ECHO or REM."""
+    match: Optional[re.Match[str]] = None
+    for found in _DO_ELSE_RE.finditer(command):
+        match = found
+    if match is None:
+        return False
+    tail = command[match.end() :].strip()
+    if not tail:
+        return False
+    return tail.split(None, 1)[0].lower() in {"echo", "rem"}
+
+
 def _paren_opens_block(command: str) -> bool:
     """Return True when '(' opens an IF, FOR, ELSE, or command group."""
     if _first_command_token(command) == "echo":
         return False
     if not command.strip():
         return True
+    # ``do echo (`` is an argument of echo. ``do (`` and ``else if`` still open.
+    if _do_or_else_already_has_command(command):
+        return False
     tokens = {token.lower() for token in command.split()}
     return bool(tokens & _PAREN_BLOCK_KEYWORDS)
 
@@ -606,26 +628,84 @@ def _update_paren_depth(line: str, current_depth: int) -> int:
     return current_depth + _block_paren_delta(line)
 
 
+def _for_body_is_rem(text: str) -> bool:
+    """Return True when the DO body of a joined FOR is REM."""
+    open_paren = text.find("(")
+    if open_paren < 0:
+        return False
+    quote = ""
+    index = open_paren + 1
+    length = len(text)
+    while index < length:
+        char = text[index]
+        if quote:
+            if char == '"':
+                quote = ""
+            index += 1
+            continue
+        if char == "^" and index + 1 < length:
+            index += 2
+            continue
+        if char == '"':
+            quote = '"'
+            index += 1
+            continue
+        if char == ")":
+            return _rem_verb_owns_line(
+                f"for %%A in (x) {text[index + 1 :]}", depth_before=0
+            )
+        index += 1
+    return False
+
+
+def _joined_remark_stops(text: str, *, depth_before: int) -> bool:
+    """Return True when joined text is REM, so its caret does not continue."""
+    body = text.lstrip().lstrip("@").lstrip()
+    is_for = len(body) >= 3 and body[:3].lower() == "for"
+    if is_for and (len(body) == 3 or body[3].isspace() or body[3] == "("):
+        return _for_body_is_rem(text)
+    return _rem_verb_owns_line(text, depth_before=depth_before)
+
+
 def _paren_depth_deltas(lines: List[str]) -> List[int]:
     """Return the IF/FOR/group parenthesis change of each physical line.
 
-    cmd.exe reads a caret-joined run of lines as one line, so a quote or a
-    ``(`` still open at the end of one line carries into the next. Whitespace
-    between those physical lines stays in the command: ``if^`` followed by
-    `` 1==1 (`` is ``if 1==1 (``. One state covers at most ``MAX_LINE_LENGTH``
-    characters, more than cmd.exe accepts on one line: a line that would pass
-    that limit starts a new state. This bounds the cost of a long run.
+    A caret-joined run is one command. A space after ``if^`` stays, and
+    ``( ) " ^`` at the start of the next line are escaped.
     """
     deltas: List[int] = []
     depth = 0
     run_length = 0
     scan: Optional[_ParenScan] = None
     remark_joins = False
+    joined = False
+    prefix = ""
     for line in lines:
         body = line.rstrip("\r\n")
+        if joined and body[:1] in _ESCAPED_JOIN_SYNTAX:
+            body = "X" + body[1:]
         if _skip_paren_line(body, scan=scan, remark_joins=remark_joins):
             deltas.append(0)
-            remark_joins = caret_joins_next_physical_line(line, depth_before=depth)
+            remark_joins = caret_joins_next_physical_line(
+                line, depth_before=depth, in_continuation=remark_joins
+            )
+            joined = False
+            prefix = ""
+            continue
+        if (
+            joined
+            and scan is not None
+            and not scan.command_has_text
+            and _is_paren_comment_line(body.strip())
+        ):
+            deltas.append(0)
+            continues = caret_joins_next_physical_line(
+                line, depth_before=depth, in_continuation=joined
+            )
+            if not continues:
+                scan = None
+                prefix = ""
+            joined = continues
             continue
         remark_joins = False
         if scan is None or run_length + len(body) > MAX_LINE_LENGTH:
@@ -634,8 +714,21 @@ def _paren_depth_deltas(lines: List[str]) -> List[int]:
         run_length += len(body)
         delta = _block_paren_delta(body, scan)
         deltas.append(delta)
-        if not caret_joins_next_physical_line(line, depth_before=depth):
+        continues = caret_joins_next_physical_line(
+            line, depth_before=depth, in_continuation=joined
+        )
+        if not continues:
+            prefix = ""
             scan = None
+        elif len(prefix) <= MAX_LINE_LENGTH:
+            owned = prefix + (body[:-1] if body.endswith("^") else body)
+            if _joined_remark_stops(owned, depth_before=depth):
+                continues = False
+                prefix = ""
+                scan = None
+            else:
+                prefix = owned
+        joined = continues
         depth = max(depth + delta, 0)
     return deltas
 

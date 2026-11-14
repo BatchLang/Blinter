@@ -1,0 +1,16 @@
+{
+  "config": {},
+  "description": "A caret-joined FOR whose set is closed and whose next token is ( is still missing DO",
+  "lines": {
+    "2": [
+      "E010"
+    ]
+  },
+  "must_not": [],
+  "rules": [
+    "E010"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}

@@ -86,24 +86,23 @@ def _expansion_in_key(key: str) -> bool:
     return "%" in key or "!" in key
 
 
-def caret_joins_next_physical_line(line: str, *, depth_before: int = 0) -> bool:
-    """Return True when an odd trailing caret joins this line to the next.
-
-    A caret inside an unclosed double quote does not join: the quote ends at
-    the physical line, and the next line is its own command. A caret inside a
-    REM remark does not join, including ``echo hi & rem note ^``. ``rem)``
-    is that remark only when the ``)`` closes a group already open;
-    otherwise the caret still joins. ``echo rem note ^`` still joins, because
-    that ``rem`` is data. A label or ``::`` line that ends in an odd caret
-    does join, and the next physical lines are part of that label or remark.
-    """
+def caret_joins_next_physical_line(
+    line: str,
+    *,
+    depth_before: int = 0,
+    in_continuation: bool = False,
+    skip_rem: bool = False,
+) -> bool:
+    """Return True when an odd trailing caret joins this line to the next."""
     text = line.rstrip("\r\n")
+    if in_continuation and text:
+        text = "X" + text[1:]
     if (len(text) - len(text.rstrip("^"))) % 2 != 1:
         return False
     if _double_quote_open_at_end(text):
         logger.debug("Caret inside an open quote does not continue: %s", text.strip())
         return False
-    if _rem_verb_owns_line(text, depth_before=depth_before):
+    if not skip_rem and _rem_verb_owns_line(text, depth_before=depth_before):
         logger.debug("REM remark does not continue the line: %s", text.strip())
         return False
     return True

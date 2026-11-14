@@ -170,6 +170,27 @@ def test_benchmark_baseline_uses_the_runpy_launch() -> None:
     )
 
 
+def test_child_env_drops_force_color_when_no_color_is_set(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """NO_COLOR wins, so a non-empty FORCE_COLOR does not reach pylint."""
+    monkeypatch.setenv("NO_COLOR", "1")
+    monkeypatch.setenv("FORCE_COLOR", "0")
+    env = _child_env()
+    assert env["NO_COLOR"] == "1"
+    assert "FORCE_COLOR" not in env
+
+
+def test_child_env_keeps_force_color_when_no_color_is_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """FORCE_COLOR stays when NO_COLOR is not set."""
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.setenv("FORCE_COLOR", "1")
+    env = _child_env()
+    assert env["FORCE_COLOR"] == "1"
+
+
 def test_child_python_tools_use_utf8(monkeypatch: pytest.MonkeyPatch) -> None:
     """Child Python tools use UTF-8 even when the parent console code page cannot."""
     monkeypatch.setenv("PYTHONUTF8", "0")
