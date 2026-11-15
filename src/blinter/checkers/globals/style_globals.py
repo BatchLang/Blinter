@@ -12,10 +12,12 @@ from typing import (
     Tuple,
 )
 
+from blinter.checkers.globals.label_flow import _continuation_mask
 from blinter.checkers.performance import (
     _exist_filename,
     _line_repeats_exist,
 )
+from blinter.logging_config import logger
 from blinter.models import LintIssue
 from blinter.parsing.command_scan import _collect_cmd_cases
 from blinter.parsing.context import _is_blank_or_comment, _is_comment_line
@@ -128,10 +130,27 @@ def _is_interactive_set_prompt(line: str) -> bool:
     return not re.search(r"set\s+/p\s+\S+\s*=<", line, re.IGNORECASE)
 
 
+def _executable_lines(lines: List[str]) -> List[str]:
+    """Return the lines that can name a command, without REM and :: remarks.
+
+    A line that a caret joined onto the previous command is not the start of a
+    command, so a leading ``rem`` or ``::`` there is an argument of that
+    command and anything after ``&`` still runs. Those lines stay in.
+    """
+    continued = _continuation_mask(lines)
+    code_lines: List[str] = []
+    for line, joined in zip(lines, continued):
+        if joined or not _is_comment_line(line):
+            code_lines.append(line)
+        else:
+            logger.debug("W014 ignores the remark: %s", line.strip())
+    return code_lines
+
+
 def _check_missing_pause(lines: List[str]) -> List[LintIssue]:
     """Check for missing PAUSE in interactive scripts (W014)."""
     issues: List[LintIssue] = []
-    code_lines = [line for line in lines if not _is_comment_line(line)]
+    code_lines = _executable_lines(lines)
 
     has_user_input = any(
         _is_interactive_set_prompt(line) or re.search(r"choice\s+", line, re.IGNORECASE)

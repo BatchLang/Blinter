@@ -815,6 +815,53 @@ class TestGlobalFunctionChecking:
         issues = _check_missing_pause(lines)
         assert len(issues) == 0
 
+    @pytest.mark.parametrize("remark", ["rem text & pause", ":: text & pause"])
+    def test_check_missing_pause_keeps_pause_on_caret_continued_remark(
+        self, remark: str
+    ) -> None:
+        """A caret joins the REM or :: line to ECHO, so the pause after & runs."""
+        lines = [
+            "set /p answer=Continue?",
+            "echo note ^",
+            remark,
+            "echo Done",
+        ]
+
+        assert not _check_missing_pause(lines)
+
+    def test_check_missing_pause_ignores_pause_in_leading_remarks(self) -> None:
+        """REM and :: lines that open a command are remarks, not a pause."""
+        lines = [
+            "set /p answer=Continue?",
+            "rem pause is not used here.",
+            ":: timeout /t 5 is not used either.",
+            "echo Done",
+        ]
+
+        issues = _check_missing_pause(lines)
+        assert [issue.rule.code for issue in issues] == ["W014"]
+        assert issues[0].line_number == 4
+
+    def test_check_missing_pause_ignores_set_p_in_leading_remarks(self) -> None:
+        """A remark that names set /p or choice is not a prompt."""
+        lines = [
+            "rem set /p answer=Continue?",
+            ":: choice /c yn",
+            "echo Done",
+        ]
+
+        assert not _check_missing_pause(lines)
+
+    def test_check_missing_pause_rem_caret_does_not_join_next_line(self) -> None:
+        """A caret ending a REM remark does not continue it, so the next line is code."""
+        remark_then_prompt = ["rem note ^", "set /p answer=Continue?", "echo Done"]
+        remark_naming_prompt = ["rem set /p answer=Continue? ^", "echo Done"]
+
+        assert [i.rule.code for i in _check_missing_pause(remark_then_prompt)] == [
+            "W014"
+        ]
+        assert not _check_missing_pause(remark_naming_prompt)
+
     def test_check_inconsistent_indentation_block_style(self) -> None:
         """Tab plus single space before commands is standard block indentation."""
         lines = [
