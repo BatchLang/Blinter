@@ -1,0 +1,19 @@
+{
+  "config": {},
+  "description": "a > that a caret escapes on a joined line is text, so the REM after it is an argument and its pause runs",
+  "lines": {
+    "6": [
+      "W001"
+    ]
+  },
+  "must_not": [
+    "W014"
+  ],
+  "oracle": "skip",
+  "rules": [
+    "W001"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}

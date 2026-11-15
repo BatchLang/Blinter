@@ -304,6 +304,17 @@ def _continuation_body(text: str) -> str:
     return text
 
 
+def _escaped_leading_redirection(text: str) -> str:
+    """Return ``text`` with a leading ``<`` or ``>`` made ordinary text.
+
+    The caret that joined the line escapes its first character, so ``>nul``
+    there is a word, not a redirection.
+    """
+    if text[:1] in ("<", ">"):
+        return "X" + text[1:]
+    return text
+
+
 def _continued_line_starts_command(
     lines: List[str], index: int, continued: List[bool]
 ) -> bool:
@@ -326,7 +337,7 @@ def _continued_line_starts_command(
     while cursor >= 0:
         text = lines[cursor].rstrip("\r\n")
         if continued[cursor]:
-            text = _continuation_body(text)
+            text = _escaped_leading_redirection(_continuation_body(text))
         total += len(text) - 1
         if total > MAX_LINE_LENGTH:
             logger.debug("Joined command is too long to reread at line %d", index + 1)

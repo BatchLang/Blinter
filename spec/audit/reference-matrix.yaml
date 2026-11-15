@@ -850,6 +850,7 @@ entries:
   - syntax/w014-pause-in-continued-remark-valid
   - syntax/w014-pause-in-indented-continued-remark-valid
   - syntax/w014-pause-in-remark-after-backtick-text
+  - syntax/w014-pause-in-remark-after-escaped-redirection-valid
   - syntax/w014-pause-in-remark-after-escaped-separator-valid
   - syntax/w014-pause-in-remark-after-redirection
   - syntax/w014-pause-in-remark-after-separator
