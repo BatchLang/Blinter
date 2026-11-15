@@ -829,6 +829,62 @@ class TestGlobalFunctionChecking:
 
         assert not _check_missing_pause(lines)
 
+    @pytest.mark.parametrize("separator", ["&", "&&", "||"])
+    @pytest.mark.parametrize("remark", ["rem pause", ":: timeout /t 5"])
+    def test_check_missing_pause_ignores_remark_joined_after_separator(
+        self, separator: str, remark: str
+    ) -> None:
+        """A REM or :: line a caret joined after a separator is a real remark."""
+        lines = [
+            "set /p answer=Continue?",
+            f"echo note {separator} ^",
+            remark,
+            "echo Done",
+        ]
+
+        issues = _check_missing_pause(lines)
+        assert [issue.rule.code for issue in issues] == ["W014"]
+
+    def test_check_missing_pause_keeps_indented_line_joined_after_separator(
+        self,
+    ) -> None:
+        """The caret escapes a leading space, so that line is not a REM command."""
+        lines = [
+            "set /p answer=Continue?",
+            "echo note & ^",
+            "  rem & pause",
+            "echo Done",
+        ]
+
+        assert not _check_missing_pause(lines)
+
+    def test_check_missing_pause_keeps_escaped_separator_in_joined_text(self) -> None:
+        """An ampersand a caret escapes on a joined line does not end the command."""
+        lines = [
+            "set /p answer=Continue?",
+            "echo note ^",
+            "& ^",
+            "rem & pause",
+            "echo Done",
+        ]
+
+        assert not _check_missing_pause(lines)
+
+    def test_check_missing_pause_remark_after_separator_in_long_chain(self) -> None:
+        """A joined command past the line limit is not reread and stays code."""
+        filler = "echo " + "x" * 4000 + " ^"
+        lines = [
+            "set /p answer=Continue?",
+            "echo note & ^",
+            filler,
+            filler,
+            filler,
+            "rem pause",
+            "echo Done",
+        ]
+
+        assert not _check_missing_pause(lines)
+
     def test_check_missing_pause_ignores_pause_in_leading_remarks(self) -> None:
         """REM and :: lines that open a command are remarks, not a pause."""
         lines = [

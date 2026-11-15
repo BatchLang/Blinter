@@ -3,6 +3,7 @@
 import re
 from typing import Dict, List, Optional
 
+from blinter.constants import MAX_LINE_LENGTH
 from blinter.logging_config import logger
 from blinter.models import LintIssue
 from blinter.parsing.context import (
@@ -288,6 +289,49 @@ def _continuation_mask(lines: List[str]) -> List[bool]:
             line, depth_before=depths[index] if index < len(depths) else 0
         )
     return mask
+
+
+def _continuation_body(text: str) -> str:
+    """Return ``text`` with its escaped first character made non-syntactic.
+
+    A letter stays a letter, so ``d^`` followed by ``o rem`` is still ``do rem``.
+    A separator, quote, parenthesis, or caret does not keep its syntax.
+    """
+    if text and (text[0].isspace() or text[0] in "()\"'^&|"):
+        return "X" + text[1:]
+    return text
+
+
+def _continued_line_starts_command(
+    lines: List[str], index: int, continued: List[bool]
+) -> bool:
+    """Return True when a caret-joined line begins a new command.
+
+    That is the case when the joined text before it ends in ``&``, ``&&``, or
+    ``||``: ``echo hi & ^`` followed by ``rem pause`` is a real remark. A line that opens with a space or tab does not begin one, because
+    the caret escapes that character and it becomes part of the command name.
+    Joined text past ``MAX_LINE_LENGTH`` is not reread, so a long caret chain
+    stays linear and the line is treated as a continuation.
+    """
+    if not continued[index] or lines[index][:1] in {" ", "\t"}:
+        return False
+    pieces: List[str] = []
+    total = 0
+    cursor = index - 1
+    while cursor >= 0:
+        text = lines[cursor].rstrip("\r\n")
+        if continued[cursor]:
+            text = _continuation_body(text)
+        total += len(text) - 1
+        if total > MAX_LINE_LENGTH:
+            logger.debug("Joined command is too long to reread at line %d", index + 1)
+            return False
+        pieces.append(text[:-1])
+        if not continued[cursor]:
+            break
+        cursor -= 1
+    prefix = "".join(reversed(pieces))
+    return not _command_chain(prefix)[-1][1].strip()
 
 
 def _label_restarts_path(

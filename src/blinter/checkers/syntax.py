@@ -12,7 +12,7 @@ from typing import (
 )
 
 from blinter.checkers.cmd_extended import check_extended_syntax_line
-from blinter.checkers.globals.label_flow import _for_in_set_open
+from blinter.checkers.globals.label_flow import _continuation_body, _for_in_set_open
 from blinter.checkers.warnings import (
     _strip_double_quoted_strings,
 )
@@ -701,17 +701,6 @@ _caret_join_cache_var: ContextVar[
 def _begin_caret_join_pass() -> None:
     """Start a per-file cache of caret-continuation flags."""
     _caret_join_cache_var.set({})
-
-
-def _continuation_body(text: str) -> str:
-    """Return ``text`` with its escaped first character made non-syntactic.
-
-    A letter stays a letter, so ``d^`` followed by ``o rem`` is still ``do rem``.
-    A separator, quote, parenthesis, or caret does not keep its syntax.
-    """
-    if text and (text[0].isspace() or text[0] in "()\"'^&|"):
-        return "X" + text[1:]
-    return text
 
 
 def _line_may_own_rem(parts: List[str], text: str) -> bool:

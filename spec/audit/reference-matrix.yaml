@@ -847,6 +847,7 @@ entries:
   - syntax/w014-setp-from-file-valid
   - syntax/w014-pause-in-comment
   - syntax/w014-pause-in-continued-remark-valid
+  - syntax/w014-pause-in-remark-after-separator
   - syntax/w014-prompt-in-comment-valid
   - syntax/w026-inefficient-modifiers
   - syntax/w027-interpreter-diff

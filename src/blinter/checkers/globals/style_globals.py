@@ -12,7 +12,10 @@ from typing import (
     Tuple,
 )
 
-from blinter.checkers.globals.label_flow import _continuation_mask
+from blinter.checkers.globals.label_flow import (
+    _continuation_mask,
+    _continued_line_starts_command,
+)
 from blinter.checkers.performance import (
     _exist_filename,
     _line_repeats_exist,
@@ -133,17 +136,23 @@ def _is_interactive_set_prompt(line: str) -> bool:
 def _executable_lines(lines: List[str]) -> List[str]:
     """Return the lines that can name a command, without REM and :: remarks.
 
-    A line that a caret joined onto the previous command is not the start of a
-    command, so a leading ``rem`` or ``::`` there is an argument of that
-    command and anything after ``&`` still runs. Those lines stay in.
+    A line that a caret joined into the middle of a command is not the start
+    of one, so a leading ``rem`` or ``::`` there is an argument of that
+    command and anything after ``&`` still runs. Those lines stay in. A line
+    joined after ``&``, ``&&``, or ``||`` starts a new command, so a leading
+    ``rem`` or ``::`` there is a remark like any other.
     """
     continued = _continuation_mask(lines)
     code_lines: List[str] = []
-    for line, joined in zip(lines, continued):
-        if joined or not _is_comment_line(line):
-            code_lines.append(line)
-        else:
+    for index, line in enumerate(lines):
+        is_remark = _is_comment_line(line) and (
+            not continued[index]
+            or _continued_line_starts_command(lines, index, continued)
+        )
+        if is_remark:
             logger.debug("W014 ignores the remark: %s", line.strip())
+        else:
+            code_lines.append(line)
     return code_lines
 
 
