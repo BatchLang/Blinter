@@ -4,10 +4,16 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ## [Unreleased]
 
+## [1.1.73] - 2026-11-15
+
 ### Fixed
 
 - P001 and P017 no longer count a `del` or `erase` of a path as removing it before a later `IF EXIST` check whose path ends in `\`, such as `if exist out\` after `del /q out`. That check is true only for a folder, which `del` and `erase` leave in place
 - P001 and P017 count a `del` or `erase` between a plain `IF EXIST` and a later `IF EXIST` whose path ends in `\`, such as `if exist out` then `del /q out` then `if exist out\`. The two checks can differ, so the later one is not a repeat
+
+### Changed
+
+- The MegaLinter install pin is 1.1.73
 
 ## [1.1.72] - 2026-11-14
 
@@ -818,6 +824,7 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 Older 1.0.x releases are available on the [GitHub Releases](https://github.com/BatchLang/Blinter/releases) page.
 
+[1.1.73]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.73
 [1.1.72]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.72
 [1.1.71]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.71
 [1.1.70]: https://github.com/BatchLang/Blinter/releases/tag/v1.1.70
