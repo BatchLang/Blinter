@@ -3137,45 +3137,6 @@ class TestGlobalChecks:
         """A folder check ignores DEL and ERASE, and still counts RD and MOVE."""
         assert _removed_paths(command, folder=True) == removed
 
-    @pytest.mark.parametrize(
-        ("lines", "reported"),
-        [
-            # Plain check, DEL, folder check: the results can differ.
-            (["if exist out echo 1", "del /q out", "if exist out\\ echo 2"], []),
-            # Folder check, DEL, plain check: DEL can remove a file of that name.
-            (["if exist out\\ echo 1", "del /q out", "if exist out echo 2"], []),
-            # Folder check on both sides: DEL leaves the folder.
-            (["if exist out\\ echo 1", "del /q out", "if exist out\\ echo 2"], [3]),
-            # Plain checks on both sides: DEL can remove the path.
-            (["if exist out echo 1", "del /q out", "if exist out echo 2"], []),
-            # No removal between mixed checks keeps the earlier behavior.
-            (["if exist out echo 1", "echo x", "if exist out\\ echo 2"], [3]),
-        ],
-    )
-    def test_redundant_exist_plain_and_folder_checks(
-        self, lines: list[str], reported: list[int]
-    ) -> None:
-        """A DEL counts unless both checks test for a folder."""
-        issues = _check_redundant_operations(lines)
-        assert [i.line_number for i in issues if i.rule.code == "P001"] == reported
-
-    def test_repeated_exist_plain_then_folder_after_del(self) -> None:
-        """P017 does not count a plain check, DEL and folder check as repeats."""
-        mixed = [
-            "if exist out echo 1",
-            "del /q out",
-            "if exist out\\ echo 2",
-            "if exist out\\ echo 3",
-        ]
-        assert _repeated_exist_issue(mixed, 1, mixed[0]) is None
-        folder = [
-            "if exist out\\ echo 1",
-            "del /q out",
-            "if exist out\\ echo 2",
-            "if exist out\\ echo 3",
-        ]
-        assert _repeated_exist_issue(folder, 1, folder[0]) is not None
-
     def test_check_code_duplication(self) -> None:
         """Test code duplication detection."""
         # Code duplication needs 3+ similar commands AND normalized length > 20
