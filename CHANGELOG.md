@@ -6,7 +6,9 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ### Fixed
 
-- W014 no longer counts `set /p`, `choice`, `pause` or `timeout /t` on a line that `REM` or `::` opens, except a line that a caret joined into the middle of a command, where `rem` or `::` is an argument and a `pause` after `&` still runs. A `rem` or `::` line that a caret joined after `&`, `&&` or `||` is a remark like any other
+- W014 no longer counts `set /p`, `choice`, `pause` or `timeout /t` on a line that `REM` or `::` opens
+- W014 still counts a `rem` or `::` line that a caret joined into the middle of a command: it is an argument of that command, and a `pause` after `&` on it runs
+- W014 treats a `rem` or `::` line that a caret joined after `&`, `&&` or `||`, with at most a redirection before it, as a remark. A line that begins with a space or tab is not one, because the caret escapes that character and the line is not a `REM` command
 
 ## [1.1.73] - 2026-11-15
 

@@ -1,0 +1,19 @@
+{
+  "config": {},
+  "description": "a redirection before a joined REM line does not make it a command, so its pause does not count",
+  "lines": {
+    "5": [
+      "W001",
+      "W014"
+    ]
+  },
+  "must_not": [],
+  "oracle": "skip",
+  "rules": [
+    "W001",
+    "W014"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}

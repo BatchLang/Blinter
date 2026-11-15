@@ -837,13 +837,21 @@ class TestGlobalFunctionChecking:
 
     def test_continued_line_boundary_stops_rereading_past_line_limit(self) -> None:
         """Joined text past the line limit is not reread, so the line stays code."""
-        filler = "echo " + "x" * (MAX_LINE_LENGTH // 2) + " ^"
-        lines = ["echo note & ^", filler, filler, filler, "rem pause"]
+        filler = "echo " + "x" * (MAX_LINE_LENGTH // 2)
+        lines = [
+            "echo note ^",
+            f"{filler} ^",
+            f"{filler} ^",
+            f"{filler} & ^",
+            "rem pause",
+        ]
         mask = _continuation_mask(lines)
         last = len(lines) - 1
 
         assert mask[last]
         assert not _continued_line_starts_command(lines, last, mask)
+        with patch("blinter.checkers.globals.label_flow.MAX_LINE_LENGTH", 10**9):
+            assert _continued_line_starts_command(lines, last, mask)
 
     def test_continued_line_boundary_reads_a_backtick_as_text_without_for(
         self,

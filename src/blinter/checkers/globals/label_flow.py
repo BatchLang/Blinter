@@ -15,6 +15,7 @@ from blinter.parsing.context import (
     _is_blank_or_comment,
     _is_comment_line,
     _is_comment_or_label,
+    _skip_redirect,
     _split_pipe_stages,
     _split_tokens,
     caret_joins_next_physical_line,
@@ -309,7 +310,8 @@ def _continued_line_starts_command(
     """Return True when a caret-joined line begins a new command.
 
     That is the case when the joined text before it ends in ``&``, ``&&``, or
-    ``||``: ``echo hi & ^`` followed by ``rem pause`` is a real remark. A line that opens with a space or tab does not begin one, because
+    ``||``, with at most redirections after it: ``echo hi & ^`` followed by
+    ``rem pause`` is a real remark. A line that opens with a space or tab does not begin one, because
     the caret escapes that character and it becomes part of the command name.
     Joined text past ``MAX_LINE_LENGTH`` is not reread, so a long caret chain
     stays linear and the line is treated as a continuation. A backtick quotes
@@ -336,7 +338,25 @@ def _continued_line_starts_command(
     prefix = "".join(reversed(pieces))
     if "`" in prefix and _FOR_WORD_RE.search(prefix) is None:
         prefix = prefix.replace("`", "X")
-    return not _command_chain(prefix)[-1][1].strip()
+    return _only_redirections(_command_chain(prefix)[-1][1])
+
+
+def _only_redirections(text: str) -> bool:
+    """Return True when ``text`` is empty or only redirections such as ``>nul``.
+
+    A redirection may come before the command word, so ``>nul rem pause`` is
+    still a REM command.
+    """
+    index = 0
+    while index < len(text):
+        if text[index] in " \t":
+            index += 1
+            continue
+        after = _skip_redirect(text, index)
+        if after == index:
+            return False
+        index = after
+    return True
 
 
 def _label_restarts_path(

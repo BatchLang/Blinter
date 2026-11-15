@@ -851,6 +851,7 @@ entries:
   - syntax/w014-pause-in-indented-continued-remark-valid
   - syntax/w014-pause-in-remark-after-backtick-text
   - syntax/w014-pause-in-remark-after-escaped-separator-valid
+  - syntax/w014-pause-in-remark-after-redirection
   - syntax/w014-pause-in-remark-after-separator
   - syntax/w014-pause-in-remarks-after-and-or
   - syntax/w014-prompt-in-comment-valid
