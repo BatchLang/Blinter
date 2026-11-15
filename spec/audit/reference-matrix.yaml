@@ -845,6 +845,8 @@ entries:
   - syntax/w010-architecture-specific
   - integration/w014-missing-pause
   - syntax/w014-setp-from-file-valid
+  - syntax/w014-pause-in-comment
+  - syntax/w014-prompt-in-comment-valid
   - syntax/w026-inefficient-modifiers
   - syntax/w027-interpreter-diff
   - integration/w028-bat-errorlevel-ext
