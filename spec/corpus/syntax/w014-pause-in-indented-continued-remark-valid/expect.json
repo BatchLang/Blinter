@@ -1,0 +1,19 @@
+{
+  "config": {},
+  "description": "the caret escapes the leading space of a line joined after &, so that line is not a REM command and its pause runs",
+  "lines": {
+    "5": [
+      "W001"
+    ]
+  },
+  "must_not": [
+    "W014"
+  ],
+  "oracle": "skip",
+  "rules": [
+    "W001"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "config": {},
+  "description": "REM and :: lines that a caret joined after && and || are remarks, so their pause does not count",
+  "lines": {
+    "6": [
+      "S016"
+    ],
+    "7": [
+      "W001",
+      "W014"
+    ]
+  },
+  "must_not": [],
+  "oracle": "skip",
+  "rules": [
+    "S016",
+    "W001",
+    "W014"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}

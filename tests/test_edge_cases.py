@@ -57,6 +57,10 @@ from blinter.checkers.globals import (
     _check_unreachable_code,
 )
 from blinter.checkers.globals.exit_flow import _check_missing_exit_statement
+from blinter.checkers.globals.label_flow import (
+    _continuation_mask,
+    _continued_line_starts_command,
+)
 from blinter.checkers.line_endings import _check_line_ending_rules
 from blinter.checkers.performance import (
     _check_performance_issues,
@@ -815,108 +819,48 @@ class TestGlobalFunctionChecking:
         issues = _check_missing_pause(lines)
         assert len(issues) == 0
 
-    @pytest.mark.parametrize("remark", ["rem text & pause", ":: text & pause"])
-    def test_check_missing_pause_keeps_pause_on_caret_continued_remark(
-        self, remark: str
-    ) -> None:
-        """A caret joins the REM or :: line to ECHO, so the pause after & runs."""
-        lines = [
-            "set /p answer=Continue?",
-            "echo note ^",
-            remark,
-            "echo Done",
-        ]
+    def test_continued_line_boundary_needs_a_caret_joined_line(self) -> None:
+        """A line that no caret joined never starts a continued command."""
+        lines = ["echo note &", "rem pause"]
+        mask = _continuation_mask(lines)
 
-        assert not _check_missing_pause(lines)
+        assert not mask[1]
+        assert not _continued_line_starts_command(lines, 1, mask)
 
-    @pytest.mark.parametrize("separator", ["&", "&&", "||"])
-    @pytest.mark.parametrize("remark", ["rem pause", ":: timeout /t 5"])
-    def test_check_missing_pause_ignores_remark_joined_after_separator(
-        self, separator: str, remark: str
-    ) -> None:
-        """A REM or :: line a caret joined after a separator is a real remark."""
-        lines = [
-            "set /p answer=Continue?",
-            f"echo note {separator} ^",
-            remark,
-            "echo Done",
-        ]
+    def test_continued_line_boundary_rereads_a_short_chain(self) -> None:
+        """Text joined before the line is read, however many lines it spans."""
+        lines = ["echo note ^", "more & ^", "rem pause"]
+        mask = _continuation_mask(lines)
 
-        issues = _check_missing_pause(lines)
-        assert [issue.rule.code for issue in issues] == ["W014"]
+        assert mask[2]
+        assert _continued_line_starts_command(lines, 2, mask)
 
-    def test_check_missing_pause_keeps_indented_line_joined_after_separator(
+    def test_continued_line_boundary_stops_rereading_past_line_limit(self) -> None:
+        """Joined text past the line limit is not reread, so the line stays code."""
+        filler = "echo " + "x" * (MAX_LINE_LENGTH // 2) + " ^"
+        lines = ["echo note & ^", filler, filler, filler, "rem pause"]
+        mask = _continuation_mask(lines)
+        last = len(lines) - 1
+
+        assert mask[last]
+        assert not _continued_line_starts_command(lines, last, mask)
+
+    def test_continued_line_boundary_reads_a_backtick_as_text_without_for(
         self,
     ) -> None:
-        """The caret escapes a leading space, so that line is not a REM command."""
-        lines = [
-            "set /p answer=Continue?",
-            "echo note & ^",
-            "  rem & pause",
-            "echo Done",
-        ]
+        """A backtick quotes only in FOR /F usebackq, so it must not hide a separator."""
+        lines = ["echo `note & ^", "rem pause"]
+        mask = _continuation_mask(lines)
 
-        assert not _check_missing_pause(lines)
+        assert _continued_line_starts_command(lines, 1, mask)
 
-    def test_check_missing_pause_keeps_escaped_separator_in_joined_text(self) -> None:
-        """An ampersand a caret escapes on a joined line does not end the command."""
-        lines = [
-            "set /p answer=Continue?",
-            "echo note ^",
-            "& ^",
-            "rem & pause",
-            "echo Done",
-        ]
+    def test_continued_line_boundary_keeps_a_backtick_quote_in_for(self) -> None:
+        """Inside a FOR command a backtick quotes, so its & is not a separator."""
+        lines = ['for /f "usebackq" %%i in (`echo a & ^', "rem pause"]
+        mask = _continuation_mask(lines)
 
-        assert not _check_missing_pause(lines)
-
-    def test_check_missing_pause_remark_after_separator_in_long_chain(self) -> None:
-        """A joined command past the line limit is not reread and stays code."""
-        filler = "echo " + "x" * 4000 + " ^"
-        lines = [
-            "set /p answer=Continue?",
-            "echo note & ^",
-            filler,
-            filler,
-            filler,
-            "rem pause",
-            "echo Done",
-        ]
-
-        assert not _check_missing_pause(lines)
-
-    def test_check_missing_pause_ignores_pause_in_leading_remarks(self) -> None:
-        """REM and :: lines that open a command are remarks, not a pause."""
-        lines = [
-            "set /p answer=Continue?",
-            "rem pause is not used here.",
-            ":: timeout /t 5 is not used either.",
-            "echo Done",
-        ]
-
-        issues = _check_missing_pause(lines)
-        assert [issue.rule.code for issue in issues] == ["W014"]
-        assert issues[0].line_number == 4
-
-    def test_check_missing_pause_ignores_set_p_in_leading_remarks(self) -> None:
-        """A remark that names set /p or choice is not a prompt."""
-        lines = [
-            "rem set /p answer=Continue?",
-            ":: choice /c yn",
-            "echo Done",
-        ]
-
-        assert not _check_missing_pause(lines)
-
-    def test_check_missing_pause_rem_caret_does_not_join_next_line(self) -> None:
-        """A caret ending a REM remark does not continue it, so the next line is code."""
-        remark_then_prompt = ["rem note ^", "set /p answer=Continue?", "echo Done"]
-        remark_naming_prompt = ["rem set /p answer=Continue? ^", "echo Done"]
-
-        assert [i.rule.code for i in _check_missing_pause(remark_then_prompt)] == [
-            "W014"
-        ]
-        assert not _check_missing_pause(remark_naming_prompt)
+        assert mask[1]
+        assert not _continued_line_starts_command(lines, 1, mask)
 
     def test_check_inconsistent_indentation_block_style(self) -> None:
         """Tab plus single space before commands is standard block indentation."""

@@ -34,6 +34,7 @@ _COMPUTED_JUMP_RE = re.compile(
     re.IGNORECASE,
 )
 _FOR_COMMAND_RE = re.compile(r"^for\b", re.IGNORECASE)
+_FOR_WORD_RE = re.compile(r"\bfor\b", re.IGNORECASE)
 
 
 def _is_name_char(char: str) -> bool:
@@ -311,7 +312,9 @@ def _continued_line_starts_command(
     ``||``: ``echo hi & ^`` followed by ``rem pause`` is a real remark. A line that opens with a space or tab does not begin one, because
     the caret escapes that character and it becomes part of the command name.
     Joined text past ``MAX_LINE_LENGTH`` is not reread, so a long caret chain
-    stays linear and the line is treated as a continuation.
+    stays linear and the line is treated as a continuation. A backtick quotes
+    only in ``FOR /F "usebackq"``, so without a FOR it is ordinary text and
+    must not hide a separator.
     """
     if not continued[index] or lines[index][:1] in {" ", "\t"}:
         return False
@@ -331,6 +334,8 @@ def _continued_line_starts_command(
             break
         cursor -= 1
     prefix = "".join(reversed(pieces))
+    if "`" in prefix and _FOR_WORD_RE.search(prefix) is None:
+        prefix = prefix.replace("`", "X")
     return not _command_chain(prefix)[-1][1].strip()
 
 

@@ -846,8 +846,13 @@ entries:
   - integration/w014-missing-pause
   - syntax/w014-setp-from-file-valid
   - syntax/w014-pause-in-comment
+  - syntax/w014-pause-in-continued-colon-remark-valid
   - syntax/w014-pause-in-continued-remark-valid
+  - syntax/w014-pause-in-indented-continued-remark-valid
+  - syntax/w014-pause-in-remark-after-backtick-text
+  - syntax/w014-pause-in-remark-after-escaped-separator-valid
   - syntax/w014-pause-in-remark-after-separator
+  - syntax/w014-pause-in-remarks-after-and-or
   - syntax/w014-prompt-in-comment-valid
   - syntax/w026-inefficient-modifiers
   - syntax/w027-interpreter-diff

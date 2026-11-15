@@ -1,0 +1,23 @@
+{
+  "config": {},
+  "description": "a pause after & on a :: line that a caret joined to ECHO still runs",
+  "lines": {
+    "4": [
+      "S016"
+    ],
+    "5": [
+      "W001"
+    ]
+  },
+  "must_not": [
+    "W014"
+  ],
+  "oracle": "skip",
+  "rules": [
+    "S016",
+    "W001"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}
