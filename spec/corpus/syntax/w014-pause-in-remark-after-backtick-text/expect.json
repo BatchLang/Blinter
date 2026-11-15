@@ -1,0 +1,19 @@
+{
+  "config": {},
+  "description": "a backtick in ECHO text does not hide the & before a joined REM line, so its pause does not count",
+  "lines": {
+    "5": [
+      "W001",
+      "W014"
+    ]
+  },
+  "must_not": [],
+  "oracle": "skip",
+  "rules": [
+    "W001",
+    "W014"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}
