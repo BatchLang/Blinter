@@ -1,0 +1,14 @@
+{
+  "config": {},
+  "description": "DEL of a path can delete a file of that name, so an IF EXIST without a trailing backslash after it checks the result, even after a check with one (P001 negative)",
+  "lines": {},
+  "must_not": [
+    "P001",
+    "P017"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

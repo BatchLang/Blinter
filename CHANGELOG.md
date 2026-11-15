@@ -4,6 +4,10 @@ All notable changes to Blinter are documented in this file. Release tags follow 
 
 ## [Unreleased]
 
+### Fixed
+
+- P001 and P017 no longer count a `del` or `erase` of a path as removing it before a later `IF EXIST` check whose path ends in `\`, such as `if exist out\` after `del /q out`. That check is true only for a folder, which `del` and `erase` leave in place
+
 ## [1.1.72] - 2026-11-14
 
 ### Fixed
