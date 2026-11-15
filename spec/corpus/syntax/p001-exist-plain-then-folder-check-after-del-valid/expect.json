@@ -1,0 +1,14 @@
+{
+  "config": {},
+  "description": "A plain IF EXIST is true for a file or a folder and a trailing-backslash IF EXIST only for a folder, so the two results can differ when a DEL of that path comes between them and the later check is not a repeat (P001 negative)",
+  "lines": {},
+  "must_not": [
+    "P001",
+    "P017"
+  ],
+  "oracle": "skip",
+  "rules": [],
+  "tags": [
+    "syntax"
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "config": {},
+  "description": "DEL of a path leaves the folder that a trailing-backslash IF EXIST tests, so three such checks with a DEL between the first two keep P001 and P017",
+  "lines": {
+    "2": [
+      "P017"
+    ],
+    "4": [
+      "P001",
+      "P017"
+    ],
+    "5": [
+      "P001",
+      "P017"
+    ]
+  },
+  "must_not": [],
+  "oracle": "skip",
+  "rules": [
+    "P001",
+    "P017"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}
