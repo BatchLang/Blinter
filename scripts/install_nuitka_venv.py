@@ -13,7 +13,7 @@ _ROOT = Path(__file__).resolve().parent.parent
 _COMMANDS: tuple[tuple[str, ...], ...] = (
     ("uv", "venv", "venv", "--python", "3.14"),
     ("uv", "pip", "install", "--python", "venv", "setuptools==84.2.1"),
-    ("uv", "pip", "install", "--python", "venv", "nuitka==4.3.4"),
+    ("uv", "pip", "install", "--python", "venv", "nuitka==4.3.5"),
     (
         "uv",
         "pip",
