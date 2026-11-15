@@ -769,6 +769,11 @@ def _outside_exist_else(
     return kept[first - begin :]
 
 
+def _is_folder_check(line: str) -> bool:
+    """True when ``line`` is an IF EXIST whose path ends in ``\\``."""
+    return _if_exist_operand_text(line.strip().lower()).endswith("\\")
+
+
 def _path_removed_between(
     lines: List[str], first: int, last: int, operand: str
 ) -> bool:
@@ -779,11 +784,13 @@ def _path_removed_between(
     of an IF EXIST of ``operand`` runs only when the path is absent, so a
     removal there does not count (``_outside_exist_else``), on any line.
 
-    ``last`` is the later check. Where its path ends in ``\\``, as in
-    ``if exist out\\``, it is true only for a folder, which DEL and ERASE
-    only empty, so a DEL or ERASE before it does not count.
+    ``first`` and ``last`` are the two checks. Where both paths end in ``\\``,
+    as in ``if exist out\\``, each is true only for a folder, which DEL and
+    ERASE only empty, so a DEL or ERASE between them does not count. A plain
+    check on either side can be true for a file that DEL removes, so the two
+    results can differ and a DEL between them counts.
     """
-    folder = _if_exist_operand_text(lines[last].strip().lower()).endswith("\\")
+    folder = _is_folder_check(lines[first]) and _is_folder_check(lines[last])
     if not any(_line_removes(line, operand, folder) for line in lines[first:last]):
         return False
     return any(

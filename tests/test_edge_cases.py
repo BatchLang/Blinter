@@ -3121,6 +3121,22 @@ class TestGlobalChecks:
         issues = _check_redundant_operations(lines)
         assert [i.line_number for i in issues if i.rule.code == "P001"] == reported
 
+    @pytest.mark.parametrize(
+        ("command", "removed"),
+        [
+            ("del out", []),
+            ("erase /q out", []),
+            ("rd /s /q out", ["out"]),
+            ("rmdir out\\", ["out"]),
+            ("move out other", ["out"]),
+        ],
+    )
+    def test_removed_paths_for_folder_check(
+        self, command: str, removed: list[str]
+    ) -> None:
+        """A folder check ignores DEL and ERASE, and still counts RD and MOVE."""
+        assert _removed_paths(command, folder=True) == removed
+
     def test_check_code_duplication(self) -> None:
         """Test code duplication detection."""
         # Code duplication needs 3+ similar commands AND normalized length > 20

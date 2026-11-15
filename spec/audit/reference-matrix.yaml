@@ -703,6 +703,9 @@ entries:
   - syntax/p001-exist-after-dir-contents-delete
   - syntax/p001-exist-folder-check-after-del
   - syntax/p001-exist-folder-check-after-del-valid
+  - syntax/p001-exist-mixed-folder-check-after-del-valid
+  - syntax/p017-exist-folder-check-after-del
+  - syntax/p017-exist-plain-then-folder-check-after-del
 - construct: Global style conventions and readability
   sources:
   - Community batch style

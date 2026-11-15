@@ -1,0 +1,19 @@
+{
+  "config": {},
+  "description": "A plain IF EXIST, a DEL, then two trailing-backslash IF EXIST checks of that path: the DEL separates the plain check from the folder checks, so only the second folder check is a repeat (P001) and no path is checked often enough for P017",
+  "lines": {
+    "5": [
+      "P001"
+    ]
+  },
+  "must_not": [
+    "P017"
+  ],
+  "oracle": "skip",
+  "rules": [
+    "P001"
+  ],
+  "tags": [
+    "syntax"
+  ]
+}
