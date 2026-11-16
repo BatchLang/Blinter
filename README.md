@@ -524,7 +524,7 @@ Details that matter in CI:
 - With the default text output, a run where every file fails to read exits 1 without writing a JSON or SARIF document. Use `--format json` or `--format sarif` when a pipeline needs a report even for failed runs. A SARIF report from a run that skipped files records them as error notifications and sets `executionSuccessful` to `false`.
 - Stale baseline entries exit 1 but are not part of the SARIF output. Read them from the text or JSON report.
 
-**Special thanks go out to [BrainWaveCC](https://github.com/BrainWaveCC) for all the help bug hunting.**
+**Special thanks go out to [BrainWaveCC](https://github.com/BrainWaveCC) & [fametrano](https://github.com/fametrano) for all the help bug hunting.**
 
 ## License 📄
 
